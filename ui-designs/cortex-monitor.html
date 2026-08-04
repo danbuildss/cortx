@@ -1,0 +1,1191 @@
+<title>CORTEX Monitor — x402 Service Intelligence</title>
+<style>
+/* ─── TOKENS ─────────────────────────────────────────── */
+:root {
+  --bg:   #0B0C11;
+  --bg1:  #13141C;
+  --bg2:  #1C1D28;
+  --bg3:  #252633;
+  --bd:   #2C2D3C;
+  --bd2:  #3E4056;
+  --t1:   #F5F5F8;
+  --t2:   #A0A1B4;
+  --t3:   #575870;
+  --grn:  #22C55E;
+  --gd:   rgba(34,197,94,.12);
+  --amb:  #F59E0B;
+  --ad:   rgba(245,158,11,.12);
+  --red:  #EF4444;
+  --rd:   rgba(239,68,68,.12);
+  --acc:  #6366F1;
+  --acd:  rgba(99,102,241,.14);
+  --sans: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --mono: 'SFMono-Regular','Cascadia Code','Fira Code',Consolas,monospace;
+  --r:    6px;
+  --r2:   10px;
+  --nav:  224px;
+}
+
+/* ─── RESET ──────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--sans);background:var(--bg);color:var(--t1);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;}
+a{color:inherit;text-decoration:none;}
+button{font-family:var(--sans);cursor:pointer;}
+input,select,textarea{font-family:var(--sans);}
+.hidden{display:none!important;}
+
+/* ─── BUTTONS ────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--r);font-size:13px;font-weight:500;border:none;transition:background .12s,opacity .12s;white-space:nowrap;cursor:pointer;}
+.btn-primary{background:var(--t1);color:#0B0C11;}
+.btn-primary:hover{background:#E4E4E7;}
+.btn-acc{background:var(--acc);color:#fff;}
+.btn-acc:hover{background:#4F51E8;}
+.btn-ghost{background:transparent;color:var(--t2);border:1px solid var(--bd2);}
+.btn-ghost:hover{border-color:var(--t3);color:var(--t1);}
+.btn-sm{padding:5px 12px;font-size:12px;}
+
+/* ─── BADGES ─────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.05em;padding:3px 8px;border-radius:4px;text-transform:uppercase;font-family:var(--mono);}
+.badge-ok{background:var(--gd);color:var(--grn);border:1px solid rgba(34,197,94,.22);}
+.badge-deg{background:var(--ad);color:var(--amb);border:1px solid rgba(245,158,11,.22);}
+.badge-crit{background:var(--rd);color:var(--red);border:1px solid rgba(239,68,68,.22);}
+.badge-inv{background:var(--acd);color:var(--acc);border:1px solid rgba(99,102,241,.22);}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+
+/* ─── SIDEBAR ────────────────────────────────────────── */
+.sidebar{width:var(--nav);flex-shrink:0;background:var(--bg1);border-right:1px solid var(--bd);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;}
+.sidebar-logo{padding:0 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bd);height:60px;flex-shrink:0;}
+.logo-mark{width:28px;height:28px;background:var(--t1);border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--bg);letter-spacing:-.5px;flex-shrink:0;}
+.logo-name{font-size:14px;font-weight:600;letter-spacing:-.02em;flex:1;}
+.logo-badge{font-size:9px;background:var(--acd);color:var(--acc);border-radius:3px;padding:1px 5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-family:var(--mono);border:1px solid rgba(99,102,241,.2);}
+.nav{flex:1;padding:12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}
+.nav-section{font-size:10.5px;font-weight:600;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;padding:12px 8px 4px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r);color:var(--t2);font-size:13px;font-weight:500;cursor:pointer;transition:background .1s,color .1s;border:none;background:none;width:100%;text-align:left;}
+.nav-item:hover{background:var(--bg2);color:var(--t1);}
+.nav-item.active{background:var(--bg3);color:var(--t1);border:1px solid var(--bd2);}
+.nav-item svg{flex-shrink:0;opacity:.6;}
+.nav-item.active svg{opacity:1;}
+.nav-badge{margin-left:auto;background:var(--rd);color:var(--red);font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--mono);border:1px solid rgba(239,68,68,.25);}
+.sidebar-footer{padding:12px 14px;border-top:1px solid var(--bd);background:var(--bg);flex-shrink:0;}
+.sidebar-org{display:flex;align-items:center;gap:10px;}
+.org-avatar{width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--t1);border:1.5px solid var(--bd2);flex-shrink:0;}
+.online-dot{width:7px;height:7px;border-radius:50%;background:var(--grn);box-shadow:0 0 6px var(--grn);flex-shrink:0;}
+
+/* ─── APP MAIN ───────────────────────────────────────── */
+#app{display:flex;min-height:100vh;}
+.main{flex:1;margin-left:var(--nav);min-height:100vh;display:flex;flex-direction:column;}
+.main-hdr{padding:0 28px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:12px;height:60px;background:var(--bg1);position:sticky;top:0;z-index:50;flex-shrink:0;}
+.breadcrumb{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2);flex:1;}
+.breadcrumb-sep{color:var(--t3);}
+.breadcrumb-cur{color:var(--t1);font-weight:500;}
+.hdr-pip{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--amb);font-family:var(--mono);background:var(--ad);border:1px solid rgba(245,158,11,.2);border-radius:4px;padding:3px 8px;}
+.main-actions{display:flex;gap:8px;align-items:center;}
+.main-content{padding:28px;flex:1;max-width:1100px;}
+
+/* ─── METRIC CARDS ───────────────────────────────────── */
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+.metric-card{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r2);padding:20px 22px;position:relative;overflow:hidden;}
+.metric-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--bd2);border-radius:var(--r2) 0 0 var(--r2);}
+.metric-card.ok::before{background:var(--grn);}
+.metric-card.deg::before{background:var(--amb);}
+.metric-card.crit::before{background:var(--red);}
+.metric-label{font-size:12px;color:var(--t2);font-weight:500;margin-bottom:8px;}
+.metric-value{font-size:26px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;}
+.metric-value.ok{color:var(--grn);}
+.metric-value.deg{color:var(--amb);}
+.metric-value.crit{color:var(--red);}
+.metric-sub{font-size:11px;color:var(--t3);margin-top:6px;font-family:var(--mono);}
+
+/* ─── CARDS ──────────────────────────────────────────── */
+.card{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r2);overflow:hidden;}
+.card-header{padding:13px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;background:var(--bg2);}
+.card-title{font-size:13px;font-weight:600;flex:1;}
+.card-body{padding:20px;}
+
+/* ─── SERVICE LIST ───────────────────────────────────── */
+.svc-head{display:grid;grid-template-columns:1fr 110px 80px 70px 90px;padding:8px 20px;gap:12px;border-bottom:1px solid var(--bd);background:var(--bg2);}
+.svc-head span{font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;}
+.svc-row{display:grid;grid-template-columns:1fr 110px 80px 70px 90px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--bd);gap:12px;cursor:pointer;transition:background .1s;}
+.svc-row:last-child{border-bottom:none;}
+.svc-row:hover{background:var(--bg2);}
+.svc-name strong{font-size:13.5px;font-weight:500;display:block;}
+.svc-name code{font-family:var(--mono);font-size:11px;color:var(--t3);}
+.col-num{font-size:13px;font-variant-numeric:tabular-nums;}
+
+/* ─── INCIDENT LIST ──────────────────────────────────── */
+.inc-row{display:flex;align-items:flex-start;gap:14px;padding:14px 20px;border-bottom:1px solid var(--bd);cursor:pointer;transition:background .1s;}
+.inc-row:last-child{border-bottom:none;}
+.inc-row:hover{background:var(--bg2);}
+.inc-icon{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;font-size:14px;}
+.inc-icon.crit{background:var(--rd);color:var(--red);border:1px solid rgba(239,68,68,.25);}
+.inc-icon.deg{background:var(--ad);color:var(--amb);border:1px solid rgba(245,158,11,.25);}
+.inc-icon.res{background:var(--bg3);color:var(--t3);border:1px solid var(--bd);}
+.inc-body{flex:1;}
+.inc-title{font-size:13.5px;font-weight:500;}
+.inc-meta{font-size:11.5px;color:var(--t2);margin-top:3px;font-family:var(--mono);}
+.inc-time{font-size:11px;color:var(--t3);white-space:nowrap;font-family:var(--mono);}
+
+/* ─── HEALTH JOURNEY ─────────────────────────────────── */
+.journey-wrap{padding:28px 24px 24px;}
+.journey{display:grid;grid-template-columns:repeat(4,1fr);position:relative;}
+.journey-rail{position:absolute;top:20px;left:calc(12.5% + 14px);right:calc(12.5% + 14px);height:1px;background:var(--bd2);z-index:0;}
+.journey-node{display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:1;}
+.journey-icon{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--bd2);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:16px;}
+.journey-icon.ok{border-color:var(--grn);background:var(--gd);}
+.journey-icon.fail{border-color:var(--red);background:var(--rd);}
+.journey-lbl{font-size:12px;font-weight:600;}
+.journey-sub{font-size:11px;color:var(--t2);text-align:center;font-family:var(--mono);}
+.jnode-ok .journey-lbl{color:var(--grn);}
+.jnode-fail .journey-lbl{color:var(--red);}
+.jnode-pend .journey-lbl{color:var(--t3);}
+
+/* ─── TERMINAL ───────────────────────────────────────── */
+.terminal{background:#07080E;border:1px solid #1E1F2E;border-radius:var(--r2);overflow:hidden;}
+.terminal-bar{background:#0E0F18;padding:10px 14px;border-bottom:1px solid #1E1F2E;display:flex;align-items:center;gap:8px;}
+.tbar-dots{display:flex;gap:6px;}
+.tbar-dot{width:11px;height:11px;border-radius:50%;}
+.tbar-dot.r{background:#FF5F57;}
+.tbar-dot.y{background:#FEBC2E;}
+.tbar-dot.g{background:#28C840;}
+.tbar-title{flex:1;text-align:center;font-size:11px;color:#575870;font-family:var(--mono);}
+.terminal-body{padding:16px 18px;font-family:var(--mono);font-size:12.5px;line-height:2;}
+.log-line{display:flex;gap:14px;}
+.log-ts{color:#575870;flex-shrink:0;user-select:none;}
+.log-ok{color:#22C55E;}
+.log-err{color:#EF4444;}
+.log-warn{color:#F59E0B;}
+.log-info{color:#A0A1B4;}
+
+/* ─── TABS ───────────────────────────────────────────── */
+.tabs{display:flex;border-bottom:1px solid var(--bd);padding:0 4px;background:var(--bg2);}
+.tab-btn{padding:11px 16px;font-size:13px;font-weight:500;color:var(--t2);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .1s,border-color .1s;}
+.tab-btn.active{color:var(--t1);border-bottom-color:var(--acc);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* ─── CODE / JSON ────────────────────────────────────── */
+.code-block{background:#07080E;border:1px solid #1E1F2E;border-radius:var(--r);padding:14px 16px;font-family:var(--mono);font-size:12.5px;line-height:1.85;overflow-x:auto;}
+.jk{color:#93C5FD;}
+.js{color:#86EFAC;}
+.jn{color:#FCD34D;}
+.je{color:#FCA5A5;}
+
+/* ─── CHART ──────────────────────────────────────────── */
+canvas{display:block;width:100%;}
+
+/* ─── TEST TABLE ─────────────────────────────────────── */
+.filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.chip{padding:5px 12px;border-radius:20px;border:1px solid var(--bd);background:var(--bg2);color:var(--t2);font-size:12px;cursor:pointer;transition:all .1s;font-family:var(--sans);}
+.chip.active{border-color:var(--bd2);color:var(--t1);background:var(--bg3);}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl th{text-align:left;padding:8px 12px;font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--bd);background:var(--bg2);}
+.tbl td{padding:11px 12px;border-bottom:1px solid var(--bd);font-variant-numeric:tabular-nums;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tbody tr:hover td{background:var(--bg2);}
+.mono{font-family:var(--mono);}
+
+/* ─── ALERTS ─────────────────────────────────────────── */
+.alert-rule{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r2);overflow:hidden;margin-bottom:12px;display:flex;}
+.alert-rule-side{width:4px;flex-shrink:0;background:var(--grn);}
+.alert-rule-body{flex:1;padding:18px 20px;display:flex;align-items:flex-start;gap:16px;}
+.alert-rule-info{flex:1;}
+.alert-rule-name{font-size:14px;font-weight:600;margin-bottom:4px;}
+.alert-rule-desc{font-size:12.5px;color:var(--t2);line-height:1.6;}
+.toggle{width:36px;height:20px;border-radius:10px;background:var(--bd2);position:relative;cursor:pointer;flex-shrink:0;transition:background .15s;border:none;margin-top:2px;}
+.toggle::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:3px;left:3px;transition:left .15s;}
+.toggle.on{background:var(--grn);}
+.toggle.on::after{left:19px;}
+
+/* ─── ONBOARDING ─────────────────────────────────────── */
+.onboard-wrap{max-width:520px;margin:0 auto;padding:60px 24px;}
+.step-dots{display:flex;gap:6px;margin-bottom:40px;}
+.sdot{width:6px;height:6px;border-radius:50%;background:var(--bd2);transition:background .2s,width .2s;}
+.sdot.done{background:var(--grn);}
+.sdot.active{width:22px;border-radius:3px;background:var(--t1);}
+.onboard-step{display:none;}
+.onboard-step.active{display:block;}
+.step-eyebrow{font-size:11px;color:var(--acc);font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-family:var(--mono);margin-bottom:10px;}
+.step-heading{font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1.2;margin-bottom:10px;}
+.step-body{font-size:14px;color:var(--t2);line-height:1.7;margin-bottom:28px;}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.field label{font-size:12px;color:var(--t2);font-weight:500;}
+.field input,.field select{background:var(--bg2);border:1px solid var(--bd2);color:var(--t1);border-radius:var(--r);padding:9px 12px;font-size:13.5px;outline:none;transition:border-color .15s;}
+.field input:focus,.field select:focus{border-color:var(--acc);}
+.field textarea{background:var(--bg2);border:1px solid var(--bd2);color:var(--t1);border-radius:var(--r);padding:10px 12px;font-size:12px;resize:vertical;min-height:100px;outline:none;font-family:var(--mono);transition:border-color .15s;}
+.field textarea:focus{border-color:var(--acc);}
+
+/* ─── LANDING ────────────────────────────────────────── */
+#landing{min-height:100vh;display:flex;flex-direction:column;}
+.land-nav{padding:0 40px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bd);height:64px;background:var(--bg1);position:sticky;top:0;z-index:50;}
+.land-nav-right{margin-left:auto;display:flex;gap:8px;align-items:center;}
+.land-hero{max-width:760px;margin:0 auto;padding:88px 40px 60px;text-align:center;}
+.land-eyebrow{display:inline-flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--bd2);border-radius:20px;padding:5px 14px 5px 10px;font-size:12px;color:var(--t2);margin-bottom:28px;font-family:var(--mono);}
+.land-eyebrow .dot{background:var(--grn);width:7px;height:7px;}
+.land-h1{font-size:50px;font-weight:800;letter-spacing:-.04em;line-height:1.1;margin-bottom:18px;}
+.land-h1 em{font-style:normal;color:var(--t2);}
+.land-sub{font-size:17px;color:var(--t2);line-height:1.65;max-width:500px;margin:0 auto 36px;}
+.land-cta{display:flex;justify-content:center;gap:12px;margin-bottom:64px;}
+
+/* demo split */
+.demo-split{max-width:920px;margin:0 auto 60px;display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 40px;align-items:start;}
+.demo-card{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r2);overflow:hidden;}
+.demo-card-head{padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;background:var(--bg2);}
+.demo-card-title{font-size:12px;color:var(--t2);font-weight:500;flex:1;}
+.mini-metrics{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--bd);border-bottom:1px solid var(--bd);}
+.mini-metric{background:var(--bg1);padding:14px 16px;}
+.mini-label{font-size:11px;color:var(--t3);margin-bottom:4px;}
+.mini-val{font-size:20px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+.mini-val.ok{color:var(--grn);}
+.mini-val.deg{color:var(--amb);}
+
+/* features */
+.features{max-width:900px;margin:0 auto;padding:0 40px 80px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.feature{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r2);padding:20px;}
+.feature-icon{font-size:18px;margin-bottom:12px;}
+.feature-title{font-size:13.5px;font-weight:600;margin-bottom:6px;}
+.feature-desc{font-size:13px;color:var(--t2);line-height:1.6;}
+
+/* status page */
+#status-page{min-height:100vh;background:var(--bg);}
+.status-nav{padding:0 40px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;height:64px;background:var(--bg1);}
+.status-hero{max-width:680px;margin:0 auto;padding:56px 24px 36px;text-align:center;}
+.big-status{display:inline-flex;align-items:center;gap:10px;font-size:22px;font-weight:700;}
+.big-dot{width:12px;height:12px;border-radius:50%;background:var(--grn);}
+.big-dot.deg{background:var(--amb);}
+.status-checks{max-width:680px;margin:0 auto;padding:0 24px 60px;display:flex;flex-direction:column;gap:10px;}
+.status-check{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r2);padding:16px 20px;display:flex;align-items:center;gap:14px;}
+.sc-info{flex:1;}
+.sc-name{font-size:13.5px;font-weight:500;}
+.sc-url{font-size:11.5px;color:var(--t3);font-family:var(--mono);margin-top:2px;}
+
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.pulse{animation:pulse 2s ease-in-out infinite;}
+</style>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- LANDING                                                  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="landing">
+  <nav class="land-nav">
+    <div class="logo-mark">CX</div>
+    <div class="logo-name">CORTEX</div>
+    <div class="logo-badge">Monitor</div>
+    <div class="land-nav-right">
+      <button class="btn btn-ghost btn-sm" onclick="showApp('overview')">Sign in</button>
+      <button class="btn btn-acc btn-sm" onclick="showApp('onboard')">Get started</button>
+    </div>
+  </nav>
+
+  <div class="land-hero">
+    <div class="land-eyebrow"><span class="dot"></span> Monitoring x402 endpoints on Base</div>
+    <h1 class="land-h1">Know exactly what<br><em>broke</em> in your paid API</h1>
+    <p class="land-sub">CORTEX probes your Bankr x402 endpoints end-to-end — reachability, payment, execution, schema — and opens an incident the moment any phase fails.</p>
+    <div class="land-cta">
+      <button class="btn btn-acc" onclick="showApp('onboard')">Add an endpoint</button>
+      <button class="btn btn-ghost" onclick="showApp('overview')">View demo dashboard</button>
+    </div>
+  </div>
+
+  <div class="demo-split">
+    <!-- Left: metrics + terminal log -->
+    <div class="demo-card">
+      <div class="demo-card-head">
+        <div class="demo-card-title">flash-price.bankr.io / v1/price</div>
+        <span class="badge badge-deg"><span class="dot"></span> Degraded</span>
+      </div>
+      <div class="mini-metrics">
+        <div class="mini-metric"><div class="mini-label">Service Status</div><div class="mini-val deg">Degraded</div></div>
+        <div class="mini-metric"><div class="mini-label">Paid Delivery</div><div class="mini-val deg">93.2%</div></div>
+        <div class="mini-metric"><div class="mini-label">Schema Validity</div><div class="mini-val deg">88.4%</div></div>
+        <div class="mini-metric"><div class="mini-label">Median Latency</div><div class="mini-val">1.4s</div></div>
+      </div>
+      <div class="terminal" style="border:none;border-radius:0;">
+        <div class="terminal-bar">
+          <div class="tbar-dots"><div class="tbar-dot r"></div><div class="tbar-dot y"></div><div class="tbar-dot g"></div></div>
+          <div class="tbar-title">cortex-monitor · live test</div>
+        </div>
+        <div class="terminal-body" id="demoLog"></div>
+      </div>
+    </div>
+
+    <!-- Right: health journey + mini features -->
+    <div class="demo-card">
+      <div class="demo-card-head"><div class="demo-card-title">Health Journey — run_8f2a</div></div>
+      <div class="journey-wrap" style="padding:22px 14px 18px">
+        <div class="journey">
+          <div class="journey-rail"></div>
+          <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Available</div><div class="journey-sub">212ms</div></div>
+          <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Payment</div><div class="journey-sub">0.05 USDC</div></div>
+          <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Execution</div><div class="journey-sub">823ms</div></div>
+          <div class="journey-node jnode-fail"><div class="journey-icon fail">✗</div><div class="journey-lbl">Schema</div><div class="journey-sub">null field</div></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--bd);border-top:1px solid var(--bd);">
+        <div style="background:var(--bg1);padding:16px;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">💳 Payment proof</div>
+          <div style="font-size:12px;color:var(--t2);">Capture tx receipt and settle time on every run</div>
+        </div>
+        <div style="background:var(--bg1);padding:16px;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">🔍 Schema diff</div>
+          <div style="font-size:12px;color:var(--t2);">Field-level mismatch on every test response</div>
+        </div>
+        <div style="background:var(--bg1);padding:16px;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">🔔 Smart alerts</div>
+          <div style="font-size:12px;color:var(--t2);">Slack, webhook, email the moment a phase fails</div>
+        </div>
+        <div style="background:var(--bg1);padding:16px;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">📡 Agent API</div>
+          <div style="font-size:12px;color:var(--t2);">MCP-compatible status endpoint for Claude agents</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon">🧪</div>
+      <div class="feature-title">End-to-end test probes</div>
+      <div class="feature-desc">Every test runs the full x402 handshake — not just a ping. We pay, execute, and validate the schema before marking a check as passing.</div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🧾</div>
+      <div class="feature-title">Immutable evidence</div>
+      <div class="feature-desc">Every incident includes the full request, response, payment receipt, and schema diff. No guessing what happened.</div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-title">30-second setup</div>
+      <div class="feature-desc">Paste your endpoint URL, paste your expected schema, pick a check interval. CORTEX handles the rest.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- APP SHELL                                               -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="app" class="hidden">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">CX</div>
+      <div class="logo-name">CORTEX</div>
+      <div class="logo-badge">Monitor</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Monitoring</div>
+      <button class="nav-item" onclick="showView('overview')" id="nav-overview">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
+      </button>
+      <button class="nav-item" onclick="showView('service')" id="nav-service">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        Service Detail
+      </button>
+      <button class="nav-item" onclick="showView('incidents')" id="nav-incidents">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Incidents
+        <span class="nav-badge">2</span>
+      </button>
+      <button class="nav-item" onclick="showView('history')" id="nav-history">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Test History
+      </button>
+      <div class="nav-section">Configuration</div>
+      <button class="nav-item" onclick="showView('alerts')" id="nav-alerts">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+        Alerts
+      </button>
+      <button class="nav-item" onclick="showStatus()" id="nav-status">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Status Page
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-org">
+        <div class="org-avatar">DB</div>
+        <div style="flex:1">
+          <div style="font-size:12.5px;font-weight:500;">Dan B.</div>
+          <div style="font-size:11px;color:var(--t3);font-family:var(--mono);">Pro plan</div>
+        </div>
+        <div class="online-dot pulse"></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ─────────────────── OVERVIEW ─────────────────── -->
+    <div id="view-overview" class="hidden">
+      <div class="main-hdr">
+        <div class="breadcrumb"><span class="breadcrumb-cur">Overview</span></div>
+        <div class="hdr-pip"><span class="dot" style="background:var(--amb);"></span> 1 degraded</div>
+        <div class="main-actions">
+          <button class="btn btn-acc btn-sm" onclick="showApp('onboard')">+ Add endpoint</button>
+        </div>
+      </div>
+      <div class="main-content">
+        <div class="metric-grid">
+          <div class="metric-card deg">
+            <div class="metric-label">Overall Status</div>
+            <div class="metric-value deg">Degraded</div>
+            <div class="metric-sub">1 of 3 services affected</div>
+          </div>
+          <div class="metric-card deg">
+            <div class="metric-label">Paid Delivery (24h)</div>
+            <div class="metric-value deg">93.2%</div>
+            <div class="metric-sub">↓ 4.1% vs yesterday</div>
+          </div>
+          <div class="metric-card deg">
+            <div class="metric-label">Schema Validity (24h)</div>
+            <div class="metric-value deg">88.4%</div>
+            <div class="metric-sub">11 mismatch events</div>
+          </div>
+          <div class="metric-card ok">
+            <div class="metric-label">Median Latency</div>
+            <div class="metric-value">1.4s</div>
+            <div class="metric-sub">p95: 3.2s</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;">
+          <div>
+            <div class="card" style="margin-bottom:20px;">
+              <div class="card-header">
+                <div class="card-title">Services</div>
+                <button class="btn btn-ghost btn-sm" onclick="showApp('onboard')">+ Add</button>
+              </div>
+              <div class="svc-head"><span>Endpoint</span><span>Status</span><span>Delivery</span><span>Latency</span><span>Last test</span></div>
+              <div>
+                <div class="svc-row" onclick="showView('service')">
+                  <div class="svc-name"><strong>Flash Price API</strong><code>flash-price.bankr.io/v1/price</code></div>
+                  <div><span class="badge badge-deg"><span class="dot"></span> Degraded</span></div>
+                  <div class="col-num">93.2%</div>
+                  <div class="col-num mono">1.4s</div>
+                  <div class="col-num mono" style="color:var(--t3)">2m ago</div>
+                </div>
+                <div class="svc-row">
+                  <div class="svc-name"><strong>Token Context</strong><code>api.cortex.xyz/v1/context</code></div>
+                  <div><span class="badge badge-ok"><span class="dot"></span> Healthy</span></div>
+                  <div class="col-num">99.8%</div>
+                  <div class="col-num mono">0.8s</div>
+                  <div class="col-num mono" style="color:var(--t3)">4m ago</div>
+                </div>
+                <div class="svc-row">
+                  <div class="svc-name"><strong>Wallet Signals</strong><code>signals.bankr.io/v2/wallet</code></div>
+                  <div><span class="badge badge-ok"><span class="dot"></span> Healthy</span></div>
+                  <div class="col-num">98.1%</div>
+                  <div class="col-num mono">2.1s</div>
+                  <div class="col-num mono" style="color:var(--t3)">6m ago</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Recent Incidents</div>
+                <button class="btn btn-ghost btn-sm" onclick="showView('incidents')">View all</button>
+              </div>
+              <div>
+                <div class="inc-row" onclick="showView('incident-detail')">
+                  <div class="inc-icon crit">✗</div>
+                  <div class="inc-body"><div class="inc-title">Schema mismatch — result.summary null</div><div class="inc-meta">flash-price.bankr.io/v1/price · INC-2024-0041</div></div>
+                  <div class="inc-time">15m ago</div>
+                </div>
+                <div class="inc-row" onclick="showView('incident-detail')">
+                  <div class="inc-icon deg">⚠</div>
+                  <div class="inc-body"><div class="inc-title">Payment latency elevated — 4.8s</div><div class="inc-meta">flash-price.bankr.io/v1/price · INC-2024-0040</div></div>
+                  <div class="inc-time">2h ago</div>
+                </div>
+                <div class="inc-row">
+                  <div class="inc-icon crit">✗</div>
+                  <div class="inc-body"><div class="inc-title">Schema mismatch — metadata.chain missing</div><div class="inc-meta">flash-price.bankr.io/v1/price · INC-2024-0039</div></div>
+                  <div class="inc-time">6h ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Check Schedule</div></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:13px;">Flash Price API</div><span class="mono" style="font-size:12px;color:var(--t2);">every 5m</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:13px;">Token Context</div><span class="mono" style="font-size:12px;color:var(--t2);">every 5m</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:13px;">Wallet Signals</div><span class="mono" style="font-size:12px;color:var(--t2);">every 15m</span>
+              </div>
+              <hr style="border:none;border-top:1px solid var(--bd);">
+              <div style="font-size:12px;color:var(--t3);">Next check in <span class="mono" style="color:var(--t2);">2m 34s</span></div>
+              <button class="btn btn-ghost btn-sm" style="align-self:flex-start;">Run now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────── SERVICE DETAIL ─────────────── -->
+    <div id="view-service" class="hidden">
+      <div class="main-hdr">
+        <div class="breadcrumb">
+          <span onclick="showView('overview')" style="cursor:pointer;">Overview</span>
+          <span class="breadcrumb-sep">/</span>
+          <span class="breadcrumb-cur">Flash Price API</span>
+        </div>
+        <div class="main-actions">
+          <button class="btn btn-ghost btn-sm">Settings</button>
+          <button class="btn btn-acc btn-sm">Run test</button>
+        </div>
+      </div>
+      <div class="main-content">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="font-size:20px;font-weight:700;letter-spacing:-.02em;">Flash Price API</div>
+            <div class="mono" style="font-size:12px;color:var(--t3);margin-top:2px;">flash-price.bankr.io/v1/price</div>
+          </div>
+          <span class="badge badge-deg" style="margin-left:8px;"><span class="dot"></span> Degraded</span>
+        </div>
+
+        <div class="metric-grid" style="margin-bottom:24px;">
+          <div class="metric-card deg"><div class="metric-label">Paid Delivery</div><div class="metric-value deg">93.2%</div><div class="metric-sub">last 24 hours</div></div>
+          <div class="metric-card deg"><div class="metric-label">Schema Validity</div><div class="metric-value deg">88.4%</div><div class="metric-sub">last 24 hours</div></div>
+          <div class="metric-card ok"><div class="metric-label">Median Latency</div><div class="metric-value">1.4s</div><div class="metric-sub">p95: 3.2s</div></div>
+          <div class="metric-card crit"><div class="metric-label">Open Incidents</div><div class="metric-value crit">2</div><div class="metric-sub">oldest: 2h 14m</div></div>
+        </div>
+
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <div class="card-title">Health Journey — last test</div>
+            <span class="mono" style="font-size:11px;color:var(--t3);">run_8f2a · 15:42:04 UTC</span>
+          </div>
+          <div class="journey-wrap">
+            <div class="journey">
+              <div class="journey-rail"></div>
+              <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Available</div><div class="journey-sub">212ms</div></div>
+              <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Payment</div><div class="journey-sub">0.05 USDC</div></div>
+              <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Execution</div><div class="journey-sub">823ms</div></div>
+              <div class="journey-node jnode-fail"><div class="journey-icon fail">✗</div><div class="journey-lbl">Delivery</div><div class="journey-sub">schema fail</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px;">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Delivery Success Rate</div>
+              <div style="display:flex;gap:4px;">
+                <button class="chip active" onclick="switchChartTab(this,'1h')">1h</button>
+                <button class="chip" onclick="switchChartTab(this,'24h')">24h</button>
+                <button class="chip" onclick="switchChartTab(this,'7d')">7d</button>
+              </div>
+            </div>
+            <div class="card-body" style="padding:16px 20px 10px;">
+              <canvas id="deliveryChart" height="120"></canvas>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Failure Breakdown</div></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;"><span style="color:var(--t2);">Schema failure</span><span class="mono">11.6%</span></div>
+                <div style="height:4px;background:var(--bg3);border-radius:2px;"><div style="width:11.6%;height:100%;background:var(--red);border-radius:2px;"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;"><span style="color:var(--t2);">Payment timeout</span><span class="mono">3.1%</span></div>
+                <div style="height:4px;background:var(--bg3);border-radius:2px;"><div style="width:3.1%;height:100%;background:var(--amb);border-radius:2px;"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;"><span style="color:var(--t2);">Execution error</span><span class="mono">2.4%</span></div>
+                <div style="height:4px;background:var(--bg3);border-radius:2px;"><div style="width:2.4%;height:100%;background:var(--amb);border-radius:2px;"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;"><span style="color:var(--t2);">Unreachable</span><span class="mono">0.7%</span></div>
+                <div style="height:4px;background:var(--bg3);border-radius:2px;"><div style="width:0.7%;height:100%;background:var(--red);border-radius:2px;"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Recent Tests</div>
+            <button class="btn btn-ghost btn-sm" onclick="showView('history')">View all</button>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>Time</th><th>Run ID</th><th>Available</th><th>Payment</th><th>Execution</th><th>Schema</th><th>Latency</th></tr></thead>
+            <tbody>
+              <tr style="cursor:pointer;" onclick="showView('incident-detail')"><td class="mono" style="color:var(--t3);">15:42:04</td><td class="mono" style="color:var(--t3);">run_8f2a</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-crit">✗</span></td><td class="mono">1.1s</td></tr>
+              <tr><td class="mono" style="color:var(--t3);">15:37:04</td><td class="mono" style="color:var(--t3);">run_7e1b</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td class="mono">1.4s</td></tr>
+              <tr><td class="mono" style="color:var(--t3);">15:32:04</td><td class="mono" style="color:var(--t3);">run_6d0c</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td class="mono">1.3s</td></tr>
+              <tr style="cursor:pointer;" onclick="showView('incident-detail')"><td class="mono" style="color:var(--t3);">15:27:04</td><td class="mono" style="color:var(--t3);">run_5c9e</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-crit">✗</span></td><td class="mono">1.6s</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────── INCIDENTS LIST ─────────────── -->
+    <div id="view-incidents" class="hidden">
+      <div class="main-hdr">
+        <div class="breadcrumb"><span class="breadcrumb-cur">Incidents</span></div>
+        <div class="hdr-pip"><span class="dot" style="background:var(--red);"></span> 2 open</div>
+      </div>
+      <div class="main-content">
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header"><div class="card-title">Active</div><span class="badge badge-crit">2 open</span></div>
+          <div>
+            <div class="inc-row" onclick="showView('incident-detail')">
+              <div class="inc-icon crit">✗</div>
+              <div class="inc-body"><div class="inc-title">Schema mismatch — result.summary null</div><div class="inc-meta">INC-2024-0041 · flash-price.bankr.io/v1/price · run_8f2a · 15m ago</div></div>
+              <div style="text-align:right;flex-shrink:0;"><span class="badge badge-crit">Critical</span><div class="inc-time" style="margin-top:4px;">15:42:04</div></div>
+            </div>
+            <div class="inc-row">
+              <div class="inc-icon deg">⚠</div>
+              <div class="inc-body"><div class="inc-title">Payment latency elevated — 4.8s settle time</div><div class="inc-meta">INC-2024-0040 · flash-price.bankr.io/v1/price · run_4a7d · 2h 14m ago</div></div>
+              <div style="text-align:right;flex-shrink:0;"><span class="badge badge-deg">Degraded</span><div class="inc-time" style="margin-top:4px;">13:27:51</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Resolved — last 7 days</div></div>
+          <div>
+            <div class="inc-row"><div class="inc-icon res">✓</div><div class="inc-body"><div class="inc-title" style="color:var(--t2);">Schema mismatch — metadata.chain missing</div><div class="inc-meta">INC-2024-0039 · resolved in 12m</div></div><div class="inc-time">6h ago</div></div>
+            <div class="inc-row"><div class="inc-icon res">✓</div><div class="inc-body"><div class="inc-title" style="color:var(--t2);">Endpoint unreachable — DNS failure</div><div class="inc-meta">INC-2024-0038 · resolved in 4m</div></div><div class="inc-time">1d ago</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────── INCIDENT DETAIL ────────────── -->
+    <div id="view-incident-detail" class="hidden">
+      <div class="main-hdr">
+        <div class="breadcrumb">
+          <span onclick="showView('incidents')" style="cursor:pointer;">Incidents</span>
+          <span class="breadcrumb-sep">/</span>
+          <span class="breadcrumb-cur">INC-2024-0041</span>
+        </div>
+        <div class="main-actions">
+          <button class="btn btn-ghost btn-sm">Mark resolved</button>
+        </div>
+      </div>
+      <div class="main-content">
+        <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:24px;">
+          <div class="inc-icon crit" style="width:40px;height:40px;font-size:18px;border-radius:8px;flex-shrink:0;">✗</div>
+          <div style="flex:1;">
+            <div style="font-size:20px;font-weight:700;letter-spacing:-.02em;">Schema mismatch — result.summary null</div>
+            <div class="mono" style="font-size:12px;color:var(--t3);margin-top:4px;">INC-2024-0041 · run_8f2a · flash-price.bankr.io/v1/price · 15:42:04 UTC</div>
+          </div>
+          <span class="badge badge-crit" style="flex-shrink:0;margin-top:4px;"><span class="dot"></span> Open</span>
+        </div>
+
+        <!-- Journey -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <div class="card-title">Test Journey</div>
+            <span class="mono" style="font-size:11px;color:var(--t3);">run_8f2a · 15:42:01 – 15:42:04</span>
+          </div>
+          <div class="journey-wrap">
+            <div class="journey">
+              <div class="journey-rail"></div>
+              <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Available</div><div class="journey-sub">212ms</div></div>
+              <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Payment</div><div class="journey-sub">0.05 USDC settled</div></div>
+              <div class="journey-node jnode-ok"><div class="journey-icon ok">✓</div><div class="journey-lbl">Execution</div><div class="journey-sub">823ms · 200 OK</div></div>
+              <div class="journey-node jnode-fail"><div class="journey-icon fail">✗</div><div class="journey-lbl">Schema</div><div class="journey-sub">result.summary null</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal run log -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header"><div class="card-title">Run Log</div></div>
+          <div style="padding:12px;">
+            <div class="terminal">
+              <div class="terminal-bar">
+                <div class="tbar-dots"><div class="tbar-dot r"></div><div class="tbar-dot y"></div><div class="tbar-dot g"></div></div>
+                <div class="tbar-title">cortex-monitor · run_8f2a · flash-price.bankr.io/v1/price</div>
+              </div>
+              <div class="terminal-body">
+                <div class="log-line"><span class="log-ts">[15:42:01]</span><span class="log-ok">endpoint reachable</span></div>
+                <div class="log-line"><span class="log-ts">[15:42:01]</span><span class="log-info">GET flash-price.bankr.io/v1/price → 402 Payment Required</span></div>
+                <div class="log-line"><span class="log-ts">[15:42:02]</span><span class="log-ok">payment requirements validated</span></div>
+                <div class="log-line"><span class="log-ts">[15:42:02]</span><span class="log-info">required: 0.05 USDC · network: base · receiver: 0x4f8a…e91c</span></div>
+                <div class="log-line"><span class="log-ts">[15:42:03]</span><span class="log-ok">0.05 USDC settled · tx: 0x9c3b…7fa2 · settle: 841ms</span></div>
+                <div class="log-line"><span class="log-ts">[15:42:03]</span><span class="log-ok">handler completed · 200 OK · 823ms</span></div>
+                <div class="log-line"><span class="log-ts">[15:42:04]</span><span class="log-warn">validating response schema…</span></div>
+                <div class="log-line"><span class="log-ts">[15:42:04]</span><span class="log-err">schema invalid: result.summary is null (expected string)</span></div>
+                <div class="log-line"><span class="log-ts">[15:42:04]</span><span class="log-err">incident opened · INC-2024-0041</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evidence tabs -->
+        <div class="card">
+          <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab(this,'tab-summary')">Summary</button>
+            <button class="tab-btn" onclick="switchTab(this,'tab-request')">Request</button>
+            <button class="tab-btn" onclick="switchTab(this,'tab-response')">Response</button>
+            <button class="tab-btn" onclick="switchTab(this,'tab-payment')">Payment</button>
+            <button class="tab-btn" onclick="switchTab(this,'tab-schema')">Schema Diff</button>
+          </div>
+          <div style="padding:20px;">
+            <div class="tab-panel active" id="tab-summary">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+                <div>
+                  <div style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Failure</div>
+                  <div style="display:flex;flex-direction:column;gap:9px;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Phase</span><span>Delivery</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Type</span><span>Schema validation</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Field</span><span class="mono">result.summary</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Expected</span><span class="mono" style="color:var(--grn);">string</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Received</span><span class="mono" style="color:var(--red);">null</span></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Run</div>
+                  <div style="display:flex;flex-direction:column;gap:9px;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Run ID</span><span class="mono">run_8f2a</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Opened</span><span class="mono">15:42:04 UTC</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Total duration</span><span class="mono">3.2s</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Cost paid</span><span class="mono">0.05 USDC</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Status</span><span class="badge badge-crit" style="font-size:10px;">Open</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-panel" id="tab-request">
+              <div class="code-block">{
+  <span class="jk">"method"</span>: <span class="js">"GET"</span>,
+  <span class="jk">"url"</span>: <span class="js">"https://flash-price.bankr.io/v1/price"</span>,
+  <span class="jk">"headers"</span>: {
+    <span class="jk">"X-Payment"</span>: <span class="js">"0.05 USDC base 0x4f8a…e91c"</span>,
+    <span class="jk">"X-Tx-Hash"</span>: <span class="js">"0x9c3b…7fa2"</span>,
+    <span class="jk">"Accept"</span>: <span class="js">"application/json"</span>
+  },
+  <span class="jk">"timestamp"</span>: <span class="js">"2024-01-15T15:42:03.841Z"</span>
+}</div>
+            </div>
+
+            <div class="tab-panel" id="tab-response">
+              <div class="code-block">{
+  <span class="jk">"status"</span>: <span class="jn">200</span>,
+  <span class="jk">"latency_ms"</span>: <span class="jn">823</span>,
+  <span class="jk">"body"</span>: {
+    <span class="jk">"result"</span>: {
+      <span class="jk">"token"</span>: <span class="js">"0x4ed4e862060ea7afed0adc95c8c3493fb1cc6ed"</span>,
+      <span class="jk">"price_usd"</span>: <span class="jn">0.00000312</span>,
+      <span class="jk">"summary"</span>: <span class="je">null</span>,
+      <span class="jk">"metadata"</span>: { <span class="jk">"chain"</span>: <span class="js">"base"</span>, <span class="jk">"block"</span>: <span class="jn">21847291</span> }
+    }
+  }
+}</div>
+            </div>
+
+            <div class="tab-panel" id="tab-payment">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+                <div>
+                  <div style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Settlement</div>
+                  <div style="display:flex;flex-direction:column;gap:9px;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Amount</span><span class="mono">0.05 USDC</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Network</span><span>Base</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Settle time</span><span class="mono">841ms</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Status</span><span class="badge badge-ok" style="font-size:10px;">✓ Settled</span></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Transaction</div>
+                  <div style="display:flex;flex-direction:column;gap:9px;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Tx hash</span><span class="mono" style="font-size:11px;">0x9c3b…7fa2</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">From</span><span class="mono" style="font-size:11px;">0x7e2c…b3d1</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">To</span><span class="mono" style="font-size:11px;">0x4f8a…e91c</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--t2);">Block</span><span class="mono">21847289</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-panel" id="tab-schema">
+              <div style="margin-bottom:14px;font-size:13px;color:var(--t2);">Expected schema vs. actual response — <span style="color:var(--red);">1 mismatch</span> detected.</div>
+              <table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;">
+                <thead><tr style="border-bottom:1px solid var(--bd);">
+                  <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Field</th>
+                  <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Expected type</th>
+                  <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Received</th>
+                  <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Status</th>
+                </tr></thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid var(--bd);"><td style="padding:9px 12px;color:var(--t2);">result.token</td><td style="padding:9px 12px;color:var(--grn);">string</td><td style="padding:9px 12px;color:var(--grn);">string</td><td style="padding:9px 12px;"><span class="badge badge-ok" style="font-size:10px;">✓ Match</span></td></tr>
+                  <tr style="border-bottom:1px solid var(--bd);background:rgba(239,68,68,.07);"><td style="padding:9px 12px;color:var(--red);">result.summary</td><td style="padding:9px 12px;color:var(--grn);">string</td><td style="padding:9px 12px;color:var(--red);">null</td><td style="padding:9px 12px;"><span class="badge badge-crit" style="font-size:10px;">✗ Mismatch</span></td></tr>
+                  <tr style="border-bottom:1px solid var(--bd);"><td style="padding:9px 12px;color:var(--t2);">result.price_usd</td><td style="padding:9px 12px;color:var(--grn);">number</td><td style="padding:9px 12px;color:var(--grn);">number</td><td style="padding:9px 12px;"><span class="badge badge-ok" style="font-size:10px;">✓ Match</span></td></tr>
+                  <tr style="border-bottom:1px solid var(--bd);"><td style="padding:9px 12px;color:var(--t2);">metadata.chain</td><td style="padding:9px 12px;color:var(--grn);">string</td><td style="padding:9px 12px;color:var(--grn);">string</td><td style="padding:9px 12px;"><span class="badge badge-ok" style="font-size:10px;">✓ Match</span></td></tr>
+                  <tr><td style="padding:9px 12px;color:var(--t2);">metadata.block</td><td style="padding:9px 12px;color:var(--grn);">number</td><td style="padding:9px 12px;color:var(--grn);">number</td><td style="padding:9px 12px;"><span class="badge badge-ok" style="font-size:10px;">✓ Match</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────── TEST HISTORY ────────────────── -->
+    <div id="view-history" class="hidden">
+      <div class="main-hdr">
+        <div class="breadcrumb"><span class="breadcrumb-cur">Test History</span></div>
+      </div>
+      <div class="main-content">
+        <div class="filter-row">
+          <button class="chip active">All services</button>
+          <button class="chip">Flash Price API</button>
+          <button class="chip">Token Context</button>
+          <button class="chip">Wallet Signals</button>
+        </div>
+        <div class="filter-row" style="margin-bottom:20px;">
+          <button class="chip active">All results</button>
+          <button class="chip">Schema fail</button>
+          <button class="chip">Payment fail</button>
+          <button class="chip">Exec fail</button>
+          <button class="chip">Unreachable</button>
+        </div>
+        <div class="card">
+          <table class="tbl">
+            <thead><tr><th>Time</th><th>Run ID</th><th>Service</th><th>Available</th><th>Payment</th><th>Execution</th><th>Schema</th><th>Latency</th></tr></thead>
+            <tbody>
+              <tr style="cursor:pointer;" onclick="showView('incident-detail')"><td class="mono" style="color:var(--t3);">15:42:04</td><td class="mono" style="color:var(--t3);">run_8f2a</td><td>Flash Price</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-crit">✗</span></td><td class="mono">1.1s</td></tr>
+              <tr><td class="mono" style="color:var(--t3);">15:40:01</td><td class="mono" style="color:var(--t3);">run_7e2c</td><td>Token Context</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td class="mono">0.8s</td></tr>
+              <tr><td class="mono" style="color:var(--t3);">15:38:04</td><td class="mono" style="color:var(--t3);">run_6d1a</td><td>Flash Price</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td class="mono">1.3s</td></tr>
+              <tr><td class="mono" style="color:var(--t3);">15:35:14</td><td class="mono" style="color:var(--t3);">run_5c8b</td><td>Wallet Signals</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td class="mono">2.1s</td></tr>
+              <tr><td class="mono" style="color:var(--t3);">15:32:04</td><td class="mono" style="color:var(--t3);">run_4b7d</td><td>Flash Price</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td class="mono">1.4s</td></tr>
+              <tr style="cursor:pointer;" onclick="showView('incident-detail')"><td class="mono" style="color:var(--t3);">15:27:04</td><td class="mono" style="color:var(--t3);">run_3a6c</td><td>Flash Price</td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-ok">✓</span></td><td><span class="badge badge-crit">✗</span></td><td class="mono">1.6s</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────── ALERTS ──────────────────────── -->
+    <div id="view-alerts" class="hidden">
+      <div class="main-hdr">
+        <div class="breadcrumb"><span class="breadcrumb-cur">Alerts</span></div>
+        <div class="main-actions"><button class="btn btn-acc btn-sm">+ New rule</button></div>
+      </div>
+      <div class="main-content">
+        <div class="alert-rule">
+          <div class="alert-rule-side"></div>
+          <div class="alert-rule-body">
+            <div class="alert-rule-info">
+              <div class="alert-rule-name">Schema failure on any endpoint</div>
+              <div class="alert-rule-desc">Fires when a response fails schema validation. Immediate notification — schema failures indicate your handler is returning unexpected structure.</div>
+              <div style="margin-top:8px;font-size:12px;color:var(--t3);font-family:var(--mono);">Channels: Slack #incidents · email</div>
+            </div>
+            <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="alert-rule">
+          <div class="alert-rule-side"></div>
+          <div class="alert-rule-body">
+            <div class="alert-rule-info">
+              <div class="alert-rule-name">Payment latency above 3s</div>
+              <div class="alert-rule-desc">Fires when USDC settlement exceeds 3 seconds. Usually indicates on-chain congestion affecting your service's reliability for paying users.</div>
+              <div style="margin-top:8px;font-size:12px;color:var(--t3);font-family:var(--mono);">Channels: Slack #infra</div>
+            </div>
+            <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="alert-rule">
+          <div class="alert-rule-side"></div>
+          <div class="alert-rule-body">
+            <div class="alert-rule-info">
+              <div class="alert-rule-name">Endpoint unreachable</div>
+              <div class="alert-rule-desc">Fires on connection error or DNS failure. Immediate page if PagerDuty is connected.</div>
+              <div style="margin-top:8px;font-size:12px;color:var(--t3);font-family:var(--mono);">Channels: PagerDuty · email</div>
+            </div>
+            <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="alert-rule">
+          <div class="alert-rule-side" style="background:var(--bd2);"></div>
+          <div class="alert-rule-body">
+            <div class="alert-rule-info">
+              <div class="alert-rule-name">Delivery rate below 95% (24h)</div>
+              <div class="alert-rule-desc">Fires when 24h rolling paid delivery drops below 95% for any monitored service.</div>
+              <div style="margin-top:8px;font-size:12px;color:var(--t3);font-family:var(--mono);">Channels: email</div>
+            </div>
+            <button class="toggle" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────── ONBOARDING ─────────────────── -->
+    <div id="view-onboard" class="hidden">
+      <div class="main-hdr">
+        <div class="breadcrumb"><span class="breadcrumb-cur">Add endpoint</span></div>
+      </div>
+      <div class="onboard-wrap">
+        <div class="step-dots">
+          <div class="sdot active" id="sd0"></div>
+          <div class="sdot" id="sd1"></div>
+          <div class="sdot" id="sd2"></div>
+          <div class="sdot" id="sd3"></div>
+        </div>
+
+        <div class="onboard-step active" id="os0">
+          <div class="step-eyebrow">Step 1 of 4</div>
+          <div class="step-heading">What endpoint do<br>you want to monitor?</div>
+          <div class="step-body">Paste the full URL of your Bankr x402 endpoint. CORTEX will probe reachability, payment requirements, and response schema.</div>
+          <div class="field"><label>Endpoint URL</label><input type="text" placeholder="https://your-service.bankr.io/v1/action" /></div>
+          <div class="field"><label>Nickname (optional)</label><input type="text" placeholder="Flash Price API" /></div>
+          <button class="btn btn-acc" onclick="nextStep(1)" style="margin-top:8px;">Continue →</button>
+        </div>
+
+        <div class="onboard-step" id="os1">
+          <div class="step-eyebrow">Step 2 of 4</div>
+          <div class="step-heading">How should CORTEX<br>authenticate?</div>
+          <div class="step-body">Provide the wallet credentials CORTEX will use to pay for each test run. Funds are drawn from a dedicated monitoring wallet you control.</div>
+          <div class="field"><label>Monitoring wallet address</label><input type="text" placeholder="0x…" /></div>
+          <div class="field"><label>Expected payment amount</label><input type="text" placeholder="0.05 USDC" /></div>
+          <div class="field"><label>Network</label><select><option>Base</option><option>Ethereum</option><option>Optimism</option></select></div>
+          <div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-ghost" onclick="nextStep(0)">← Back</button><button class="btn btn-acc" onclick="nextStep(2)">Continue →</button></div>
+        </div>
+
+        <div class="onboard-step" id="os2">
+          <div class="step-eyebrow">Step 3 of 4</div>
+          <div class="step-heading">Configure checks<br>and schema</div>
+          <div class="step-body">How often should CORTEX test your endpoint? Paste your expected JSON schema to get field-level mismatch detection on every test run.</div>
+          <div class="field"><label>Check interval</label><select><option>Every 5 minutes</option><option>Every 15 minutes</option><option>Every hour</option></select></div>
+          <div class="field">
+            <label>Expected response schema</label>
+            <textarea placeholder='{"result":{"token":"string","summary":"string","price_usd":"number"}}'></textarea>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-ghost" onclick="nextStep(1)">← Back</button><button class="btn btn-acc" onclick="nextStep(3)">Continue →</button></div>
+        </div>
+
+        <div class="onboard-step" id="os3">
+          <div class="step-eyebrow">Step 4 of 4</div>
+          <div class="step-heading">You're set up.</div>
+          <div class="step-body">CORTEX will run the first test in the next few seconds. You'll receive an alert the moment any phase of the check fails.</div>
+          <div class="terminal" style="margin-bottom:24px;">
+            <div class="terminal-bar">
+              <div class="tbar-dots"><div class="tbar-dot r"></div><div class="tbar-dot y"></div><div class="tbar-dot g"></div></div>
+              <div class="tbar-title">initializing…</div>
+            </div>
+            <div class="terminal-body">
+              <div class="log-line"><span class="log-ts">[now]</span><span class="log-ok">endpoint registered</span></div>
+              <div class="log-line"><span class="log-ts">[now]</span><span class="log-info">schema fingerprint stored · 5 fields</span></div>
+              <div class="log-line"><span class="log-ts">[now]</span><span class="log-info">first test queued — running in ~10s</span></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-acc" onclick="showView('overview')">Go to dashboard →</button>
+            <button class="btn btn-ghost" onclick="showStatus()">View status page</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STATUS PAGE                                             -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="status-page" class="hidden">
+  <nav class="status-nav">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="logo-mark">CX</div>
+      <div style="font-size:13px;color:var(--t2);">CORTEX Monitor · Status</div>
+    </div>
+    <div class="mono" style="font-size:11.5px;color:var(--t3);">flash-price.bankr.io</div>
+    <button class="btn btn-ghost btn-sm" onclick="showView('overview')">← Dashboard</button>
+  </nav>
+  <div class="status-hero">
+    <div class="big-status"><div class="big-dot deg"></div> Partially Degraded</div>
+    <div style="font-size:14px;color:var(--t2);margin-top:10px;">1 service has schema failures. Payment and execution are working normally.</div>
+    <div class="mono" style="font-size:11.5px;color:var(--t3);margin-top:8px;">Last updated: 15:42:04 UTC · refreshes every 60s</div>
+  </div>
+  <div class="status-checks">
+    <div class="status-check">
+      <div style="font-size:18px;">🔴</div>
+      <div class="sc-info"><div class="sc-name">Flash Price API</div><div class="sc-url">flash-price.bankr.io/v1/price</div></div>
+      <div style="text-align:right;"><div style="font-size:13px;font-weight:600;color:var(--amb);">Degraded</div><div class="mono" style="font-size:11px;color:var(--t3);">Schema 88.4%</div></div>
+    </div>
+    <div class="status-check">
+      <div style="font-size:18px;">🟢</div>
+      <div class="sc-info"><div class="sc-name">Token Context</div><div class="sc-url">api.cortex.xyz/v1/context</div></div>
+      <div style="text-align:right;"><div style="font-size:13px;font-weight:600;color:var(--grn);">Operational</div><div class="mono" style="font-size:11px;color:var(--t3);">99.8% delivery</div></div>
+    </div>
+    <div class="status-check">
+      <div style="font-size:18px;">🟢</div>
+      <div class="sc-info"><div class="sc-name">Wallet Signals</div><div class="sc-url">signals.bankr.io/v2/wallet</div></div>
+      <div style="text-align:right;"><div style="font-size:13px;font-weight:600;color:var(--grn);">Operational</div><div class="mono" style="font-size:11px;color:var(--t3);">98.1% delivery</div></div>
+    </div>
+    <div class="card" style="margin-top:4px;">
+      <div class="card-header"><div class="card-title">Active Incidents</div></div>
+      <div>
+        <div class="inc-row"><div class="inc-icon crit">✗</div><div class="inc-body"><div class="inc-title">Schema mismatch — result.summary null</div><div class="inc-meta">Flash Price API · 15m ago · investigating</div></div></div>
+        <div class="inc-row"><div class="inc-icon deg">⚠</div><div class="inc-body"><div class="inc-title">Payment latency elevated — 4.8s</div><div class="inc-meta">Flash Price API · 2h ago · monitoring</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── ROUTING ──────────────────────────────────────────────
+function showApp(view) {
+  document.getElementById('landing').classList.add('hidden');
+  document.getElementById('status-page').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  showView(view === 'onboard' ? 'onboard' : (view || 'overview'));
+}
+
+function showView(name) {
+  document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.add('hidden'));
+  const el = document.getElementById('view-' + name);
+  if (el) el.classList.remove('hidden');
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  const navEl = document.getElementById('nav-' + name);
+  if (navEl) navEl.classList.add('active');
+  if (name === 'service') setTimeout(drawChart, 60);
+}
+
+function showStatus() {
+  document.getElementById('landing').classList.add('hidden');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('status-page').classList.remove('hidden');
+}
+
+// ── TABS ─────────────────────────────────────────────────
+function switchTab(btn, panelId) {
+  const container = btn.closest('.card');
+  container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+}
+
+function switchChartTab(btn, range) {
+  btn.closest('.card-header').querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  drawChart(range);
+}
+
+// ── ONBOARDING ───────────────────────────────────────────
+function nextStep(n) {
+  document.querySelectorAll('.onboard-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('os' + n).classList.add('active');
+  document.querySelectorAll('.sdot').forEach((d, i) => {
+    d.classList.remove('active','done');
+    if (i < n) d.classList.add('done');
+    else if (i === n) d.classList.add('active');
+  });
+}
+
+// ── FILTER CHIPS ─────────────────────────────────────────
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    const row = this.closest('.filter-row');
+    if (row) row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// ── CHART ────────────────────────────────────────────────
+function drawChart(range) {
+  const canvas = document.getElementById('deliveryChart');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth;
+  const H = 120;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const sets = {
+    '1h':  [98,97,96,98,99,93,94,95,97,98,97,96,94,92,93],
+    '24h': [99,98,99,97,98,96,95,93,94,95,94,93,92,93,94],
+    '7d':  [99,99,98,99,98,97,98,96,95,94,95,93,94,92,93],
+  };
+  const data = sets[range || '1h'];
+  const n = data.length;
+  const pad = {t:10,r:8,b:28,l:34};
+  const cw = W - pad.l - pad.r;
+  const ch = H - pad.t - pad.b;
+  const min = 88, max = 100;
+
+  const px = i => pad.l + (i/(n-1))*cw;
+  const py = v => pad.t + ch - ((v-min)/(max-min))*ch;
+
+  // Grid
+  ctx.strokeStyle = '#1C1D28';
+  ctx.lineWidth = 1;
+  [90,95,100].forEach(v => {
+    const y = py(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W-pad.r, y); ctx.stroke();
+    ctx.fillStyle = '#575870';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(v+'%', pad.l-4, y+3.5);
+  });
+
+  // Area
+  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t+ch);
+  grad.addColorStop(0, 'rgba(34,197,94,0.20)');
+  grad.addColorStop(1, 'rgba(34,197,94,0)');
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(data[0]));
+  data.forEach((v,i) => { if(i) ctx.lineTo(px(i), py(v)); });
+  ctx.lineTo(px(n-1), pad.t+ch);
+  ctx.lineTo(px(0), pad.t+ch);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(data[0]));
+  data.forEach((v,i) => { if(i) ctx.lineTo(px(i), py(v)); });
+  ctx.strokeStyle = '#22C55E';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Endpoint dot
+  const lx = px(n-1), ly = py(data[n-1]);
+  ctx.beginPath(); ctx.arc(lx, ly, 3, 0, Math.PI*2);
+  ctx.fillStyle = '#22C55E'; ctx.fill();
+}
+
+// ── DEMO LOG ANIMATION ───────────────────────────────────
+const demoLines = [
+  {ts:'15:42:01', cls:'log-ok',   text:'endpoint reachable'},
+  {ts:'15:42:02', cls:'log-ok',   text:'payment requirements validated'},
+  {ts:'15:42:03', cls:'log-ok',   text:'0.05 USDC settled'},
+  {ts:'15:42:04', cls:'log-ok',   text:'handler completed'},
+  {ts:'15:42:04', cls:'log-err',  text:'response schema invalid'},
+  {ts:'15:42:04', cls:'log-err',  text:'incident opened'},
+];
+
+function animateDemoLog() {
+  const el = document.getElementById('demoLog');
+  if (!el) return;
+  el.innerHTML = '';
+  demoLines.forEach((l, i) => {
+    setTimeout(() => {
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      div.style.opacity = '0';
+      div.style.transition = 'opacity .2s';
+      div.innerHTML = `<span class="log-ts">[${l.ts}]</span><span class="${l.cls}">${l.text}</span>`;
+      el.appendChild(div);
+      requestAnimationFrame(() => requestAnimationFrame(() => { div.style.opacity = '1'; }));
+    }, i * 720);
+  });
+  setTimeout(animateDemoLog, demoLines.length * 720 + 2200);
+}
+animateDemoLog();
+</script>

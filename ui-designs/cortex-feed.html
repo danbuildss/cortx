@@ -1,0 +1,733 @@
+<title>CORTEX Intelligence Feed</title>
+<style>
+:root {
+  --bg:    #07080F;
+  --bg1:   #0C0F1E;
+  --bg2:   #111728;
+  --bg3:   #161D32;
+  --bd:    #1C2240;
+  --bd2:   #2C3460;
+  --acc:   #4F46E5;
+  --acch:  #7C74F3;
+  --accd:  rgba(79,70,229,.14);
+  --live:  #22D3EE;
+  --gold:  #F59E0B;
+  --grn:   #10B981;
+  --grnd:  rgba(16,185,129,.12);
+  --red:   #F87171;
+  --redd:  rgba(248,113,113,.12);
+  --ylw:   #FBBF24;
+  --ylwd:  rgba(251,191,36,.1);
+  --t1:    #EEF1FA;
+  --t2:    #8892B0;
+  --t3:    #454F6A;
+  --mono:  'SFMono-Regular','Cascadia Code','Consolas','Liberation Mono',monospace;
+  --sans:  system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:var(--sans);
+  background-color:var(--bg);
+  color:var(--t1);
+  font-size:14px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+
+/* NAV */
+.nav{
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;gap:16px;
+  padding:0 32px;height:54px;
+  background:rgba(7,8,15,.92);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--bd);
+}
+.nav-logo{
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  letter-spacing:.22em;color:var(--t1);margin-right:16px;
+}
+.nav-logo em{font-style:normal;color:var(--acch);}
+.nav-search{
+  flex:1;max-width:360px;
+  display:flex;align-items:center;gap:10px;
+  background:var(--bg1);border:1px solid var(--bd);
+  padding:0 12px;border-radius:4px;height:34px;
+}
+.nav-search svg{color:var(--t3);flex-shrink:0;}
+.nav-search input{
+  background:none;border:none;outline:none;
+  color:var(--t1);font-family:var(--mono);font-size:12.5px;
+  width:100%;
+}
+.nav-search input::placeholder{color:var(--t3);}
+.nav-right{display:flex;align-items:center;gap:16px;margin-left:auto;}
+.live-badge{
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:10px;
+  letter-spacing:.14em;color:var(--live);
+}
+.live-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--live);
+  animation:pulse-dot 1.8s ease-in-out infinite;
+}
+@keyframes pulse-dot{
+  0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,211,238,.5);}
+  50%{opacity:.7;box-shadow:0 0 0 5px rgba(34,211,238,0);}
+}
+.nav-count{
+  font-family:var(--mono);font-size:11.5px;color:var(--t3);
+  letter-spacing:.06em;
+}
+.nav-cta{
+  background:var(--acc);color:#fff;
+  padding:6px 14px;border-radius:3px;
+  font-size:12.5px;font-weight:600;letter-spacing:.03em;
+  cursor:pointer;border:none;transition:background .15s;
+  font-family:var(--sans);
+}
+.nav-cta:hover{background:var(--acch);}
+
+/* LAYOUT */
+.layout{
+  display:grid;
+  grid-template-columns:220px 1fr;
+  min-height:calc(100vh - 54px);
+}
+
+/* SIDEBAR */
+.sidebar{
+  border-right:1px solid var(--bd);
+  padding:24px 0;
+  position:sticky;top:54px;
+  height:calc(100vh - 54px);
+  overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:4px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px;}
+.sb-section{padding:0 20px;margin-bottom:28px;}
+.sb-label{
+  font-family:var(--mono);font-size:10px;
+  letter-spacing:.18em;color:var(--t3);
+  text-transform:uppercase;margin-bottom:12px;
+}
+.sb-filter{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 10px;border-radius:4px;
+  cursor:pointer;margin-bottom:2px;
+  transition:background .12s;
+}
+.sb-filter:hover{background:var(--bg2);}
+.sb-filter.active{background:var(--accd);}
+.sb-filter-label{font-size:13px;color:var(--t2);}
+.sb-filter.active .sb-filter-label{color:var(--acch);}
+.sb-filter-count{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+}
+.sb-sep{height:1px;background:var(--bd);margin:20px 0;}
+
+.cond-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:8px;
+}
+
+/* MAIN FEED */
+.feed{padding:24px 32px;}
+.feed-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:20px;
+}
+.feed-title{
+  font-size:13px;color:var(--t2);
+  font-family:var(--mono);letter-spacing:.06em;
+}
+.feed-sort{
+  display:flex;gap:4px;
+}
+.sort-btn{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  background:none;border:1px solid var(--bd);
+  padding:4px 11px;border-radius:3px;cursor:pointer;
+  letter-spacing:.07em;transition:color .15s,border-color .15s;
+}
+.sort-btn:hover{color:var(--t2);border-color:var(--bd2);}
+.sort-btn.active{color:var(--acch);border-color:var(--acc);}
+
+/* TOKEN CARDS */
+.cards-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:12px;
+}
+.token-card{
+  background:var(--bg1);
+  border:1px solid var(--bd);
+  border-radius:6px;
+  padding:20px;
+  cursor:pointer;
+  transition:border-color .15s,background .15s;
+  position:relative;
+  overflow:hidden;
+}
+.token-card::before{
+  content:'';
+  position:absolute;
+  top:0;left:0;right:0;
+  height:2px;
+  opacity:0;transition:opacity .15s;
+}
+.token-card.accum::before{background:var(--grn);}
+.token-card.distrib::before{background:var(--red);}
+.token-card.neutral::before{background:var(--ylw);}
+.token-card:hover{border-color:var(--bd2);background:var(--bg2);}
+.token-card:hover::before{opacity:1;}
+
+.card-top{
+  display:flex;align-items:flex-start;
+  justify-content:space-between;margin-bottom:14px;
+}
+.card-left{display:flex;align-items:center;gap:12px;}
+.token-avatar{
+  width:40px;height:40px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  color:#fff;flex-shrink:0;
+  background:var(--bg3);border:1px solid var(--bd2);
+}
+.token-name{
+  font-size:16px;font-weight:700;
+  letter-spacing:-.01em;color:var(--t1);
+  margin-bottom:3px;
+}
+.token-ca{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  letter-spacing:.04em;
+}
+
+.cond-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--mono);font-size:10.5px;font-weight:600;
+  letter-spacing:.1em;padding:4px 10px;border-radius:3px;
+  white-space:nowrap;
+}
+.cond-badge.accum{background:var(--grnd);color:var(--grn);}
+.cond-badge.distrib{background:var(--redd);color:var(--red);}
+.cond-badge.neutral{background:var(--ylwd);color:var(--ylw);}
+
+.card-event{
+  font-size:12.5px;color:var(--t2);
+  line-height:1.55;margin-bottom:16px;
+  padding:10px 12px;
+  background:var(--bg2);border-radius:4px;
+  border-left:2px solid var(--bd2);
+}
+
+.card-metrics{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  gap:8px;margin-bottom:14px;
+}
+.metric{text-align:center;}
+.metric-val{
+  font-family:var(--mono);font-size:15px;font-weight:700;
+  color:var(--t1);font-variant-numeric:tabular-nums;
+  display:block;margin-bottom:2px;
+}
+.metric-val.up{color:var(--grn);}
+.metric-val.down{color:var(--red);}
+.metric-label{
+  font-family:var(--mono);font-size:9.5px;color:var(--t3);
+  letter-spacing:.1em;text-transform:uppercase;
+}
+
+.card-bar{
+  height:3px;background:var(--bd);border-radius:2px;margin-bottom:14px;overflow:hidden;
+}
+.card-bar-fill{height:100%;border-radius:2px;transition:width .3s;}
+
+.card-footer{
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-ts{
+  font-family:var(--mono);font-size:10.5px;color:var(--t3);
+  letter-spacing:.06em;
+}
+.card-share{
+  font-family:var(--mono);font-size:10.5px;color:var(--t3);
+  letter-spacing:.06em;background:none;border:1px solid var(--bd);
+  padding:3px 10px;border-radius:3px;cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.card-share:hover{color:var(--acch);border-color:var(--acc);}
+
+/* PANEL (expanded card) */
+.panel-overlay{
+  position:fixed;inset:0;background:rgba(7,8,15,.7);
+  backdrop-filter:blur(4px);z-index:300;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.panel-overlay.open{opacity:1;pointer-events:all;}
+.side-panel{
+  position:fixed;top:0;right:0;bottom:0;
+  width:min(480px,90vw);
+  background:var(--bg1);border-left:1px solid var(--bd2);
+  overflow-y:auto;z-index:301;
+  transform:translateX(100%);transition:transform .25s cubic-bezier(.22,1,.36,1);
+  padding:28px;
+}
+.side-panel.open{transform:translateX(0);}
+.panel-close{
+  display:flex;align-items:center;justify-content:flex-end;
+  margin-bottom:24px;
+}
+.panel-close button{
+  background:none;border:none;color:var(--t3);
+  font-size:20px;cursor:pointer;transition:color .15s;
+}
+.panel-close button:hover{color:var(--t1);}
+.panel-heading{
+  font-size:22px;font-weight:800;
+  letter-spacing:-.02em;margin-bottom:6px;color:var(--t1);
+}
+.panel-ca{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  letter-spacing:.06em;margin-bottom:20px;
+}
+.panel-cond{margin-bottom:24px;}
+.panel-section-label{
+  font-family:var(--mono);font-size:10px;
+  letter-spacing:.18em;color:var(--t3);
+  text-transform:uppercase;margin-bottom:12px;
+  margin-top:24px;
+}
+.panel-score-wrap{
+  display:flex;align-items:center;gap:12px;margin-bottom:16px;
+}
+.score-num{
+  font-family:var(--mono);font-size:42px;font-weight:800;
+  color:var(--t1);line-height:1;letter-spacing:-.02em;
+}
+.score-label{font-size:13px;color:var(--t2);}
+.score-bar-wrap{flex:1;}
+.score-bar{height:4px;background:var(--bd);border-radius:2px;overflow:hidden;}
+.score-bar-fill{height:100%;border-radius:2px;}
+
+.signal-list{display:flex;flex-direction:column;gap:8px;}
+.signal-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;background:var(--bg2);border-radius:4px;
+}
+.signal-name{font-size:13px;color:var(--t2);}
+.signal-val{
+  font-family:var(--mono);font-size:13px;color:var(--t1);
+  font-weight:600;
+}
+.signal-val.pos{color:var(--grn);}
+.signal-val.neg{color:var(--red);}
+
+.event-list{display:flex;flex-direction:column;gap:8px;}
+.event-item{
+  padding:12px;background:var(--bg2);border-radius:4px;
+  border-left:2px solid var(--bd2);
+}
+.event-type{
+  font-family:var(--mono);font-size:11px;color:var(--acch);
+  letter-spacing:.08em;margin-bottom:4px;
+}
+.event-desc{font-size:13px;color:var(--t2);line-height:1.5;}
+.event-ts{font-family:var(--mono);font-size:10.5px;color:var(--t3);margin-top:6px;}
+
+.view-full-btn{
+  display:block;width:100%;text-align:center;
+  background:var(--acc);color:#fff;border:none;
+  padding:12px;border-radius:4px;font-size:14px;
+  font-weight:600;cursor:pointer;margin-top:24px;
+  letter-spacing:.02em;font-family:var(--sans);
+  transition:background .15s;
+}
+.view-full-btn:hover{background:var(--acch);}
+
+@media(max-width:768px){
+  .layout{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+  .feed{padding:16px;}
+  .cards-grid{grid-template-columns:1fr;}
+}
+</style>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="#" class="nav-logo" style="text-decoration:none">CRT<em>X</em></a>
+  <div class="nav-search">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input type="text" placeholder="search token or contract address...">
+  </div>
+  <div class="nav-right">
+    <span class="live-badge"><span class="live-dot"></span>LIVE FEED</span>
+    <span class="nav-count" id="feedCount">847 tokens</span>
+    <button class="nav-cta">Sign in →</button>
+  </div>
+</nav>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-label">Condition</div>
+      <div class="sb-filter active" onclick="filterCards('all')">
+        <span class="sb-filter-label">All tokens</span>
+        <span class="sb-filter-count">847</span>
+      </div>
+      <div class="sb-filter" onclick="filterCards('accum')">
+        <span class="sb-filter-label"><span class="cond-dot" style="background:var(--grn)"></span>Accumulation</span>
+        <span class="sb-filter-count">312</span>
+      </div>
+      <div class="sb-filter" onclick="filterCards('distrib')">
+        <span class="sb-filter-label"><span class="cond-dot" style="background:var(--red)"></span>Distribution</span>
+        <span class="sb-filter-count">219</span>
+      </div>
+      <div class="sb-filter" onclick="filterCards('neutral')">
+        <span class="sb-filter-label"><span class="cond-dot" style="background:var(--ylw)"></span>Neutral</span>
+        <span class="sb-filter-count">316</span>
+      </div>
+    </div>
+    <div class="sb-sep"></div>
+    <div class="sb-section">
+      <div class="sb-label">Score range</div>
+      <div class="sb-filter active" onclick="void(0)">
+        <span class="sb-filter-label">All scores</span>
+      </div>
+      <div class="sb-filter" onclick="void(0)">
+        <span class="sb-filter-label">High (700+)</span>
+        <span class="sb-filter-count">88</span>
+      </div>
+      <div class="sb-filter" onclick="void(0)">
+        <span class="sb-filter-label">Mid (400–700)</span>
+        <span class="sb-filter-count">341</span>
+      </div>
+      <div class="sb-filter" onclick="void(0)">
+        <span class="sb-filter-label">Low (&lt;400)</span>
+        <span class="sb-filter-count">418</span>
+      </div>
+    </div>
+    <div class="sb-sep"></div>
+    <div class="sb-section">
+      <div class="sb-label">Chain</div>
+      <div class="sb-filter active" onclick="void(0)">
+        <span class="sb-filter-label">Base</span>
+        <span class="sb-filter-count">847</span>
+      </div>
+    </div>
+    <div class="sb-sep"></div>
+    <div class="sb-section" style="padding-top:4px;">
+      <div style="font-size:12px;color:var(--t3);line-height:1.7;">
+        Data refreshes every 30s.<br>Share any token report on X or Discord — each share links back to CORTEX.
+      </div>
+    </div>
+  </aside>
+
+  <!-- FEED -->
+  <main class="feed">
+    <div class="feed-header">
+      <span class="feed-title" id="feedLabel">SHOWING ALL · 847 TOKENS</span>
+      <div class="feed-sort">
+        <button class="sort-btn active" onclick="setSort(this,'score')">score ↓</button>
+        <button class="sort-btn" onclick="setSort(this,'recent')">recent</button>
+        <button class="sort-btn" onclick="setSort(this,'queries')">most queried</button>
+      </div>
+    </div>
+
+    <div class="cards-grid" id="cardsGrid">
+      <!-- Cards injected by JS -->
+    </div>
+  </main>
+</div>
+
+<!-- SIDE PANEL (detail) -->
+<div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-close"><button onclick="closePanel()">×</button></div>
+  <div id="panelContent"></div>
+</div>
+
+<script>
+const tokens = [
+  {
+    sym:'PEPE', name:'Pepe',
+    ca:'0x4F9Fd6Be4a9d2afe988E254D53a1b6E',
+    cond:'accum', score:847,
+    event:'Smart money wallets added 2.3M PEPE in the last 6h. Wallet concentration dropped 4% — broad-based accumulation, not a single whale.',
+    rel:0.89, ts:'2 min ago',
+    color:'#22c55e',
+    signals:[
+      {n:'Smart money flow',v:'inbound',pos:true},
+      {n:'Wallet concentration',v:'23%',pos:true},
+      {n:'Dev activity',v:'high',pos:true},
+      {n:'LP depth',v:'+12%',pos:true},
+    ],
+    events:[
+      {type:'WHALE_ACCUMULATION',desc:'3 wallets flagged as smart money accumulated a combined 4.1M PEPE over 6 hours.',ts:'2 min ago'},
+      {type:'LP_DEEPENED',desc:'Uniswap V3 liquidity depth increased 12% in the PEPE/ETH pool.',ts:'34 min ago'},
+    ]
+  },
+  {
+    sym:'WIF', name:'Dogwifhat',
+    ca:'0xEf9a8B76C2e3dD1f4AAb24E9C6a79...',
+    cond:'accum', score:778,
+    event:'CEX inflows spiking. Coinbase and Kraken saw combined 1.8M WIF inflows in past 4h. Historically precedes listing announcements.',
+    rel:0.81, ts:'5 min ago',
+    color:'#818cf8',
+    signals:[
+      {n:'CEX inflow',v:'high',pos:true},
+      {n:'Smart money flow',v:'neutral',pos:null},
+      {n:'Dev activity',v:'medium',pos:null},
+      {n:'LP depth',v:'+3%',pos:true},
+    ],
+    events:[
+      {type:'CEX_INFLOW_SPIKE',desc:'Coinbase and Kraken combined saw 1.8M WIF deposits in under 4 hours.',ts:'5 min ago'},
+      {type:'SOCIAL_SPIKE',desc:'Twitter mentions up 340% vs 7-day average. No single catalyst identified.',ts:'1h ago'},
+    ]
+  },
+  {
+    sym:'HIGHER', name:'Higher',
+    ca:'0x0578D8A44Db98B23bF096A38C82bBf...',
+    cond:'accum', score:691,
+    event:'Dev wallet moved 8.4M HIGHER to a known staking contract — not a sell. Narrative around protocol upgrade gaining traction.',
+    rel:0.74, ts:'11 min ago',
+    color:'#06b6d4',
+    signals:[
+      {n:'Dev wallet activity',v:'staking',pos:true},
+      {n:'Smart money flow',v:'inbound',pos:true},
+      {n:'Wallet concentration',v:'31%',pos:null},
+      {n:'Social momentum',v:'rising',pos:true},
+    ],
+    events:[
+      {type:'DEV_WALLET_MOVE',desc:'Primary dev wallet moved 8.4M tokens to verified staking contract.',ts:'11 min ago'},
+      {type:'NARRATIVE_SHIFT',desc:'Protocol upgrade discussion gaining traction across 3 Telegram groups.',ts:'2h ago'},
+    ]
+  },
+  {
+    sym:'BRETT', name:'Brett',
+    ca:'0x532f27101965dd16442E59d40670FaF...',
+    cond:'neutral', score:512,
+    event:'Volume flat for 18h. No smart money movement detected. LP depth stable. Waiting for a catalyst.',
+    rel:0.52, ts:'18 min ago',
+    color:'#fbbf24',
+    signals:[
+      {n:'Volume','v':'flat',pos:null},
+      {n:'Smart money flow',v:'none',pos:null},
+      {n:'LP depth',v:'stable',pos:null},
+      {n:'Social momentum',v:'low',pos:null},
+    ],
+    events:[
+      {type:'NO_SIGNAL',desc:'No significant on-chain activity detected in the past 18 hours.',ts:'18 min ago'},
+    ]
+  },
+  {
+    sym:'MOCHI', name:'Mochi',
+    ca:'0xF944E35f95BEBeb1a0FE9364B2b9A6F5...',
+    cond:'neutral', score:423,
+    event:'Mid-tier whale sold 400k MOCHI across 3 wallets in the last 2h — but immediately rebought via a different address. Mixed signal.',
+    rel:0.41, ts:'23 min ago',
+    color:'#a78bfa',
+    signals:[
+      {n:'Whale activity',v:'mixed',pos:null},
+      {n:'Smart money flow',v:'neutral',pos:null},
+      {n:'LP depth',v:'-1%',pos:null},
+      {n:'Dev activity',v:'low',pos:false},
+    ],
+    events:[
+      {type:'WHALE_SHUFFLE',desc:'400k MOCHI moved across 3 wallets then rebought via separate address.',ts:'23 min ago'},
+    ]
+  },
+  {
+    sym:'TOSHI', name:'Toshi',
+    ca:'0x8544FE9D190fD7EC52860abeDf776f9...',
+    cond:'neutral', score:335,
+    event:'LP removed by 2 wallets totaling 12% of pool depth. Smart money flat. No clear directional signal yet.',
+    rel:0.33, ts:'35 min ago',
+    color:'#94a3b8',
+    signals:[
+      {n:'LP depth',v:'-12%',pos:false},
+      {n:'Smart money flow',v:'flat',pos:null},
+      {n:'Wallet concentration',v:'28%',pos:null},
+      {n:'Dev activity',v:'low',pos:false},
+    ],
+    events:[
+      {type:'LP_REMOVED',desc:'Two wallets removed 12% of Uniswap V3 LP depth in a coordinated 20-min window.',ts:'35 min ago'},
+    ]
+  },
+  {
+    sym:'BONK', name:'Bonk',
+    ca:'0x1151CB3d861920e07a38e03eEAd12C3...',
+    cond:'distrib', score:234,
+    event:'Top 10 wallet began distributing — 6.2M BONK sold across 4 DEXes in 3h. Pattern matches prior local tops.',
+    rel:0.67, ts:'8 min ago',
+    color:'#f87171',
+    signals:[
+      {n:'Whale outflow',v:'high',pos:false},
+      {n:'Smart money flow',v:'outbound',pos:false},
+      {n:'LP depth',v:'-8%',pos:false},
+      {n:'Social sentiment',v:'declining',pos:false},
+    ],
+    events:[
+      {type:'WHALE_DISTRIBUTION',desc:'Top-10 holder sold 6.2M BONK across Uniswap, Aerodrome, and BaseSwap in 3h.',ts:'8 min ago'},
+      {type:'LP_WITHDRAWN',desc:'LP depth fell 8% as liquidity providers began removing positions.',ts:'22 min ago'},
+    ]
+  },
+  {
+    sym:'DEGEN', name:'Degen',
+    ca:'0x4ed4E862860beD51a9570b96d89aF5...',
+    cond:'distrib', score:156,
+    event:'Dev wallet active — 14M DEGEN transferred to Coinbase deposit address. Historically this precedes a sell within 48h.',
+    rel:0.71, ts:'3 min ago',
+    color:'#fb7185',
+    signals:[
+      {n:'Dev wallet',v:'CEX transfer',pos:false},
+      {n:'Smart money flow',v:'exiting',pos:false},
+      {n:'LP depth',v:'-5%',pos:false},
+      {n:'Wallet concentration',v:'41%',pos:false},
+    ],
+    events:[
+      {type:'DEV_WALLET_CEX',desc:'14M DEGEN transferred from dev wallet to Coinbase deposit address.',ts:'3 min ago'},
+      {type:'SMART_MONEY_EXIT',desc:'2 wallets tagged as smart money reduced exposure by 60% each.',ts:'45 min ago'},
+    ]
+  },
+];
+
+// Render cards
+function renderCards(data) {
+  const grid = document.getElementById('cardsGrid');
+  grid.innerHTML = data.map((t, i) => `
+    <div class="token-card ${t.cond}" onclick="openPanel(${i})" style="animation-delay:${i*40}ms">
+      <div class="card-top">
+        <div class="card-left">
+          <div class="token-avatar" style="border-color:${t.color}22;color:${t.color}">${t.sym.slice(0,2)}</div>
+          <div>
+            <div class="token-name">${t.sym}</div>
+            <div class="token-ca">${t.ca.slice(0,6)}...${t.ca.slice(-4)}</div>
+          </div>
+        </div>
+        <div class="cond-badge ${t.cond}">
+          ${t.cond === 'accum' ? '▲ ACCUMULATION' : t.cond === 'distrib' ? '▼ DISTRIBUTION' : '● NEUTRAL'}
+        </div>
+      </div>
+
+      <div class="card-event">${t.event}</div>
+
+      <div class="card-metrics">
+        <div class="metric">
+          <span class="metric-val" style="color:${t.score>700?'var(--grn)':t.score>400?'var(--ylw)':'var(--red)'}">${t.score}</span>
+          <span class="metric-label">score</span>
+        </div>
+        <div class="metric">
+          <span class="metric-val">${(t.rel*100).toFixed(0)}%</span>
+          <span class="metric-label">rel. str.</span>
+        </div>
+        <div class="metric">
+          <span class="metric-val">${t.ts.replace(' ago','')}</span>
+          <span class="metric-label">updated</span>
+        </div>
+      </div>
+
+      <div class="card-bar">
+        <div class="card-bar-fill" style="width:${t.score/10}%;background:${t.score>700?'var(--grn)':t.score>400?'var(--ylw)':'var(--red)'}"></div>
+      </div>
+
+      <div class="card-footer">
+        <span class="card-ts">${t.ts}</span>
+        <button class="card-share" onclick="event.stopPropagation();shareToken('${t.sym}','${t.ca}')">share report ↗</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+renderCards(tokens);
+
+// Filter
+function filterCards(type) {
+  document.querySelectorAll('.sb-filter').forEach(f => f.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  const filtered = type === 'all' ? tokens : tokens.filter(t => t.cond === type);
+  document.getElementById('feedLabel').textContent = `SHOWING ${type.toUpperCase()} · ${filtered.length} TOKENS`;
+  renderCards(filtered);
+}
+
+// Sort
+function setSort(btn, type) {
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// Panel
+function openPanel(i) {
+  const t = tokens[i];
+  document.getElementById('panelContent').innerHTML = `
+    <div class="cond-badge ${t.cond}" style="margin-bottom:16px;">
+      ${t.cond === 'accum' ? '▲ ACCUMULATION' : t.cond === 'distrib' ? '▼ DISTRIBUTION' : '● NEUTRAL'}
+    </div>
+    <div class="panel-heading">${t.name} (${t.sym})</div>
+    <div class="panel-ca">${t.ca}</div>
+
+    <div class="panel-section-label">Context Score</div>
+    <div class="panel-score-wrap">
+      <div class="score-num" style="color:${t.score>700?'var(--grn)':t.score>400?'var(--ylw)':'var(--red)'}">${t.score}</div>
+      <div class="score-bar-wrap">
+        <div class="score-bar"><div class="score-bar-fill" style="width:${t.score/10}%;background:${t.score>700?'var(--grn)':t.score>400?'var(--ylw)':'var(--red)'}"></div></div>
+        <div style="font-size:12px;color:var(--t3);margin-top:6px;">out of 1000</div>
+      </div>
+    </div>
+
+    <div class="panel-section-label">Signals</div>
+    <div class="signal-list">
+      ${t.signals.map(s => `
+        <div class="signal-row">
+          <span class="signal-name">${s.n}</span>
+          <span class="signal-val ${s.pos===true?'pos':s.pos===false?'neg':''}">${s.v}</span>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="panel-section-label">Recent events</div>
+    <div class="event-list">
+      ${t.events.map(e => `
+        <div class="event-item">
+          <div class="event-type">${e.type}</div>
+          <div class="event-desc">${e.desc}</div>
+          <div class="event-ts">${e.ts}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <button class="view-full-btn" onclick="void(0)">View full report → cortex.xyz/report/${t.ca.slice(0,10)}...</button>
+  `;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closePanel() {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function shareToken(sym, ca) {
+  const url = `https://cortex.xyz/report/${ca}`;
+  if (navigator.share) {
+    navigator.share({ title: `CORTEX Report: ${sym}`, url });
+  } else {
+    navigator.clipboard.writeText(url);
+    alert(`Copied: ${url}`);
+  }
+}
+
+// Live feed counter animation
+let c = 847;
+setInterval(() => {
+  if (Math.random() > 0.6) {
+    c += Math.floor(Math.random() * 3);
+    document.getElementById('feedCount').textContent = c + ' tokens';
+  }
+}, 4000);
+</script>

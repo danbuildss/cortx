@@ -1,0 +1,700 @@
+<title>CORTEX Playground — Test the API</title>
+<style>
+:root {
+  --bg:    #07080F;
+  --bg1:   #0C0F1E;
+  --bg2:   #111728;
+  --bg3:   #161D34;
+  --bd:    #1C2240;
+  --bd2:   #2C3460;
+  --acc:   #4F46E5;
+  --acch:  #7C74F3;
+  --accd:  rgba(79,70,229,.15);
+  --live:  #22D3EE;
+  --gold:  #F59E0B;
+  --grn:   #10B981;
+  --grnd:  rgba(16,185,129,.1);
+  --red:   #F87171;
+  --redd:  rgba(248,113,113,.1);
+  --ylw:   #FBBF24;
+  --t1:    #EEF1FA;
+  --t2:    #8892B0;
+  --t3:    #454F6A;
+  --mono:  'SFMono-Regular','Cascadia Code','Consolas','Liberation Mono',monospace;
+  --sans:  system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  font-family:var(--sans);
+  background-color:var(--bg);
+  background-image:radial-gradient(var(--bd) 1px,transparent 1px);
+  background-size:30px 30px;
+  color:var(--t1);
+  font-size:14px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+
+/* NAV */
+.nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 40px;height:54px;
+  background:rgba(7,8,15,.92);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--bd);
+  position:sticky;top:0;z-index:100;
+}
+.nav-logo{
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  letter-spacing:.22em;color:var(--t1);text-decoration:none;
+}
+.nav-logo em{font-style:normal;color:var(--acch);}
+.nav-links{display:flex;align-items:center;gap:24px;}
+.nav-links a{color:var(--t2);font-size:13.5px;text-decoration:none;transition:color .15s;}
+.nav-links a:hover{color:var(--t1);}
+.nav-links a.active{color:var(--acch);}
+.nav-cta{
+  background:var(--acc);color:#fff;
+  padding:6px 14px;border-radius:3px;
+  font-size:13px;font-weight:600;letter-spacing:.03em;
+}
+.nav-cta:hover{background:var(--acch)!important;color:#fff!important;}
+
+/* PAGE */
+.page{max-width:1100px;margin:0 auto;padding:48px 40px;}
+
+.page-header{margin-bottom:36px;}
+.page-eyebrow{
+  font-family:var(--mono);font-size:10.5px;font-weight:600;
+  letter-spacing:.2em;color:var(--acch);text-transform:uppercase;margin-bottom:12px;
+}
+.page-title{
+  font-size:30px;font-weight:800;
+  letter-spacing:-.025em;color:var(--t1);
+  margin-bottom:10px;
+}
+.page-desc{font-size:15px;color:var(--t2);line-height:1.7;max-width:540px;}
+
+/* INPUT BAR */
+.input-zone{
+  background:var(--bg1);border:1px solid var(--bd);border-radius:6px;
+  overflow:hidden;margin-bottom:24px;
+}
+.input-zone-top{
+  display:flex;align-items:center;
+  padding:0 16px;height:52px;gap:12px;
+  border-bottom:1px solid var(--bd);
+}
+.input-label{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  letter-spacing:.12em;text-transform:uppercase;
+  white-space:nowrap;
+}
+.ca-input{
+  flex:1;background:none;border:none;outline:none;
+  font-family:var(--mono);font-size:13.5px;color:var(--t1);
+  caret-color:var(--acch);
+}
+.ca-input::placeholder{color:var(--t3);}
+.clear-btn{
+  background:none;border:none;color:var(--t3);
+  font-size:18px;cursor:pointer;padding:0 4px;
+  transition:color .15s;line-height:1;
+}
+.clear-btn:hover{color:var(--t2);}
+
+.input-zone-bottom{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;
+}
+.example-cas{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.example-label{font-size:12px;color:var(--t3);}
+.example-chip{
+  font-family:var(--mono);font-size:11px;color:var(--t2);
+  background:var(--bg2);border:1px solid var(--bd);
+  padding:3px 10px;border-radius:100px;cursor:pointer;
+  transition:border-color .15s,color .15s;letter-spacing:.04em;
+}
+.example-chip:hover{border-color:var(--acc);color:var(--acch);}
+.run-btn{
+  background:var(--acc);color:#fff;border:none;
+  padding:10px 24px;border-radius:4px;
+  font-size:14px;font-weight:700;cursor:pointer;
+  letter-spacing:.04em;font-family:var(--sans);
+  transition:background .15s;
+  display:flex;align-items:center;gap:8px;
+}
+.run-btn:hover{background:var(--acch);}
+.run-btn:disabled{background:var(--bg3);color:var(--t3);cursor:not-allowed;}
+.run-icon{font-size:14px;}
+.run-btn.running .run-icon{animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* INFO STRIP */
+.info-strip{
+  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;
+}
+.info-pill{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  border:1px solid var(--bd);padding:5px 12px;border-radius:100px;
+  letter-spacing:.05em;
+  display:flex;align-items:center;gap:6px;
+}
+.info-pill span{color:var(--t2);}
+.free-pill{color:var(--grn);border-color:rgba(16,185,129,.25);background:var(--grnd);}
+.free-pill span{color:var(--grn);}
+
+/* RESULTS */
+.results{display:none;}
+.results.show{display:block;}
+
+/* LATENCY BAR */
+.latency-row{
+  display:flex;align-items:center;gap:12px;margin-bottom:16px;
+}
+.status-pill{
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  letter-spacing:.1em;color:var(--grn);
+  background:var(--grnd);border:1px solid rgba(16,185,129,.3);
+  padding:3px 10px;border-radius:3px;
+}
+.latency-val{
+  font-family:var(--mono);font-size:12px;color:var(--t2);
+  letter-spacing:.05em;
+}
+.share-report-btn{
+  margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--t3);
+  background:none;border:1px solid var(--bd);padding:4px 12px;border-radius:3px;
+  cursor:pointer;letter-spacing:.07em;transition:color .15s,border-color .15s;
+}
+.share-report-btn:hover{color:var(--acch);border-color:var(--acc);}
+
+/* RESULT SPLIT */
+.result-split{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:12px;margin-bottom:24px;
+}
+
+/* CODE WINDOW */
+.code-window{
+  background:var(--bg1);border:1px solid var(--bd);
+  border-radius:6px;overflow:hidden;
+}
+.win-bar{
+  display:flex;align-items:center;
+  padding:0 14px;height:38px;
+  background:var(--bg2);border-bottom:1px solid var(--bd);gap:10px;
+}
+.win-dots{display:flex;gap:5px;}
+.win-dots span{display:block;width:10px;height:10px;border-radius:50%;background:var(--bd2);}
+.win-label{font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.07em;flex:1;}
+.copy-btn{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  background:none;border:1px solid var(--bd);
+  padding:3px 10px;border-radius:3px;cursor:pointer;
+  letter-spacing:.07em;transition:color .15s,border-color .15s;
+}
+.copy-btn:hover{color:var(--t2);border-color:var(--bd2);}
+.json-pre{
+  padding:20px;font-family:var(--mono);font-size:12px;
+  line-height:1.75;color:var(--t2);overflow:auto;
+  max-height:520px;
+}
+.json-pre::-webkit-scrollbar{width:4px;height:4px;}
+.json-pre::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px;}
+
+/* REPORT RENDER */
+.report-card{
+  background:var(--bg1);border:1px solid var(--bd);border-radius:6px;
+  padding:24px;
+}
+.report-top{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--bd);
+}
+.report-token{
+  display:flex;align-items:center;gap:14px;
+}
+.report-avatar{
+  width:48px;height:48px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:16px;font-weight:700;color:var(--grn);
+  border:1px solid rgba(16,185,129,.25);background:var(--grnd);
+}
+.report-name{font-size:22px;font-weight:800;letter-spacing:-.02em;color:var(--t1);}
+.report-ca{font-family:var(--mono);font-size:11px;color:var(--t3);margin-top:3px;}
+.report-cond-wrap{text-align:right;}
+.report-cond{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  letter-spacing:.12em;color:var(--grn);
+  background:var(--grnd);border:1px solid rgba(16,185,129,.3);
+  padding:5px 12px;border-radius:4px;margin-bottom:6px;
+}
+.report-score{font-family:var(--mono);font-size:12px;color:var(--t3);}
+.report-score strong{color:var(--t1);}
+
+.report-section{margin-bottom:24px;}
+.report-section-label{
+  font-family:var(--mono);font-size:10px;letter-spacing:.2em;
+  color:var(--t3);text-transform:uppercase;margin-bottom:12px;
+}
+.report-summary{font-size:14px;color:var(--t2);line-height:1.75;}
+
+.signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.sig-card{
+  background:var(--bg2);border-radius:4px;padding:12px 14px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.sig-name{font-size:12.5px;color:var(--t2);}
+.sig-val{
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  color:var(--t1);letter-spacing:.02em;
+}
+.sig-val.pos{color:var(--grn);}
+.sig-val.neg{color:var(--red);}
+
+.event-list{display:flex;flex-direction:column;gap:8px;}
+.ev-item{
+  padding:12px 14px;background:var(--bg2);border-radius:4px;
+  border-left:2px solid var(--acch);
+}
+.ev-type{
+  font-family:var(--mono);font-size:10px;color:var(--acch);
+  letter-spacing:.12em;margin-bottom:4px;
+}
+.ev-desc{font-size:13px;color:var(--t2);line-height:1.55;}
+.ev-mag{
+  display:inline-flex;align-items:center;
+  font-family:var(--mono);font-size:10px;color:var(--t3);
+  margin-top:6px;
+}
+
+.rel-list{display:flex;flex-direction:column;gap:6px;}
+.rel-row{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 12px;background:var(--bg2);border-radius:4px;
+}
+.rel-sym{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--t1);width:60px;}
+.rel-bar-wrap{flex:1;}
+.rel-bar{height:3px;background:var(--bd);border-radius:2px;overflow:hidden;}
+.rel-bar-fill{height:100%;background:var(--acch);border-radius:2px;}
+.rel-pct{font-family:var(--mono);font-size:12px;color:var(--t2);text-align:right;width:36px;}
+.rel-type{
+  font-family:var(--mono);font-size:10px;color:var(--t3);
+  border:1px solid var(--bd);padding:2px 8px;border-radius:100px;white-space:nowrap;
+}
+
+.report-footer{
+  padding-top:16px;border-top:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.report-updated{font-family:var(--mono);font-size:11px;color:var(--t3);}
+.share-full-btn{
+  background:var(--acc);color:#fff;border:none;
+  padding:8px 16px;border-radius:3px;font-size:13px;
+  font-weight:600;cursor:pointer;font-family:var(--sans);
+  transition:background .15s;
+}
+.share-full-btn:hover{background:var(--acch);}
+
+/* SPINNER */
+.loading-state{
+  display:none;text-align:center;padding:60px 0;
+}
+.loading-state.show{display:block;}
+.spinner{
+  width:32px;height:32px;border:2px solid var(--bd2);
+  border-top-color:var(--acch);border-radius:50%;
+  animation:spin .7s linear infinite;margin:0 auto 16px;
+}
+.loading-label{
+  font-family:var(--mono);font-size:12px;color:var(--t3);letter-spacing:.1em;
+}
+
+/* WATERMARK */
+.empty-state{
+  text-align:center;padding:80px 0;
+  font-family:var(--mono);font-size:13px;color:var(--t3);
+  letter-spacing:.07em;line-height:2;
+}
+
+@media(max-width:900px){
+  .result-split{grid-template-columns:1fr;}
+  .page{padding:32px 24px;}
+  .nav{padding:0 24px;}
+  .signals-grid{grid-template-columns:1fr;}
+}
+@media(max-width:600px){
+  .input-zone-bottom{flex-direction:column;align-items:flex-start;gap:12px;}
+  .run-btn{width:100%;justify-content:center;}
+}
+</style>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="#" class="nav-logo">CRT<em>X</em></a>
+  <div class="nav-links">
+    <a href="#">Docs</a>
+    <a href="#" class="active">Playground</a>
+    <a href="#">Dashboard</a>
+    <a href="#" class="nav-cta">Get API key →</a>
+  </div>
+</nav>
+
+<div class="page">
+  <!-- HEADER -->
+  <div class="page-header">
+    <div class="page-eyebrow">Playground</div>
+    <div class="page-title">Test the API. No signup required.</div>
+    <div class="page-desc">Paste any Base token contract address and run a live context query. Your first call is free — no API key needed. See the exact JSON your agent will receive.</div>
+  </div>
+
+  <!-- INFO STRIP -->
+  <div class="info-strip">
+    <div class="info-pill free-pill">✦ <span>First call free</span></div>
+    <div class="info-pill">Endpoint <span>/v1/context</span></div>
+    <div class="info-pill">Chain <span>Base</span></div>
+    <div class="info-pill">Avg latency <span>~90ms</span></div>
+    <div class="info-pill">Auth <span>not required</span></div>
+  </div>
+
+  <!-- INPUT -->
+  <div class="input-zone">
+    <div class="input-zone-top">
+      <span class="input-label">CA</span>
+      <input class="ca-input" id="caInput" placeholder="0x4F9Fd6Be4a9d2afe988E254D53a1b6E..." spellcheck="false" autocomplete="off">
+      <button class="clear-btn" onclick="clearInput()" title="Clear">×</button>
+    </div>
+    <div class="input-zone-bottom">
+      <div class="example-cas">
+        <span class="example-label">Try:</span>
+        <span class="example-chip" onclick="setCA('0x4F9Fd6Be4a9d2afe988E254D53a1b6E')">PEPE</span>
+        <span class="example-chip" onclick="setCA('0x0578D8A44Db98B23bF096A38C82bBf5')">HIGHER</span>
+        <span class="example-chip" onclick="setCA('0x532f27101965dd16442E59d40670FaF')">BRETT</span>
+        <span class="example-chip" onclick="setCA('0x4ed4E862860beD51a9570b96d89aF5B')">DEGEN</span>
+      </div>
+      <button class="run-btn" id="runBtn" onclick="runQuery()">
+        <span class="run-icon">▶</span>
+        Run
+      </button>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div class="loading-state" id="loadingState">
+    <div class="spinner"></div>
+    <div class="loading-label">QUERYING · api.cortex.xyz/v1/context</div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results" id="results">
+    <div class="latency-row">
+      <span class="status-pill">200 OK</span>
+      <span class="latency-val" id="latencyVal">94ms</span>
+      <button class="share-report-btn" onclick="copyReportLink()">copy report link ↗</button>
+    </div>
+
+    <div class="result-split">
+      <!-- JSON -->
+      <div>
+        <div class="code-window">
+          <div class="win-bar">
+            <div class="win-dots"><span></span><span></span><span></span></div>
+            <span class="win-label">response.json</span>
+            <button class="copy-btn" onclick="copyJSON()">copy</button>
+          </div>
+          <pre class="json-pre" id="jsonOutput"></pre>
+        </div>
+      </div>
+
+      <!-- REPORT PREVIEW -->
+      <div>
+        <div class="report-card" id="reportCard"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPTY STATE -->
+  <div class="empty-state" id="emptyState">
+    PASTE A CONTRACT ADDRESS ABOVE<br>
+    HIT RUN TO SEE THE FULL CONTEXT REPORT
+  </div>
+</div>
+
+<script>
+// Demo data for each CA
+const demoData = {
+  '0x4F9Fd6Be4a9d2afe988E254D53a1b6E': {
+    sym:'PEPE', name:'Pepe', cond:'accumulation', score:847,
+    summary:'Smart money wallets are aggressively accumulating PEPE. Wallet concentration fell 4% over 6 hours — indicating organic, broad-based buying rather than single-whale accumulation. LP depth increased 12% suggesting market makers are positioning ahead of a potential move.',
+    signals:[
+      {n:'smart_money_flow',v:'inbound',pos:true},
+      {n:'wallet_concentration',v:'23%',pos:true},
+      {n:'dev_activity',v:'high',pos:true},
+      {n:'lp_depth_delta',v:'+12%',pos:true},
+      {n:'social_momentum',v:'rising',pos:true},
+      {n:'cex_inflow',v:'neutral',pos:null},
+    ],
+    events:[
+      {type:'WHALE_ACCUMULATION',desc:'3 smart-money wallets accumulated 4.1M PEPE over 6 hours across Aerodrome and Uniswap V3.',mag:'significant'},
+      {type:'LP_DEEPENED',desc:'Uniswap V3 PEPE/ETH pool depth increased 12% as market makers added liquidity.',mag:'moderate'},
+      {type:'SOCIAL_UPTICK',desc:'Twitter mentions up 180% vs 7-day average. Sentiment analysis: 73% positive.',mag:'low'},
+    ],
+    relationships:[
+      {sym:'WIF',pct:89,type:'correlated'},
+      {sym:'BONK',pct:74,type:'correlated'},
+      {sym:'BRETT',pct:61,type:'loosely_correlated'},
+    ]
+  },
+  '0x0578D8A44Db98B23bF096A38C82bBf5': {
+    sym:'HIGHER', name:'Higher', cond:'accumulation', score:691,
+    summary:'Dev wallet moved 8.4M HIGHER to a known staking contract. Protocol upgrade narrative is gaining traction across Telegram and Farcaster. No distribution signals detected. Smart money net positive over past 24h.',
+    signals:[
+      {n:'dev_wallet_activity',v:'staking',pos:true},
+      {n:'smart_money_flow',v:'inbound',pos:true},
+      {n:'wallet_concentration',v:'31%',pos:null},
+      {n:'social_momentum',v:'rising',pos:true},
+      {n:'lp_depth_delta',v:'+4%',pos:true},
+      {n:'cex_inflow',v:'low',pos:null},
+    ],
+    events:[
+      {type:'DEV_WALLET_MOVE',desc:'Primary dev wallet moved 8.4M HIGHER to verified staking contract 0x9a2c...',mag:'significant'},
+      {type:'NARRATIVE_SHIFT',desc:'Protocol upgrade discussion gaining traction across 3 major Telegram groups and Warpcast.',mag:'moderate'},
+      {type:'SMART_MONEY_ENTRY',desc:'2 wallets with successful track records opened positions in past 12h.',mag:'moderate'},
+    ],
+    relationships:[
+      {sym:'DEGEN',pct:77,type:'correlated'},
+      {sym:'TOSHI',pct:55,type:'loosely_correlated'},
+      {sym:'BRETT',pct:48,type:'loosely_correlated'},
+    ]
+  },
+  '0x532f27101965dd16442E59d40670FaF': {
+    sym:'BRETT', name:'Brett', cond:'neutral', score:512,
+    summary:'No directional signal. Volume has been flat for 18 hours. Smart money wallet activity is below threshold. LP depth is stable. Market is consolidating — waiting for an external catalyst.',
+    signals:[
+      {n:'smart_money_flow',v:'none',pos:null},
+      {n:'volume',v:'flat',pos:null},
+      {n:'wallet_concentration',v:'27%',pos:null},
+      {n:'lp_depth_delta',v:'0%',pos:null},
+      {n:'social_momentum',v:'low',pos:null},
+      {n:'cex_inflow',v:'neutral',pos:null},
+    ],
+    events:[
+      {type:'NO_SIGNAL',desc:'No significant on-chain activity detected in the past 18 hours. Market in consolidation.',mag:'none'},
+    ],
+    relationships:[
+      {sym:'PEPE',pct:61,type:'loosely_correlated'},
+      {sym:'WIF',pct:58,type:'loosely_correlated'},
+    ]
+  },
+  '0x4ed4E862860beD51a9570b96d89aF5B': {
+    sym:'DEGEN', name:'Degen', cond:'distribution', score:156,
+    summary:'Dev wallet has transferred 14M DEGEN to a Coinbase deposit address. This pattern has preceded sell events in 3 of the last 4 occurrences. Smart money is exiting. LP depth falling. High-risk window.',
+    signals:[
+      {n:'dev_wallet',v:'CEX transfer',pos:false},
+      {n:'smart_money_flow',v:'outbound',pos:false},
+      {n:'lp_depth_delta',v:'-5%',pos:false},
+      {n:'wallet_concentration',v:'41%',pos:false},
+      {n:'social_sentiment',v:'declining',pos:false},
+      {n:'volume',v:'spike',pos:null},
+    ],
+    events:[
+      {type:'DEV_WALLET_CEX',desc:'Primary dev wallet transferred 14M DEGEN to Coinbase deposit address 0x6Dcb...',mag:'critical'},
+      {type:'SMART_MONEY_EXIT',desc:'2 top wallets reduced DEGEN exposure by 60% and 72% respectively.',mag:'significant'},
+      {type:'LP_WITHDRAWN',desc:'LP depth fell 5% as liquidity providers began removing Aerodrome positions.',mag:'moderate'},
+    ],
+    relationships:[
+      {sym:'HIGHER',pct:77,type:'correlated'},
+      {sym:'TOSHI',pct:44,type:'loosely_correlated'},
+    ]
+  }
+};
+
+function setCA(ca) {
+  document.getElementById('caInput').value = ca;
+  document.getElementById('caInput').focus();
+}
+
+function clearInput() {
+  document.getElementById('caInput').value = '';
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('emptyState').style.display = '';
+}
+
+function getCondStyle(cond) {
+  if (cond === 'accumulation') return {color:'var(--grn)',bg:'var(--grnd)',border:'rgba(16,185,129,.3)',icon:'▲'};
+  if (cond === 'distribution') return {color:'var(--red)',bg:'var(--redd)',border:'rgba(248,113,113,.3)',icon:'▼'};
+  return {color:'var(--ylw)',bg:'var(--ylwd)',border:'rgba(251,191,36,.3)',icon:'●'};
+}
+
+function scoreColor(s) {
+  return s>700?'var(--grn)':s>400?'var(--ylw)':'var(--red)';
+}
+
+async function runQuery() {
+  const ca = document.getElementById('caInput').value.trim();
+  if (!ca) {
+    document.getElementById('caInput').focus();
+    return;
+  }
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.classList.add('running');
+  btn.innerHTML = '<span class="run-icon">↻</span> Running...';
+
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('loadingState').classList.add('show');
+
+  // Simulate network delay
+  const delay = 80 + Math.floor(Math.random() * 60);
+  await new Promise(r => setTimeout(r, delay + 600));
+
+  document.getElementById('loadingState').classList.remove('show');
+
+  // Find closest demo data
+  let data = demoData[ca];
+  if (!data) {
+    // Use PEPE as fallback with modified CA
+    data = { ...demoData['0x4F9Fd6Be4a9d2afe988E254D53a1b6E'] };
+    data.ca = ca;
+  }
+  data.ca = ca;
+
+  renderResults(data, delay + 14);
+
+  btn.disabled = false;
+  btn.classList.remove('running');
+  btn.innerHTML = '<span class="run-icon">▶</span> Run';
+}
+
+function renderResults(d, latency) {
+  document.getElementById('latencyVal').textContent = latency + 'ms';
+
+  const cs = getCondStyle(d.cond);
+
+  // JSON output
+  const json = {
+    ca: d.ca,
+    symbol: d.sym,
+    condition: d.cond,
+    score: d.score,
+    signals: Object.fromEntries(d.signals.map(s => [s.n, s.v])),
+    top_event: {
+      type: d.events[0]?.type,
+      description: d.events[0]?.desc,
+      magnitude: d.events[0]?.mag
+    },
+    events: d.events.map(e => ({type:e.type, magnitude:e.mag})),
+    relationships: d.relationships?.map(r => ({ca:'0x'+Math.random().toString(16).slice(2,14)+'...', symbol:r.sym, strength:r.pct/100, type:r.type})) || [],
+    updated_at: Math.floor(Date.now()/1000)
+  };
+
+  const jsonStr = JSON.stringify(json, null, 2)
+    .replace(/"([^"]+)":/g, '<span style="color:var(--live)">"$1"</span>:')
+    .replace(/: "([^"]+)"/g, ': <span style="color:var(--grn)">"$1"</span>')
+    .replace(/: (\d+\.?\d*)/g, ': <span style="color:var(--gold)">$1</span>');
+
+  document.getElementById('jsonOutput').innerHTML = jsonStr;
+
+  // Report card
+  const sigs = d.signals.map(s => `
+    <div class="sig-card">
+      <span class="sig-name">${s.n}</span>
+      <span class="sig-val ${s.pos===true?'pos':s.pos===false?'neg':''}">${s.v}</span>
+    </div>
+  `).join('');
+
+  const evs = d.events.map(e => `
+    <div class="ev-item">
+      <div class="ev-type">${e.type}</div>
+      <div class="ev-desc">${e.desc}</div>
+      <div class="ev-mag">magnitude: ${e.mag}</div>
+    </div>
+  `).join('');
+
+  const rels = (d.relationships||[]).map(r => `
+    <div class="rel-row">
+      <span class="rel-sym">${r.sym}</span>
+      <div class="rel-bar-wrap">
+        <div class="rel-bar"><div class="rel-bar-fill" style="width:${r.pct}%"></div></div>
+      </div>
+      <span class="rel-pct">${r.pct}%</span>
+      <span class="rel-type">${r.type}</span>
+    </div>
+  `).join('');
+
+  document.getElementById('reportCard').innerHTML = `
+    <div class="report-top">
+      <div class="report-token">
+        <div class="report-avatar" style="color:${cs.color};background:${cs.bg};border-color:${cs.border}">${d.sym.slice(0,2)}</div>
+        <div>
+          <div class="report-name">${d.name} (${d.sym})</div>
+          <div class="report-ca">${d.ca.slice(0,10)}...${d.ca.slice(-6)}</div>
+        </div>
+      </div>
+      <div class="report-cond-wrap">
+        <div class="report-cond" style="color:${cs.color};background:${cs.bg};border-color:${cs.border}">
+          ${cs.icon} ${d.cond.toUpperCase()}
+        </div>
+        <div class="report-score">Score: <strong style="color:${scoreColor(d.score)}">${d.score}</strong> / 1000</div>
+      </div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">Context Summary</div>
+      <div class="report-summary">${d.summary}</div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">Signals</div>
+      <div class="signals-grid">${sigs}</div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">Events</div>
+      <div class="event-list">${evs}</div>
+    </div>
+
+    ${d.relationships?.length ? `
+    <div class="report-section">
+      <div class="report-section-label">Token Relationships</div>
+      <div class="rel-list">${rels}</div>
+    </div>` : ''}
+
+    <div class="report-footer">
+      <span class="report-updated">Updated: just now · cortex.xyz/report/${d.ca.slice(0,10)}...</span>
+      <button class="share-full-btn" onclick="copyReportLink()">Share report ↗</button>
+    </div>
+  `;
+
+  document.getElementById('results').classList.add('show');
+}
+
+function copyJSON() {
+  const text = document.getElementById('jsonOutput').innerText;
+  navigator.clipboard.writeText(text);
+  event.target.textContent = 'copied!';
+  event.target.style.color = 'var(--grn)';
+  setTimeout(() => { event.target.textContent = 'copy'; event.target.style.color = ''; }, 2000);
+}
+
+function copyReportLink() {
+  const ca = document.getElementById('caInput').value.trim() || '0x4F9Fd6Be4a9d2afe988E254D53a1b6E';
+  navigator.clipboard.writeText(`https://cortex.xyz/report/${ca}`);
+  const btns = document.querySelectorAll('.share-report-btn, .share-full-btn');
+  btns.forEach(b => { b.textContent = 'link copied!'; });
+  setTimeout(() => {
+    document.querySelector('.share-report-btn') && (document.querySelector('.share-report-btn').textContent = 'copy report link ↗');
+    document.querySelector('.share-full-btn') && (document.querySelector('.share-full-btn').textContent = 'Share report ↗');
+  }, 2000);
+}
+
+// Enter to run
+document.getElementById('caInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runQuery();
+});
+</script>

@@ -1,0 +1,681 @@
+<title>CORTEX — Token Intelligence API</title>
+<style>
+:root {
+  --bg:    #07080F;
+  --bg1:   #0C0F1E;
+  --bg2:   #111728;
+  --bd:    #1C2240;
+  --bd2:   #2C3460;
+  --acc:   #4F46E5;
+  --acch:  #7C74F3;
+  --accd:  rgba(79,70,229,.15);
+  --live:  #22D3EE;
+  --lived: rgba(34,211,238,.12);
+  --gold:  #F59E0B;
+  --grn:   #10B981;
+  --red:   #F87171;
+  --t1:    #EEF1FA;
+  --t2:    #8892B0;
+  --t3:    #454F6A;
+  --mono:  'SFMono-Regular','Cascadia Code','Consolas','Liberation Mono',monospace;
+  --sans:  system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  font-family:var(--sans);
+  background-color:var(--bg);
+  background-image:radial-gradient(var(--bd) 1px,transparent 1px);
+  background-size:30px 30px;
+  color:var(--t1);
+  font-size:15px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+a{color:inherit;text-decoration:none;}
+button{font-family:var(--sans);}
+
+/* NAV */
+.nav{
+  position:sticky;top:0;z-index:200;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 48px;height:54px;
+  background:rgba(7,8,15,.9);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--bd);
+}
+.nav-logo{
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  letter-spacing:.22em;color:var(--t1);
+}
+.nav-logo em{font-style:normal;color:var(--acch);}
+.nav-links{display:flex;align-items:center;gap:28px;}
+.nav-links a{color:var(--t2);font-size:13.5px;letter-spacing:.02em;transition:color .15s;}
+.nav-links a:hover{color:var(--t1);}
+.nav-cta{
+  background:var(--acc);color:#fff!important;
+  padding:6px 14px;border-radius:3px;
+  font-size:13px;font-weight:600;letter-spacing:.03em;
+  transition:background .15s!important;
+}
+.nav-cta:hover{background:var(--acch)!important;}
+
+/* HERO */
+.hero{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:64px;align-items:center;
+  max-width:1200px;margin:0 auto;
+  padding:88px 48px 100px;
+}
+.hero-eyebrow{
+  font-family:var(--mono);font-size:10.5px;font-weight:600;
+  letter-spacing:.2em;color:var(--acch);
+  text-transform:uppercase;margin-bottom:22px;
+}
+.hero h1{
+  font-size:clamp(38px,4.5vw,58px);
+  font-weight:800;line-height:1.06;
+  letter-spacing:-.03em;color:var(--t1);
+  text-wrap:balance;margin-bottom:20px;
+}
+.hero-sub{
+  font-size:16px;color:var(--t2);
+  line-height:1.75;max-width:420px;margin-bottom:36px;
+}
+
+.counter-block{
+  display:inline-flex;align-items:center;gap:12px;
+  padding:10px 16px;margin-bottom:32px;
+  background:var(--bg1);border:1px solid var(--bd);border-radius:4px;
+}
+.live-badge{
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:10px;
+  letter-spacing:.14em;color:var(--live);
+}
+.live-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--live);
+  animation:pulse-dot 1.8s ease-in-out infinite;
+}
+@keyframes pulse-dot{
+  0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,211,238,.5);}
+  50%{opacity:.7;box-shadow:0 0 0 5px rgba(34,211,238,0);}
+}
+.counter-sep{color:var(--bd2);font-size:16px;}
+.counter-num{
+  font-family:var(--mono);font-size:20px;font-weight:700;
+  color:var(--t1);font-variant-numeric:tabular-nums;
+  letter-spacing:.02em;
+}
+.counter-label{font-size:12.5px;color:var(--t3);letter-spacing:.03em;}
+
+.cta-row{display:flex;flex-wrap:wrap;gap:10px;}
+.btn-primary{
+  background:var(--acc);color:#fff;border:none;
+  padding:10px 18px;border-radius:3px;
+  font-size:13.5px;font-weight:600;cursor:pointer;
+  letter-spacing:.03em;transition:background .15s;
+}
+.btn-primary:hover{background:var(--acch);}
+.btn-ghost{
+  background:transparent;color:var(--t2);
+  border:1px solid var(--bd2);
+  padding:10px 18px;border-radius:3px;
+  font-size:13.5px;font-weight:500;cursor:pointer;
+  letter-spacing:.02em;transition:border-color .15s,color .15s;
+  display:inline-flex;align-items:center;
+}
+.btn-ghost:hover{border-color:var(--acch);color:var(--acch);}
+
+/* CODE WINDOW */
+.code-window{
+  background:var(--bg1);
+  border:1px solid var(--bd);
+  border-radius:6px;overflow:hidden;
+  box-shadow:0 0 80px rgba(79,70,229,.09),0 24px 64px rgba(0,0,0,.45);
+}
+.win-bar{
+  display:flex;align-items:center;
+  padding:0 14px;height:38px;
+  background:var(--bg2);border-bottom:1px solid var(--bd);gap:10px;
+}
+.win-dots{display:flex;gap:5px;}
+.win-dots span{display:block;width:10px;height:10px;border-radius:50%;background:var(--bd2);}
+.win-tabs{display:flex;flex:1;margin-left:6px;}
+.win-tab{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  background:none;border:none;border-bottom:2px solid transparent;
+  padding:0 12px;height:38px;margin-bottom:-1px;
+  cursor:pointer;letter-spacing:.07em;transition:color .15s;
+}
+.win-tab:hover{color:var(--t2);}
+.win-tab.active{color:var(--acch);border-bottom-color:var(--acch);}
+.copy-btn{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  background:none;border:1px solid var(--bd);
+  padding:3px 10px;border-radius:3px;cursor:pointer;
+  letter-spacing:.07em;transition:color .15s,border-color .15s;
+}
+.copy-btn:hover{color:var(--t2);border-color:var(--bd2);}
+.code-panel{display:none;}
+.code-panel.active{display:block;}
+.code-panel pre{
+  padding:20px;font-family:var(--mono);font-size:12.5px;
+  line-height:1.75;color:var(--t2);overflow-x:auto;
+}
+.kw{color:var(--acch);}
+.str{color:var(--grn);}
+.num{color:var(--gold);}
+.cm{color:var(--t3);}
+.key{color:var(--live);}
+.response-block{border-top:1px solid var(--bd);padding:16px 20px;}
+.res-label{
+  font-family:var(--mono);font-size:10.5px;color:var(--t3);
+  letter-spacing:.1em;margin-bottom:10px;
+}
+.res-json{
+  font-family:var(--mono);font-size:12px;
+  line-height:1.75;color:var(--t2);overflow-x:auto;display:block;
+}
+
+/* FEATURES */
+.section-wrap{
+  max-width:1200px;margin:0 auto;
+  padding:80px 48px;
+  border-top:1px solid var(--bd);
+}
+.section-label{
+  font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.2em;color:var(--t3);
+  text-transform:uppercase;margin-bottom:40px;
+}
+.features-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:1px;background:var(--bd);
+  border:1px solid var(--bd);border-radius:4px;overflow:hidden;
+}
+.feat{background:var(--bg1);padding:28px;}
+.feat-icon{
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  letter-spacing:.12em;color:var(--acch);margin-bottom:14px;
+}
+.feat-title{
+  font-size:15px;font-weight:700;color:var(--t1);
+  margin-bottom:8px;letter-spacing:-.01em;
+}
+.feat-desc{font-size:13px;color:var(--t2);line-height:1.65;}
+
+/* ENDPOINTS */
+.endpoint-list{
+  display:flex;flex-direction:column;gap:1px;
+  background:var(--bd);border:1px solid var(--bd);
+  border-radius:4px;overflow:hidden;
+}
+.ep-row{
+  background:var(--bg1);padding:20px 24px;
+  display:flex;align-items:flex-start;gap:16px;
+}
+.ep-method{
+  font-family:var(--mono);font-size:10.5px;font-weight:700;
+  letter-spacing:.1em;color:var(--grn);
+  background:rgba(16,185,129,.1);
+  padding:3px 9px;border-radius:3px;
+  min-width:42px;text-align:center;margin-top:2px;
+}
+.ep-path{
+  font-family:var(--mono);font-size:14px;color:var(--t1);
+  margin-bottom:4px;
+}
+.ep-desc{font-size:13px;color:var(--t2);}
+.ep-badge{
+  margin-left:auto;font-family:var(--mono);font-size:10px;
+  color:var(--t3);letter-spacing:.07em;
+  border:1px solid var(--bd2);padding:2px 9px;border-radius:3px;
+  white-space:nowrap;align-self:center;
+}
+
+/* MCP BLOCK */
+.mcp-wrap{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:60px;align-items:start;
+}
+.mcp-left h2{
+  font-size:28px;font-weight:800;
+  letter-spacing:-.025em;color:var(--t1);
+  margin-bottom:14px;text-wrap:balance;line-height:1.15;
+}
+.mcp-left p{
+  font-size:15px;color:var(--t2);
+  line-height:1.75;margin-bottom:24px;max-width:380px;
+}
+.mcp-chips{display:flex;gap:8px;flex-wrap:wrap;}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--t2);
+  border:1px solid var(--bd);padding:4px 11px;
+  border-radius:100px;letter-spacing:.05em;
+}
+
+/* FOOTER */
+.footer{
+  border-top:1px solid var(--bd);
+  max-width:1200px;margin:0 auto;
+  padding:36px 48px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.footer-logo{
+  font-family:var(--mono);font-size:11.5px;
+  font-weight:700;letter-spacing:.22em;color:var(--t3);
+}
+.footer-logo em{font-style:normal;color:var(--t3);}
+.footer-links{display:flex;gap:24px;}
+.footer-links a{font-size:13px;color:var(--t3);transition:color .15s;}
+.footer-links a:hover{color:var(--t2);}
+.footer-right{
+  font-family:var(--mono);font-size:11px;color:var(--t3);
+  letter-spacing:.05em;
+}
+
+/* MODAL */
+.modal-overlay{
+  position:fixed;inset:0;
+  background:rgba(7,8,15,.88);
+  backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;
+  z-index:500;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{
+  background:var(--bg1);border:1px solid var(--bd2);
+  border-radius:6px;width:min(560px,90vw);
+  padding:28px;
+  box-shadow:0 24px 80px rgba(0,0,0,.7);
+  transform:translateY(10px);transition:transform .2s;
+}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.modal-hdr h3{font-size:16px;font-weight:700;letter-spacing:-.01em;}
+.modal-close{
+  background:none;border:none;color:var(--t3);
+  font-size:22px;cursor:pointer;padding:0 4px;line-height:1;
+  transition:color .15s;
+}
+.modal-close:hover{color:var(--t1);}
+.modal-note{font-size:13.5px;color:var(--t2);margin-bottom:14px;line-height:1.6;}
+.modal-note code{
+  font-family:var(--mono);font-size:12px;color:var(--acch);
+  background:var(--accd);padding:1px 6px;border-radius:3px;
+}
+.modal-cta{
+  display:block;text-align:center;
+  background:var(--acc);color:#fff;
+  padding:11px;border-radius:3px;
+  font-size:14px;font-weight:600;
+  margin-top:16px;transition:background .15s;
+}
+.modal-cta:hover{background:var(--acch);}
+
+/* RESPONSIVE */
+@media(max-width:960px){
+  .hero{grid-template-columns:1fr;gap:48px;padding:64px 28px 72px;}
+  .features-grid{grid-template-columns:1fr 1fr;}
+  .mcp-wrap{grid-template-columns:1fr;gap:40px;}
+  .nav{padding:0 28px;}
+  .section-wrap{padding:60px 28px;}
+  .footer{padding:32px 28px;flex-direction:column;gap:20px;text-align:center;}
+  .footer-links{justify-content:center;}
+}
+@media(max-width:600px){
+  .features-grid{grid-template-columns:1fr;}
+  .win-tabs .win-tab:nth-child(3){display:none;}
+  .nav-links a:not(.nav-cta){display:none;}
+}
+</style>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="#" class="nav-logo">CRT<em>X</em></a>
+  <div class="nav-links">
+    <a href="#">Docs</a>
+    <a href="#">Playground</a>
+    <a href="#">Pricing</a>
+    <a href="#" class="nav-cta">Sign in →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-eyebrow">Token Intelligence API</div>
+    <h1>Token context.<br>One call.</h1>
+    <p class="hero-sub">Returns relationship maps, on-chain signals, and narrative context for any Base token. Designed for agent builders and LLM pipelines.</p>
+
+    <div class="counter-block">
+      <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+      <span class="counter-sep">|</span>
+      <span class="counter-num" id="callCounter">2,847,391</span>
+      <span class="counter-label">API calls made</span>
+    </div>
+
+    <div class="cta-row">
+      <button class="btn-primary" onclick="openModal('claude')">＋ Add to Claude</button>
+      <button class="btn-primary" onclick="openModal('chatgpt')">＋ Add to ChatGPT</button>
+      <a href="#" class="btn-ghost">Start free →</a>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="code-window">
+      <div class="win-bar">
+        <div class="win-dots"><span></span><span></span><span></span></div>
+        <div class="win-tabs">
+          <button class="win-tab active" data-tab="curl">curl</button>
+          <button class="win-tab" data-tab="python">python</button>
+          <button class="win-tab" data-tab="mcp">mcp config</button>
+        </div>
+        <button class="copy-btn" id="heroCopyBtn" onclick="copyHeroCode()">copy</button>
+      </div>
+
+      <div class="code-panel active" id="panel-curl">
+        <pre><code><span class="cm"># get token context</span>
+curl https://api.cortex.xyz/<span class="kw">v1/context</span> \
+  -H <span class="str">"Authorization: Bearer $CORTEX_KEY"</span> \
+  -d <span class="str">'{"ca":"0x4F9Fd6Be4a9d2afe988E254D53a..."}'</span></code></pre>
+      </div>
+
+      <div class="code-panel" id="panel-python">
+        <pre><code><span class="kw">import</span> httpx
+
+resp = httpx.<span class="kw">post</span>(
+    <span class="str">"https://api.cortex.xyz/v1/context"</span>,
+    headers={<span class="str">"Authorization"</span>: <span class="str">f"Bearer {API_KEY}"</span>},
+    json={<span class="str">"ca"</span>: <span class="str">"0x4F9Fd6Be4a9d2afe988E254D53a..."</span>}
+)
+data = resp.json()
+<span class="cm"># data["condition"]  → "accumulation"</span>
+<span class="cm"># data["score"]      → 847</span></code></pre>
+      </div>
+
+      <div class="code-panel" id="panel-mcp">
+        <pre><code>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"cortex"</span>: {
+      <span class="key">"command"</span>: <span class="str">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="str">"-y"</span>, <span class="str">"@cortex/mcp"</span>],
+      <span class="key">"env"</span>: {
+        <span class="key">"CORTEX_API_KEY"</span>: <span class="str">"your-api-key"</span>
+      }
+    }
+  }
+}</code></pre>
+      </div>
+
+      <div class="response-block">
+        <div class="res-label">↳ 200 OK · 94ms</div>
+        <pre class="res-json"><code>{
+  <span class="key">"condition"</span>: <span class="str">"accumulation"</span>,
+  <span class="key">"score"</span>: <span class="num">847</span>,
+  <span class="key">"signals"</span>: { <span class="cm">/* smart_money · concentration · dev */</span> },
+  <span class="key">"top_event"</span>: { <span class="key">"type"</span>: <span class="str">"whale_accumulation"</span> },
+  <span class="key">"relationships"</span>: [ <span class="cm">/* correlated token pairs */</span> ],
+  <span class="key">"updated_at"</span>: <span class="num">1738847294</span>
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<div class="section-wrap">
+  <div class="section-label">What you get</div>
+  <div class="features-grid">
+    <div class="feat">
+      <div class="feat-icon">SIG</div>
+      <div class="feat-title">40+ on-chain signals</div>
+      <div class="feat-desc">Wallet concentration, smart money flow, dev activity, LP depth — aggregated per token per call.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">MAP</div>
+      <div class="feat-title">Relationship maps</div>
+      <div class="feat-desc">Correlated token pairs across 50k+ pairs. Know what moves together before your agent makes a call.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">EVT</div>
+      <div class="feat-title">Narrative context</div>
+      <div class="feat-desc">Top events affecting any token — whale moves, DEX listings, dev unlocks — in structured, LLM-readable JSON.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">PAY</div>
+      <div class="feat-title">x402 micropayments</div>
+      <div class="feat-desc">Stake $CRTX for higher rate limits or pay-per-call via x402. No subscription required for light use.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ENDPOINTS -->
+<div class="section-wrap" style="padding-top:0;">
+  <div class="section-label">Endpoint reference</div>
+  <div class="endpoint-list">
+    <div class="ep-row">
+      <span class="ep-method">GET</span>
+      <div>
+        <div class="ep-path">/v1/context</div>
+        <div class="ep-desc">Full structured context report for a token CA. Returns condition, signals, events, and relationships.</div>
+      </div>
+      <span class="ep-badge">free trial</span>
+    </div>
+    <div class="ep-row">
+      <span class="ep-method">GET</span>
+      <div>
+        <div class="ep-path">/v1/relationships</div>
+        <div class="ep-desc">Returns correlated token pairs with strength scores and relationship type classification.</div>
+      </div>
+      <span class="ep-badge">0.001 USDC</span>
+    </div>
+    <div class="ep-row">
+      <span class="ep-method">GET</span>
+      <div>
+        <div class="ep-path">/v1/events</div>
+        <div class="ep-desc">Stream of recent on-chain events affecting a token — magnitude-ranked, timestamped, structured.</div>
+      </div>
+      <span class="ep-badge">0.001 USDC</span>
+    </div>
+    <div class="ep-row">
+      <span class="ep-method">GET</span>
+      <div>
+        <div class="ep-path">/v1/signals</div>
+        <div class="ep-desc">Raw signal values for programmatic use. Smart money flow, concentration index, and dev activity score.</div>
+      </div>
+      <span class="ep-badge">0.002 USDC</span>
+    </div>
+  </div>
+</div>
+
+<!-- MCP BLOCK -->
+<div class="section-wrap" style="padding-top:0;">
+  <div class="mcp-wrap">
+    <div class="mcp-left">
+      <h2>One block.<br>Works anywhere Claude runs.</h2>
+      <p>Drop this into your Claude Desktop config. Your agent can now query any Base token with a single tool call — no custom code, no parsing, no prompt engineering.</p>
+      <div class="mcp-chips">
+        <span class="chip">Claude Desktop</span>
+        <span class="chip">Claude API</span>
+        <span class="chip">Cursor</span>
+        <span class="chip">Windsurf</span>
+        <span class="chip">any MCP host</span>
+      </div>
+    </div>
+    <div class="code-window">
+      <div class="win-bar">
+        <div class="win-dots"><span></span><span></span><span></span></div>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--t3);margin-left:8px;letter-spacing:.06em;">~/.claude/claude_desktop_config.json</span>
+        <button class="copy-btn" style="margin-left:auto;" onclick="copyMCPBlock()">copy</button>
+      </div>
+      <div id="mcp-block-panel">
+        <pre><code id="mcp-block-code">{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"cortex"</span>: {
+      <span class="key">"command"</span>: <span class="str">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="str">"-y"</span>, <span class="str">"@cortex/mcp@latest"</span>],
+      <span class="key">"env"</span>: {
+        <span class="key">"CORTEX_API_KEY"</span>: <span class="str">"crtx_your_key_here"</span>
+      }
+    }
+  }
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-logo">CRT<em>X</em></div>
+  <div class="footer-links">
+    <a href="#">Docs</a>
+    <a href="#">Playground</a>
+    <a href="#">OpenAPI spec</a>
+    <a href="#">Status</a>
+    <a href="#">X / Twitter</a>
+  </div>
+  <div class="footer-right">$CRTX · Base</div>
+</footer>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="maybeCloseModal(event)">
+  <div class="modal" id="modalBox">
+    <div class="modal-hdr">
+      <h3 id="modal-title">Add to Claude</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-note" id="modal-note">
+      Add this to your <code>~/.claude/claude_desktop_config.json</code>:
+    </div>
+    <div class="code-window">
+      <div class="win-bar">
+        <div class="win-dots"><span></span><span></span><span></span></div>
+        <span id="modal-filename" style="font-family:var(--mono);font-size:11px;color:var(--t3);margin-left:8px;letter-spacing:.06em;">claude_desktop_config.json</span>
+        <button class="copy-btn" style="margin-left:auto;" onclick="copyModalCode()">copy</button>
+      </div>
+      <pre style="padding:18px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--t2);overflow-x:auto;"><code id="modal-code"></code></pre>
+    </div>
+    <a href="#" class="modal-cta" id="modal-cta">Get API key →</a>
+  </div>
+</div>
+
+<script>
+// COUNTER
+let count = 2847391;
+const el = document.getElementById('callCounter');
+function tick() {
+  count += Math.floor(Math.random() * 3) + 1;
+  el.textContent = count.toLocaleString('en-US');
+}
+setInterval(tick, 2100 + Math.random() * 600);
+
+// TABS
+document.querySelectorAll('.win-tab').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const section = this.closest('.code-window');
+    section.querySelectorAll('.win-tab').forEach(t => t.classList.remove('active'));
+    section.querySelectorAll('.code-panel').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    section.querySelector('#panel-' + this.dataset.tab).classList.add('active');
+  });
+});
+
+// COPY HERO
+function copyHeroCode() {
+  const active = document.querySelector('#panel-curl.active, #panel-python.active, #panel-mcp.active');
+  if (!active) return;
+  navigator.clipboard.writeText(active.querySelector('pre code').innerText);
+  const btn = document.getElementById('heroCopyBtn');
+  btn.textContent = 'copied!';
+  btn.style.color = '#10B981';
+  setTimeout(() => { btn.textContent = 'copy'; btn.style.color = ''; }, 2000);
+}
+
+// COPY MCP BLOCK
+function copyMCPBlock() {
+  const raw = `{
+  "mcpServers": {
+    "cortex": {
+      "command": "npx",
+      "args": ["-y", "@cortex/mcp@latest"],
+      "env": {
+        "CORTEX_API_KEY": "crtx_your_key_here"
+      }
+    }
+  }
+}`;
+  navigator.clipboard.writeText(raw);
+  event.target.textContent = 'copied!';
+  event.target.style.color = '#10B981';
+  setTimeout(() => { event.target.textContent = 'copy'; event.target.style.color = ''; }, 2000);
+}
+
+// MODAL
+const configs = {
+  claude: {
+    title: 'Add to Claude',
+    note: 'Add this to your <code>~/.claude/claude_desktop_config.json</code>:',
+    filename: 'claude_desktop_config.json',
+    code: `{
+  "mcpServers": {
+    "cortex": {
+      "command": "npx",
+      "args": ["-y", "@cortex/mcp@latest"],
+      "env": {
+        "CORTEX_API_KEY": "crtx_your_key_here"
+      }
+    }
+  }
+}`,
+    cta: 'Get API key →'
+  },
+  chatgpt: {
+    title: 'Add to ChatGPT',
+    note: 'Use the ChatGPT Plugins manifest or OpenAI function calling with our <code>openapi.json</code>:',
+    filename: 'openapi.json (download)',
+    code: `# ChatGPT / OpenAI integration
+openapi_url: https://api.cortex.xyz/openapi.json
+auth:
+  type: api_key
+  authorization_type: bearer
+  api_key_param_name: Authorization
+
+# Or use function calling directly:
+# POST https://api.cortex.xyz/v1/context
+# Header: Authorization: Bearer YOUR_KEY`,
+    cta: 'Download OpenAPI spec →'
+  }
+};
+
+function openModal(type) {
+  const cfg = configs[type];
+  document.getElementById('modal-title').textContent = cfg.title;
+  document.getElementById('modal-note').innerHTML = cfg.note;
+  document.getElementById('modal-filename').textContent = cfg.filename;
+  document.getElementById('modal-code').textContent = cfg.code;
+  document.getElementById('modal-cta').textContent = cfg.cta;
+  document.getElementById('modalOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function maybeCloseModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+function copyModalCode() {
+  const code = document.getElementById('modal-code').textContent;
+  navigator.clipboard.writeText(code);
+  event.target.textContent = 'copied!';
+  event.target.style.color = '#10B981';
+  setTimeout(() => { event.target.textContent = 'copy'; event.target.style.color = ''; }, 2000);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
