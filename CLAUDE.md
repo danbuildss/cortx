@@ -1,3 +1,13 @@
+## Session Memory (read this first)
+
+At the start of every session — including after a context clear — read `NOTES.md` in the repo root. It contains the project overview, current status, what's been built, and key decisions. Never ask the user to re-explain things that are already in NOTES.md.
+
+**Keep NOTES.md updated.** When a key decision is made, something is built, or the project status changes, update NOTES.md and commit it. This is how context survives across sessions.
+
+**Context cleared mid-session?** Run `/context-restore` to recover the last gstack snapshot, then re-read NOTES.md.
+
+---
+
 ## gstack (REQUIRED — global install)
 
 **Before doing ANY work, verify gstack is installed:**
