@@ -43,14 +43,14 @@ export type ServiceConfig = {
 
 export type X402PaymentTerms = {
   accepts: Array<{
-    scheme: string;
+    scheme?: string;
     network: string;
     maxAmountRequired: string;
-    resource: string;
-    description: string;
-    mimeType: string;
+    resource?: string;
+    description?: string;
+    mimeType?: string;
     payTo: string;
-    maxTimeoutSeconds: number;
+    maxTimeoutSeconds?: number;
     asset: string;
     extra?: Record<string, unknown>;
   }>;

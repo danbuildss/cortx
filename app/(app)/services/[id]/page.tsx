@@ -99,41 +99,100 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
           <p style={{ fontSize: 13, color: '#555' }}>No checks yet. Use &ldquo;Run check&rdquo; above or wait for the next scheduled run.</p>
         </div>
       ) : (
-        <div style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #1f1f1f' }}>
-                {['Time', 'Status', 'Latency', 'Failed stage'].map(h => (
-                  <th key={h} style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {recentChecks.map((chk, i) => {
-                const isLast = i === recentChecks.length - 1;
-                return (
-                  <tr key={chk.id} style={{ borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: '#555' }}>
-                      {new Date(chk.started_at).toLocaleString()}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{ fontSize: 12, color: CHECK_COLOR[chk.status] ?? '#555', fontWeight: 500 }}>
-                        {chk.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: '#888' }}>
-                      {chk.latency_ms != null ? `${chk.latency_ms}ms` : '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: '#ef4444', fontFamily: 'var(--font-geist-mono)' }}>
-                      {chk.failure_stage ?? '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, overflow: 'hidden', marginBottom: 24 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #1f1f1f' }}>
+                  {['Time', 'Status', 'Latency', 'Failed stage'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentChecks.map((chk, i) => {
+                  const isLast = i === recentChecks.length - 1;
+                  return (
+                    <tr key={chk.id} style={{ borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: '#555' }}>
+                        {new Date(chk.started_at).toLocaleString()}
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ fontSize: 12, color: CHECK_COLOR[chk.status] ?? '#555', fontWeight: 500 }}>
+                          {chk.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: '#888' }}>
+                        {chk.latency_ms != null ? `${chk.latency_ms}ms` : '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: '#ef4444', fontFamily: 'var(--font-geist-mono)' }}>
+                        {chk.failure_stage ?? '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Stage breakdown for most recent check */}
+          {recentChecks[0] && (
+            <StageBreakdown check={recentChecks[0]} />
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+type StageRow = {
+  stage: string;
+  passed: boolean | null;
+  duration_ms: number | null;
+  evidence: Record<string, unknown> | null;
+  error?: string;
+};
+
+function StageBreakdown({ check }: { check: { status: string; failure_stage: string | null; stages: unknown } }) {
+  const stages = (check.stages as StageRow[] | null) ?? [];
+  if (!stages.length) return null;
+
+  const STAGE_COLOR: Record<string, string> = {
+    true: '#22c55e',
+    false: '#ef4444',
+    null: '#555',
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 13, fontWeight: 500, color: '#888', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Latest check — stage detail
+      </h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {stages.map((s) => {
+          const color = STAGE_COLOR[String(s.passed)] ?? '#555';
+          const icon = s.passed === true ? '✓' : s.passed === false ? '✗' : '·';
+          return (
+            <div key={s.stage} style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, padding: '12px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: s.evidence ? 8 : 0 }}>
+                <span style={{ fontSize: 13, color, fontWeight: 600, width: 16 }}>{icon}</span>
+                <span style={{ fontSize: 13, color: '#f0f0f0', fontFamily: 'var(--font-geist-mono)' }}>{s.stage}</span>
+                {s.error && <span style={{ fontSize: 12, color: '#ef4444', marginLeft: 8 }}>{s.error}</span>}
+                {s.duration_ms != null && <span style={{ fontSize: 11, color: '#555', marginLeft: 'auto' }}>{s.duration_ms}ms</span>}
+              </div>
+              {s.evidence && (
+                <pre style={{
+                  fontSize: 11, color: '#888', fontFamily: 'var(--font-geist-mono)',
+                  background: '#0a0a0a', padding: '8px 10px', borderRadius: 4,
+                  overflowX: 'auto', margin: '0 0 0 26px', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                }}>
+                  {JSON.stringify(s.evidence, null, 2)}
+                </pre>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
