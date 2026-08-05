@@ -22,7 +22,7 @@ export default async function OverviewPage() {
   const { data: services } = await supabase
     .from('services')
     .select('id, name, endpoint_url, status, last_checked_at')
-    .eq('deleted_at', null)
+    .is('deleted_at', null)
     .order('created_at', { ascending: true });
 
   const { data: openIncidents } = await supabase
