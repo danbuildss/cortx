@@ -177,7 +177,17 @@ export default function LandingPage() {
             </div>
             <div className="cp-incident">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" /><path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-              Incident #3 opened · Telegram alert sent
+              Incident #3 opened
+              <span className="cp-inc-sep">·</span>
+              <span className="cp-inc-platform">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 2L1.5 6.8l4.2 1.5 1.6 4.7 2.2-2.7 3.2 2.3L13.5 2zm-7.8 5.9l5.5-3.4-3.4 4-.1.1L5.7 7.9z"/></svg>
+                Alert sent
+              </span>
+              <span className="cp-inc-sep">·</span>
+              <span className="cp-inc-platform">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2.5l4.1 5.5-4.1 4.5h1.3l3.6-3.9 2.8 3.9H13L8.7 7.7l3.8-4.2h-1.3L8.1 7 5.6 2.5H2.5z"/></svg>
+                Posted
+              </span>
             </div>
           </div>
         </div>
@@ -186,10 +196,30 @@ export default function LandingPage() {
       {/* PROOF ROW */}
       <div className="proof-row">
         <div className="proof-inner">
-          <div className="proof-item"><div className="proof-dot" />Base mainnet</div>
-          <div className="proof-item"><div className="proof-dot" />Real USDC test calls</div>
-          <div className="proof-item"><div className="proof-dot" />7-stage verification</div>
-          <div className="proof-item"><div className="proof-dot" />Configurable spending caps</div>
+          <div className="proof-item">
+            <div className="proof-ico">
+              <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.4"/><path d="M5.5 8h5M8 5.5v5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+            </div>
+            <div><div className="proof-label">Base mainnet</div><div className="proof-desc">Real on-chain payments</div></div>
+          </div>
+          <div className="proof-item">
+            <div className="proof-ico">
+              <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.4"/><path d="M8 5v1.5m0 3V11m-1.5-5.5h2.5a1 1 0 010 2H7a1 1 0 000 2h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+            </div>
+            <div><div className="proof-label">Real USDC test calls</div><div className="proof-desc">Not simulated — on-chain</div></div>
+          </div>
+          <div className="proof-item">
+            <div className="proof-ico">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M3 8h10M3 11.5h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><path d="M11 10.5l1.5 1.5 2.5-2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div><div className="proof-label">7-stage verification</div><div className="proof-desc">Full payment journey</div></div>
+          </div>
+          <div className="proof-item">
+            <div className="proof-ico">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M8 2l5 2v3.5c0 3-5 6-5 6S3 10.5 3 7.5V4l5-2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>
+            </div>
+            <div><div className="proof-label">Spending caps</div><div className="proof-desc">Configurable budget limits</div></div>
+          </div>
         </div>
       </div>
 
@@ -367,10 +397,46 @@ export default function LandingPage() {
       {/* FOOTER */}
       <footer className="ft">
         <div className="ft-inner">
-          <div className="ft-top">
+          {/* 4-column link grid */}
+          <div className="ft-cols">
             <div>
+              <div className="ft-col-label">Product</div>
+              <div className="ft-col-links">
+                <a href="#product">End-to-end checks</a>
+                <a href="#methodology">Incident evidence</a>
+                <a href="#status">Public status pages</a>
+              </div>
+            </div>
+            <div>
+              <div className="ft-col-label">Resources</div>
+              <div className="ft-col-links">
+                <a href="#">Docs</a>
+                <a href="#how-it-works">How it works</a>
+                <a href="#">Help &amp; Support</a>
+              </div>
+            </div>
+            <div>
+              <div className="ft-col-label">Community</div>
+              <div className="ft-col-links">
+                <a href="https://x.com/cortxapp">X (Twitter)</a>
+                <a href="#">Telegram</a>
+                <a href="https://github.com/danbuildss/cortx">GitHub</a>
+              </div>
+            </div>
+            <div>
+              <div className="ft-col-label">Company</div>
+              <div className="ft-col-links">
+                <a href="#">About us</a>
+                <a href="#">Blog</a>
+              </div>
+            </div>
+          </div>
+
+          {/* Brand + socials row */}
+          <div className="ft-brand">
+            <div className="ft-brand-left">
               <div className="ft-brand-logo">
-                <svg width="16" height="16" viewBox="0 0 22 22" fill="none">
+                <svg width="18" height="18" viewBox="0 0 22 22" fill="none">
                   <circle cx="3" cy="11" r="2" fill="#4b5563" /><circle cx="19" cy="11" r="2" fill="#4b5563" />
                   <line x1="5" y1="11" x2="17" y2="11" stroke="#374151" strokeWidth="1.5" />
                   <circle cx="11" cy="3" r="2" fill="#5e6ad2" /><circle cx="11" cy="19" r="2" fill="#5e6ad2" />
@@ -379,31 +445,28 @@ export default function LandingPage() {
                 </svg>
                 CORTX
               </div>
-              <div className="ft-brand-desc">x402 reliability monitoring for builders on Base mainnet.</div>
+              <div className="ft-brand-tagline">x402 reliability monitoring for builders on Base mainnet.</div>
             </div>
-            <div>
-              <div className="ft-col-label">Product</div>
-              <div className="ft-col-links">
-                <a href="#product">End-to-end checks</a>
-                <a href="#methodology">Incident evidence</a>
-                <a href="#status">Public status pages</a>
-                <a href="#how-it-works">How it works</a>
-              </div>
-            </div>
-            <div>
-              <div className="ft-col-label">Account</div>
-              <div className="ft-col-links">
-                <a href="/login">Sign in</a>
-                <a href="/signup">Monitor a Service</a>
-                <a href="https://github.com/danbuildss/cortx">GitHub</a>
-              </div>
+            <div className="ft-social-row">
+              <a href="https://x.com/cortxapp" className="ft-social-btn" aria-label="X / Twitter">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2.5l4.1 5.5-4.1 4.5h1.3l3.6-3.9 2.8 3.9H13L8.7 7.7l3.8-4.2h-1.3L8.1 7 5.6 2.5H2.5z"/></svg>
+              </a>
+              <a href="#" className="ft-social-btn" aria-label="Telegram">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 2L1.5 6.8l4.2 1.5 1.6 4.7 2.2-2.7 3.2 2.3L13.5 2zm-7.8 5.9l5.5-3.4-3.4 4-.1.1L5.7 7.9z"/></svg>
+              </a>
+              <a href="https://github.com/danbuildss/cortx" className="ft-social-btn" aria-label="GitHub">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path fillRule="evenodd" d="M8 1C4.13 1 1 4.13 1 8c0 3.08 2 5.69 4.77 6.61.35.06.48-.15.48-.34v-1.19c-1.94.42-2.35-.94-2.35-.94-.32-.81-.78-1.02-.78-1.02-.63-.43.05-.42.05-.42.7.05 1.07.72 1.07.72.62 1.07 1.63.76 2.03.58.06-.45.24-.76.44-.93-1.54-.18-3.16-.77-3.16-3.43 0-.76.27-1.38.72-1.87-.07-.18-.31-.88.07-1.84 0 0 .58-.19 1.9.71.55-.15 1.14-.23 1.73-.23.58 0 1.18.08 1.73.23 1.32-.9 1.9-.71 1.9-.71.38.96.14 1.66.07 1.84.45.49.72 1.11.72 1.87 0 2.67-1.63 3.25-3.17 3.43.25.21.47.64.47 1.28v1.9c0 .19.12.4.47.33C13 13.69 15 11.08 15 8c0-3.87-3.13-7-7-7z" clipRule="evenodd"/></svg>
+              </a>
             </div>
           </div>
-          <div className="ft-bottom">
-            <div className="ft-copy">© 2026 CORTX · Built for Bankr x402 on Base</div>
+
+          {/* Legal bar */}
+          <div className="ft-legal">
             <div className="ft-legal-links">
-              <a href="https://x.com/cortxapp">X (Twitter)</a>
+              <a href="#">Terms of Use</a>
+              <a href="#">Privacy Policy</a>
             </div>
+            <div className="ft-copy">© 2026 CORTX, Inc.</div>
           </div>
         </div>
       </footer>
