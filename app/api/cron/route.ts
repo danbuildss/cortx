@@ -4,11 +4,11 @@ import { runCheck } from '@/lib/check-runner/runner';
 import { persistCheckResult } from '@/lib/check-runner/persist';
 
 
-// GET /api/cron — called by Vercel cron on schedule
+// GET /api/cron?secret=... — called by cron-job.org on schedule
 // Processes all services where next_check_at <= now()
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const auth = req.headers.get('Authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = req.nextUrl.searchParams.get('secret');
+  if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
