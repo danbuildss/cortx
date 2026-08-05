@@ -165,14 +165,19 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    const expectedNetwork = config.environment === 'mainnet' ? 'base' : 'base-sepolia';
+    // Accept both short names ("base") and CAIP-2 format ("eip155:8453")
+    const NETWORK_ALIASES: Record<string, string[]> = {
+      mainnet: ['base', 'eip155:8453'],
+      testnet: ['base-sepolia', 'eip155:84532'],
+    };
+    const acceptedNetworks = NETWORK_ALIASES[config.environment] ?? ['base', 'eip155:8453'];
     const matchingOption = paymentTerms.accepts.find(
-      (opt) => opt.network === expectedNetwork || opt.network === 'base'
+      (opt) => acceptedNetworks.includes(opt.network)
     );
 
     if (!matchingOption) {
       fail(stageTerms, 'UNSUPPORTED_NETWORK', {
-        expected_network: expectedNetwork,
+        expected_network: acceptedNetworks.join(' | '),
         available_networks: paymentTerms.accepts.map((o) => o.network),
       }, Math.round(performance.now() - t4));
       markRemaining();
@@ -204,19 +209,25 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    const parsedPrice = parseFloat(rawPrice);
+    const rawNum = parseFloat(rawPrice);
 
-    if (isNaN(parsedPrice)) {
+    if (isNaN(rawNum)) {
       fail(stagePrice, 'INVALID_PRICE_FORMAT', { raw_price_field: rawPrice }, 0);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    if (parsedPrice <= 0) {
-      fail(stagePrice, 'ZERO_PRICE', { raw_price_field: rawPrice, parsed_price: parsedPrice }, 0);
+    if (rawNum <= 0) {
+      fail(stagePrice, 'ZERO_PRICE', { raw_price_field: rawPrice, parsed_price: rawNum }, 0);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
+
+    // x402v2 sends maxAmountRequired in atomic USDC units (6 decimals), e.g. "1000" = $0.001
+    // x402v1 / some implementations send decimal USDC, e.g. "0.001"
+    const parsedPrice = rawNum >= 1 && Number.isInteger(rawNum)
+      ? rawNum / 1_000_000
+      : rawNum;
 
     observed_price = parsedPrice.toFixed(6);
     stages.push(makeStage(stagePrice, true, 0, {
