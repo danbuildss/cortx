@@ -59,6 +59,11 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
           <span style={{ fontSize: 12, color: STATUS_COLOR[service.status ?? 'unknown'], fontWeight: 500 }}>
             ● {service.status ?? 'unknown'}
           </span>
+          <Link href={`/services/${service.id}/edit`} style={{
+            padding: '6px 14px', background: 'transparent', color: '#888',
+            border: '1px solid #2a2a2a', borderRadius: 6, fontSize: 12,
+            textDecoration: 'none', fontWeight: 500,
+          }}>Edit</Link>
           <RunCheckButton serviceId={service.id} />
         </div>
       </div>
@@ -88,6 +93,18 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         <MetaCard label="Check interval" value={`Every ${service.check_interval_minutes}m`} />
         <MetaCard label="Last checked" value={service.last_checked_at ? formatRelative(service.last_checked_at) : 'Never'} />
       </div>
+
+      {/* Latency chart */}
+      {recentChecks && recentChecks.length >= 2 && (
+        <div style={{ marginBottom: 32 }}>
+          <h2 style={{ fontSize: 13, fontWeight: 500, color: '#888', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Latency trend
+          </h2>
+          <div style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, padding: '16px 20px' }}>
+            <LatencyChart checks={recentChecks} />
+          </div>
+        </div>
+      )}
 
       {/* Recent checks */}
       <h2 style={{ fontSize: 13, fontWeight: 500, color: '#888', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -202,6 +219,51 @@ function MetaCard({ label, value }: { label: string; value: string }) {
     <div style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, padding: '12px 16px' }}>
       <div style={{ fontSize: 11, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
       <div style={{ fontSize: 13, color: '#f0f0f0' }}>{value}</div>
+    </div>
+  );
+}
+
+function LatencyChart({ checks }: { checks: { latency_ms: number | null; started_at: string; status: string }[] }) {
+  const points = checks
+    .filter(c => c.latency_ms != null)
+    .map(c => ({ t: new Date(c.started_at).getTime(), ms: c.latency_ms!, status: c.status }))
+    .sort((a, b) => a.t - b.t);
+
+  if (points.length < 2) return null;
+
+  const maxMs = Math.max(...points.map(p => p.ms));
+  const minMs = Math.min(...points.map(p => p.ms));
+  const avgMs = Math.round(points.reduce((s, p) => s + p.ms, 0) / points.length);
+  const minT = points[0].t;
+  const maxT = points[points.length - 1].t;
+  const W = 800, H = 72, PAD = 4;
+
+  const cx = (t: number) => PAD + ((t - minT) / (maxT - minT || 1)) * (W - PAD * 2);
+  const cy = (ms: number) => PAD + (1 - (ms - minMs) / (maxMs - minMs || 1)) * (H - PAD * 2);
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${cx(p.t).toFixed(1)} ${cy(p.ms).toFixed(1)}`).join(' ');
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 72, display: 'block', overflow: 'visible' }}>
+        <path d={pathD} fill="none" stroke="#22c55e" strokeWidth="1.5" strokeLinejoin="round" />
+        {points.map((p, i) => (
+          <circle key={i} cx={cx(p.t)} cy={cy(p.ms)} r={3}
+            fill={p.status === 'passed' ? '#22c55e' : '#ef4444'}
+            stroke="#111" strokeWidth="1" />
+        ))}
+      </svg>
+      <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
+        {[['avg', avgMs], ['min', minMs], ['max', maxMs]].map(([label, val]) => (
+          <div key={label}>
+            <span style={{ fontSize: 10, color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label} </span>
+            <span style={{ fontSize: 12, color: '#888', fontFamily: 'var(--font-geist-mono)' }}>{val}ms</span>
+          </div>
+        ))}
+        <div style={{ marginLeft: 'auto' }}>
+          <span style={{ fontSize: 11, color: '#444' }}>last {points.length} checks</span>
+        </div>
+      </div>
     </div>
   );
 }
