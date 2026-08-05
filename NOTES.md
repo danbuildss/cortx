@@ -57,9 +57,18 @@ Nothing — planning phase complete. Ready to start Phase 0 (check runner + test
 
 ## Open Questions
 
-- What x402 test endpoint URL will Phase 0 deploy to? (ngrok vs Vercel preview)
-- Is the dedicated test wallet already funded on testnet? Which network — Base testnet?
-- Who are the 5 Bankr builders for the private beta? Need their Telegram chat IDs.
+- Who are the 5 Bankr builders for the private beta? (Need their Telegram chat IDs when the time comes)
+
+## Key Environment Decisions (locked)
+
+| Decision | Answer |
+|---|---|
+| Payment network | Base **mainnet** |
+| Test endpoint hosting | Vercel (preview deploy) |
+| Main app hosting | Vercel |
+| Telegram bot | Live (token already exists — store in `TELEGRAM_BOT_TOKEN`) |
+| Supabase project | Live (URL + keys already exist) |
+| Test wallet | Must be funded on Base mainnet with USDC |
 
 ## Useful Context
 
@@ -70,5 +79,6 @@ Nothing — planning phase complete. Ready to start Phase 0 (check runner + test
 - Two consecutive failures are needed before an incident opens (not one)
 - The `checks` table is insert-only via service role — users never insert checks directly
 - `CORTX_TEST_WALLET_KEY` env var holds the private key — never log it, never store it, never include in errors
+- Network is Base mainnet — real USDC, no testnets
 - PR #1 is the active PR: https://github.com/danbuildss/cortx/pull/1
 - Branch: `claude/persistent-skills-sessions-727k7h`

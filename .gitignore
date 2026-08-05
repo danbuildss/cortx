@@ -2,3 +2,15 @@
 .agents/
 .claude/skills/
 skills-lock.json
+
+# Next.js
+.next/
+out/
+node_modules/
+
+# Environment — never commit secrets
+.env.local
+.env*.local
+
+# Vercel
+.vercel
