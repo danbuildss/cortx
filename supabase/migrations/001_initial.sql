@@ -78,6 +78,21 @@ create table if not exists public.services (
   updated_at             timestamptz   not null default now()
 );
 
+-- Add any columns that may be missing from an existing services table
+alter table public.services add column if not exists environment            text          not null default 'mainnet';
+alter table public.services add column if not exists test_input             jsonb         not null default '{}';
+alter table public.services add column if not exists expected_schema        jsonb         not null default '{"type":"object"}';
+alter table public.services add column if not exists expected_price         numeric(18,8);
+alter table public.services add column if not exists max_price              numeric(18,8);
+alter table public.services add column if not exists latency_threshold_ms   integer       not null default 5000;
+alter table public.services add column if not exists check_interval_minutes integer       not null default 5;
+alter table public.services add column if not exists status                 text          not null default 'unknown';
+alter table public.services add column if not exists consecutive_failures   integer       not null default 0;
+alter table public.services add column if not exists last_checked_at        timestamptz;
+alter table public.services add column if not exists next_check_at          timestamptz   not null default now();
+alter table public.services add column if not exists deleted_at             timestamptz;
+alter table public.services add column if not exists updated_at             timestamptz   not null default now();
+
 create index if not exists services_user_id_idx         on public.services (user_id);
 create index if not exists services_deleted_at_idx      on public.services (deleted_at);
 create index if not exists services_next_check_at_idx   on public.services (next_check_at) where deleted_at is null;
