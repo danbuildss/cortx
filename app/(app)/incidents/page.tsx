@@ -70,7 +70,7 @@ type IncidentRow = {
   opened_at: string;
   resolved_at: string | null;
   acknowledged_at: string | null;
-  services: { id: string; name: string; endpoint_url: string } | null;
+  services: { id: string; name: string; endpoint_url: string }[] | { id: string; name: string; endpoint_url: string } | null;
 };
 
 function IncidentTable({ incidents }: { incidents: IncidentRow[] }) {
@@ -93,11 +93,11 @@ function IncidentTable({ incidents }: { incidents: IncidentRow[] }) {
             return (
               <tr key={inc.id} style={{ borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
                 <td style={{ padding: '12px 16px' }}>
-                  {inc.services ? (
-                    <Link href={`/services/${inc.services.id}`} style={{ color: '#f0f0f0', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>
-                      {inc.services.name}
+                  {(() => { const svc = Array.isArray(inc.services) ? inc.services[0] : inc.services; return svc ? (
+                    <Link href={`/services/${svc.id}`} style={{ color: '#f0f0f0', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>
+                      {svc.name}
                     </Link>
-                  ) : <span style={{ fontSize: 13, color: '#555' }}>—</span>}
+                  ) : <span style={{ fontSize: 13, color: '#555' }}>—</span>; })()}
                 </td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{ fontSize: 12, color: SEVERITY_COLOR[inc.severity] ?? '#888', fontWeight: 500 }}>
