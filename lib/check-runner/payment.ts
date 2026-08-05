@@ -101,7 +101,7 @@ export async function executePayment(
   const validAfter = BigInt(0);
   const validBefore = BigInt(Math.floor(Date.now() / 1000) + 300);
   // Random 32-byte nonce
-  const nonce = toHex(pad(toHex(BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER))), { size: 32 }));
+  const nonce = pad(toHex(BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER))), { size: 32 });
 
   const walletClient = createWalletClient({
     account,
