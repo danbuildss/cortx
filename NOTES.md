@@ -8,77 +8,115 @@
 
 CORTX is a reliability monitoring tool for x402 endpoints. It runs a full synthetic payment through your endpoint (availability → payment terms → price check → payment → delivery → JSON parse → schema validation) every few minutes, records evidence at every stage, opens incidents on consecutive failures, and sends Telegram alerts. Built for Bankr builders who need to know if their paid API is actually working end-to-end, not just "up."
 
-Stack: Next.js 14+ (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Schema validation), Vercel (hosting + cron), Telegram Bot API. x402 protocol for payment flow.
+Stack: Next.js 14+ (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Schema validation), Vercel (hosting), cron-job.org (scheduled checks), Telegram Bot API, x402/client npm package (EIP-3009 payment signing).
 
 ## Current Status
 
-<!-- What stage is the project at right now? -->
 - [x] In planning
-- [ ] Building MVP
+- [x] Building MVP
 - [ ] In testing
 - [ ] Live
 
+Core loop working end-to-end. PR #12 open with the latest batch of features.
+
+---
+
 ## What's Been Built
 
-<!-- List completed work with dates -->
-- **2026-08-05** — Session infrastructure: gstack + 26 GTM skills + 3 custom skills (frontend-ui-engineering, landing-page-design, web-quality-audit) via session hooks + CLAUDE.md routing
-- **2026-08-05** — Full product documentation set (10 files):
-  - `docs/PRODUCT_SPEC.md` — executive summary, problem, target user, principles
-  - `docs/V1_SCOPE.md` — exact boundaries, must-haves, deferred, definition of done
-  - `docs/USER_FLOWS.md` — 9 complete user flows with success/failure states
-  - `docs/UI_SPEC.md` — all 8 pages, design language, shared components
-  - `docs/DATA_MODEL.md` — 5 Supabase tables with full SQL migrations + RLS
-  - `docs/CHECK_RUNNER_SPEC.md` — 14-stage pipeline with TypeScript types, timeouts, security
-  - `docs/INCIDENT_RULES.md` — deterministic incident rules, alert rules, deduplication
-  - `docs/SECURITY.md` — wallet key storage, spend caps, SSRF, redaction, RLS, cron auth
-  - `docs/BUILD_PLAN.md` — 4-phase plan (Phase 0 → 1 → 1.5 → 2) with task breakdown
-  - `docs/ACCEPTANCE_CRITERIA.md` — 16 Given/When/Then scenarios covering all V1 features
+### Infrastructure
+- Next.js 14 App Router project on Vercel
+- Supabase: Postgres + Auth + RLS (5 tables)
+- Session hooks: gstack skill suite installed
+- cron-job.org calls `GET /api/cron` every minute with `Authorization: Bearer {CRON_SECRET}`
 
-## What's In Progress
+### Database Tables
+- `profiles` — user profiles (linked to Supabase auth)
+- `services` — monitored x402 endpoints with config (expected_price, max_price, schema, interval, environment)
+- `checks` — insert-only check results with per-stage evidence JSONB (status, latency_ms, stages, failure_stage)
+- `incidents` — incident records with JSONB timeline (opened → escalated → resolved events)
+- `alert_configs` — per-service Telegram alert configs (destination, on_open, on_severity_increase, on_resolve, enabled)
 
-<!-- Current active work -->
-Nothing — planning phase complete. Ready to start Phase 0 (check runner + test service).
+### Check Runner (`lib/check-runner/`)
+7-stage synthetic payment pipeline:
+1. `availability` — HTTP reachability check
+2. `payment_terms` — validates 402 response + parses X-Payment-Required header
+3. `price_check` — verifies price is within expected/max bounds
+4. `payment` — signs EIP-3009 via x402/client, builds X-Payment header
+5. `delivery` — resends request with payment header, expects 200
+6. `json_parse` — parses response body as JSON
+7. `schema_validation` — validates against expected JSON Schema (AJV)
 
-## What's Next
+Key implementation details:
+- Uses `x402/client` npm package (`createPaymentHeader`) for EIP-3009 signing
+- CAIP-2 normalization: `eip155:8453` → `base` (Bankr sends CAIP-2 format)
+- Seeds EIP-712 domain with USDC defaults (`name: "USD Coin"`, `version: "2"`), overridable via `extra` field
+- `CORTX_TEST_WALLET_KEY` env var holds 0x-prefixed private key — never logged
+- 2 consecutive failures required before incident opens
+- `status = 'error'` (infra errors) does NOT update service status or open incidents
+- Telegram alerts fire via `alert_configs` on incident open / severity escalate / resolve
 
-<!-- Prioritized queue of upcoming work -->
-1. **Phase 0**: Build controlled test x402 endpoint (healthy + broken variants), implement check runner script, run end-to-end against test endpoint
-2. **Phase 1**: Supabase schema + migrations, Next.js project setup, auth, add service form, service detail page, check runner as API route
-3. **Phase 1.5**: Vercel Cron scheduler, Telegram alerts, incident management UI
-4. **Phase 2**: Landing page, edit service, production hardening, private beta with 5 Bankr builders
+### API Routes
+- `GET /api/cron` — scheduled check runner, requires `Authorization: Bearer {CRON_SECRET}`
+- `POST /api/check/[serviceId]` — manual "Run check" trigger from UI
+
+### App Pages (auth-protected, under `(app)/`)
+| Page | Route | What it does |
+|---|---|---|
+| Login | `/login` | Supabase auth |
+| Overview | `/overview` | Service list, summary cards, status page copy link |
+| Service detail | `/services/[id]` | Status, meta, latency sparkline chart, recent checks table, stage breakdown |
+| Service add | `/services/new` | Full config form (endpoint, prices, schema, interval, alerts) |
+| Service edit | `/services/[id]/edit` | Pre-filled edit form for all config fields |
+| Incidents | `/incidents` | Open + resolved incident list, clickable rows |
+| Incident detail | `/incidents/[id]` | Timeline view with colored event dots, meta cards |
+| Alert settings | `/settings/alerts` | Telegram alert config per service (add/toggle/remove) |
+
+### Public Pages
+| Page | Route | What it does |
+|---|---|---|
+| Status page | `/status/[userId]` | Per-user public status page — overall banner, per-service 90-day uptime bars, active incidents |
+
+### UI Features
+- Overview: copy-link button for status page URL
+- Service detail: SVG latency sparkline (avg/min/max, green=passed/red=failed dots)
+- Service detail: stage breakdown with evidence JSON for last check
+- Status page: 90-day colored bar grid per service (green/red/dim-gray), ISR 60s
+- Alert settings: per-event toggles (on_open, on_severity_increase, on_resolve) with optimistic updates
+
+---
+
+## Key Environment Variables (Vercel)
+
+| Var | What |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key for server-side queries |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key for client-side auth |
+| `CORTX_TEST_WALLET_KEY` | 0x-prefixed 32-byte private key for test wallet (funded with USDC on Base mainnet) |
+| `CRON_SECRET` | Bearer token cron-job.org sends in Authorization header |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token for alerts |
+
+---
 
 ## Key Decisions
 
-<!-- Log important decisions made and why, so we never re-litigate them -->
-
 | Date | Decision | Reasoning |
 |------|----------|-----------|
-| 2026-08-05 | Set up gstack + 26 GTM skills + 3 custom skills via session hooks | Skills persist across all sessions without bloating the repo |
+| 2026-08-05 | Base **mainnet** only, real USDC | Test with real stakes — testnet doesn't reflect production reliability |
+| 2026-08-05 | x402/client npm package for payment signing | Coinbase's reference client handles EIP-712 domain correctly, avoids hand-rolled signing bugs |
+| 2026-08-05 | cron-job.org instead of Vercel cron | Vercel Hobby plan only allows daily crons; cron-job.org gives per-minute scheduling free |
+| 2026-08-05 | 2 consecutive failures to open incident | Reduces noise from transient failures |
+| 2026-08-05 | `error` status never opens incidents | Infra errors (timeouts, DNS) shouldn't page you — only real payment failures matter |
+| 2026-08-05 | Public status page at `/status/[userId]` | Makes CORTX feel like a real product; shareable without requiring login |
 
 ## Open Questions
 
-- Who are the 5 Bankr builders for the private beta? (Need their Telegram chat IDs when the time comes)
+- Who are the 5 Bankr builders for the private beta?
+- Email alerts alongside Telegram? (infrastructure not built yet)
+- Custom domain for status pages?
 
-## Key Environment Decisions (locked)
+## Branch / PR History
 
-| Decision | Answer |
-|---|---|
-| Payment network | Base **mainnet** |
-| Test endpoint hosting | Vercel (preview deploy) |
-| Main app hosting | Vercel |
-| Telegram bot | Live (token already exists — store in `TELEGRAM_BOT_TOKEN`) |
-| Supabase project | Live (URL + keys already exist) |
-| Test wallet | Must be funded on Base mainnet with USDC |
-
-## Useful Context
-
-- Docs are the source of truth — if code ever conflicts with a doc, fix the code
-- SSRF check must resolve DNS at validation time, not request time (DNS rebinding prevention)
-- Max-price check in Stage 6 is a hard gate — no payment under any circumstances if exceeded
-- Runner errors (`status = 'error'`) do NOT open incidents and do NOT update service status
-- Two consecutive failures are needed before an incident opens (not one)
-- The `checks` table is insert-only via service role — users never insert checks directly
-- `CORTX_TEST_WALLET_KEY` env var holds the private key — never log it, never store it, never include in errors
-- Network is Base mainnet — real USDC, no testnets
-- PR #1 is the active PR: https://github.com/danbuildss/cortx/pull/1
 - Branch: `claude/persistent-skills-sessions-727k7h`
+- PRs 1–11: merged to main
+- PR #12: open — service edit, incident detail, latency chart, 90-day uptime bars, nav fix
