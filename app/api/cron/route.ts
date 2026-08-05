@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { runCheck } from '@/lib/check-runner/runner';
 import { persistCheckResult } from '@/lib/check-runner/persist';
 
-export const maxDuration = 300;
 
 // GET /api/cron — called by Vercel cron on schedule
 // Processes all services where next_check_at <= now()
