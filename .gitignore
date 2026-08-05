@@ -1,0 +1,4 @@
+# GTM skills — installed at session start, not tracked in git
+.agents/
+.claude/skills/
+skills-lock.json
