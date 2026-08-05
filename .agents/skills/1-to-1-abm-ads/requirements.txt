@@ -1,0 +1,7 @@
+# Python dependencies for the 1:1 ABM Ads Skill.
+#   python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+#
+# LinkedIn scripts (resolve_and_size, narrow_audience, build_campaign) use only the standard
+# library. The two packages below are for the OpenAI creative renderer (render_creatives.py).
+requests>=2.31
+python-dotenv>=1.0

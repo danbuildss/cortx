@@ -1,0 +1,1601 @@
+{
+  "version": 1,
+  "skills": {
+    "1-to-1-abm-ads": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/1-to-1-abm-ads/SKILL.md",
+      "computedHash": "6a31c15182224afe8a67272051422f04232b4e315bcca91df86b9601e871f0f9"
+    },
+    "52-newsletter-ideas": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/52-newsletter-ideas/SKILL.md",
+      "computedHash": "859a4bb1679a72217e50f44dc1761985a57b630107f517e643a815966dd6c170"
+    },
+    "abm-engagement-scoring": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/abm-engagement-scoring/SKILL.md",
+      "computedHash": "8a516aa874c143312dd31b7dc5d2c6f471422e724c47e0c430750f5caf657376"
+    },
+    "abm-measurement-framework": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/abm-measurement-framework/SKILL.md",
+      "computedHash": "64a29285f4865e29372356e540a41458971381f5841827915af40f3b1bbd7445"
+    },
+    "abm-on-meta": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/abm-on-meta/SKILL.md",
+      "computedHash": "83f101396a8f35043e882df6621d8b4b93f2c98696b9790cd980e62d232157bd"
+    },
+    "abm-retargeting-framework": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/abm-retargeting-framework/SKILL.md",
+      "computedHash": "33f8fc300506dca7c97f7d4479edd61358579a6e4743f22421dfc217622a582b"
+    },
+    "account-health-audit": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/jeremy-hurst/account-health-audit/SKILL.md",
+      "computedHash": "df869ee9577eac79787477616d47fee7a7d56d96dce4be9c20c603ca82a6d488"
+    },
+    "account-intelligence-analyst": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/katya-tarapovskaia/account-intelligence-analyst/SKILL.md",
+      "computedHash": "e2c9e1da64174ca36b94e5301b267301086c81e0adace34ae202f562f1a16fa7"
+    },
+    "account-progression-staging": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/steve-armenti/account-progression-staging/SKILL.md",
+      "computedHash": "e2faadec0338b6e2b921c0baebf41d2ca735727fa7b48fbd08386f888314840a"
+    },
+    "account-selection-framework": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/account-selection-framework/SKILL.md",
+      "computedHash": "a88b78c8398cf20e0870db7cfc4c1850065d3307d12fe032e4b08c801f638423"
+    },
+    "account-tier-scoring": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/amos-bar-joseph/account-tier-scoring/SKILL.md",
+      "computedHash": "62d9310c924b6b575badea1cf1d657b3a17fb9853152cec8c9cc6fd08458929e"
+    },
+    "ad-copywriting": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ad-copywriting/SKILL.md",
+      "computedHash": "8053895668abfa34d2b591a9a2585afd7333cd02501a6380d3687eb33cab7418"
+    },
+    "ad-personas": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ad-personas/SKILL.md",
+      "computedHash": "de0dd32cd7053dd89e801b2447b809b0826f9b8bf962ac6a5a8c69d454a9d041"
+    },
+    "ads-budget-allocation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-budget-allocation/SKILL.md",
+      "computedHash": "07a7dff59596f0f32ef2204aa08dcad5aaabe15dc30f08454ac208b95b5567bb"
+    },
+    "ads-campaign-planning": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-campaign-planning/SKILL.md",
+      "computedHash": "305852953d1a5fe518132c6aa3abb564aa02d2cfd6550e05f9ae8fa9fe162323"
+    },
+    "ads-channel-selection": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-channel-selection/SKILL.md",
+      "computedHash": "63ae4ca860840f3412eaa5d2683a95c0c7ef9fb624ac01b416bbf1767c71c191"
+    },
+    "ads-measurement-scorecard": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-measurement-scorecard/SKILL.md",
+      "computedHash": "c25472d8f6f92701e1d9c04e61f343f012471a2fe05e4319319303f4413be78c"
+    },
+    "ads-offers-strategy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-offers-strategy/SKILL.md",
+      "computedHash": "c80d6ce8dd35790693e1987b4cea795bbbfda1449402c29a25c2566fd8f420ca"
+    },
+    "ads-optimization-signals": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-optimization-signals/SKILL.md",
+      "computedHash": "29a09ad531ffa025c10fa3a2adaa48c3a799a9a62348cac66f938038a12ad8d6"
+    },
+    "ads-outbound-signaling-guide": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-outbound-signaling-guide/SKILL.md",
+      "computedHash": "1d79aeb5182901c7ca36c6b855a76c30e5e29bafbab51dad8e326c3348d46d1b"
+    },
+    "ads-scaling-quadrant": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-scaling-quadrant/SKILL.md",
+      "computedHash": "e6c452d888d13e4e1f26cff0f636bb5893562e114a6c41f98bb91ab378c1f382"
+    },
+    "ads-writing-style": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/ads-writing-style/SKILL.md",
+      "computedHash": "e5c00a984e0364aaa19931eaf4b4e2cb942e9a020da1257338a3276221cb09fd"
+    },
+    "advantage-plus": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/advantage-plus/SKILL.md",
+      "computedHash": "fedf411595a20518dc313f1369a073c363b36912fc6a6cd292ac25dbab758805"
+    },
+    "advocate-voice-tuning": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/advocate-voice-tuning/SKILL.md",
+      "computedHash": "7b004eb4db6d6184769699b7c348b1b8b3ad965fe3ab2c429da15d5b247ff162"
+    },
+    "aeo-citation-drill-down": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/aeo-citation-drill-down/SKILL.md",
+      "computedHash": "3da5d5f760ddddf8b5c8f5cc8fa0266a5f4a50b6b6ca4ecdeaeebfd8542f8c92"
+    },
+    "aeo-score-audit": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/aeo-score-audit/SKILL.md",
+      "computedHash": "07d94c83fac50e478697b7647196c794085578b573d72376a3d2dc0c17f12b69"
+    },
+    "aeo-visibility-tracking": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/aeo-visibility-tracking/SKILL.md",
+      "computedHash": "8331c42f09587ba3f44ad7121e29769b565ac80ab70fb9e17a8958f95922c471"
+    },
+    "ai-personalization-prompts": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/ai-personalization-prompts/SKILL.md",
+      "computedHash": "7206b777c8f0f5d36e7e5e15fc983a6fada47abee863d5a6f023743fac43e68f"
+    },
+    "ai-pricing-model-picker": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/manny-medina/ai-pricing-model-picker/SKILL.md",
+      "computedHash": "4c3e18914c9590ccf0590918fd42b94837ac6a34b3fe9cb8eb10de50b907c0d5"
+    },
+    "ai-visibility-sampling": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/huxley-peckham/ai-visibility-sampling/SKILL.md",
+      "computedHash": "eb424a933b91878657211595c527d6946361e090873928506243d35ca98f2d11"
+    },
+    "atl-btl-messaging": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/atl-btl-messaging/SKILL.md",
+      "computedHash": "00ed24f5b652119d9fb50b1812a1a2f987ebbfcdce5a2557ad1c87b5de26b52b"
+    },
+    "audit-swan": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/audit-swan/SKILL.md",
+      "computedHash": "f36e5b3d341408f0afc81821067a983fd6560960c6b7b194a5bd14f60b21887f"
+    },
+    "auto-reply-is-not-a-reply": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/lucas-godtfredsen/auto-reply-is-not-a-reply/SKILL.md",
+      "computedHash": "48242b7fa1ff15ea67cf6fe5e8136ab7a11affc964a65ba048e225b0c49a8429"
+    },
+    "b2b-affiliate-program-playbook": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/victor-moen/b2b-affiliate-program-playbook/SKILL.md",
+      "computedHash": "c49a52aa82ad6056d33678386b2510776c4ed7057d49c947dbd77bd4d2c49746"
+    },
+    "b2b-cold-email-copywriting": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tim-yakubson/b2b-cold-email-copywriting/SKILL.md",
+      "computedHash": "4517179f1bb250a67f6fa61db844527f0fc1491bedbd390160da0c302b50c4e2"
+    },
+    "battlecard": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/battlecard/SKILL.md",
+      "computedHash": "4e3ae96ebf47e627773fda63aee03834936a99641e99a836c9196849f1660a1a"
+    },
+    "beehiiv-newsletter-report": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ryan-estes/beehiiv-newsletter-report/SKILL.md",
+      "computedHash": "d2e20fa7d2f9b2c25574c75bdf8ef64f6904120a52bfcd2d0c6ac41a6e0bb3be"
+    },
+    "bridge-before-cold": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nadav-david/bridge-before-cold/SKILL.md",
+      "computedHash": "9f7504b27ccf7e8ed8f4b1a7839f82264541ca57550b3b50bb0367472d255016"
+    },
+    "bridgebound-firmographic-15": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/bridgebound-firmographic-15/SKILL.md",
+      "computedHash": "b8052d7ca9f99c09fc9f156edb236d7a0d744ed77a34cbc2631067651392fc68"
+    },
+    "bridgebound-history-16": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/bridgebound-history-16/SKILL.md",
+      "computedHash": "a6cbf1b7cefddab45e0a2ec5ab1cff48aed9805d0720661a8f0b01fcd4249c22"
+    },
+    "bridgebound-in-market-20": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/bridgebound-in-market-20/SKILL.md",
+      "computedHash": "65882c69f913789679dc3b8957ca5ca0b0e8350012bd5ef7e51e7d57fae37f35"
+    },
+    "bridgebound-relationship-39": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/bridgebound-relationship-39/SKILL.md",
+      "computedHash": "2efa29ce066fb3276e8bc5a4a10f2cb99ce76744f1ca555297f5eeab81f31106"
+    },
+    "bridgebound-symptoms-11": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/bridgebound-symptoms-11/SKILL.md",
+      "computedHash": "5104e9a8e76b0517f3a928ab09d9a5812e0f1cf329f61222c5d8349449027dd0"
+    },
+    "brief": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/brief/SKILL.md",
+      "computedHash": "667908473b75c75b18101a6dba96fb6961cf18d69a73738bfdca6ce13bfd2212"
+    },
+    "build-influencer-marketing-strategy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/build-influencer-marketing-strategy/SKILL.md",
+      "computedHash": "1f5d63224cd4c5075d4a621a7e38e1ee7408a38722c91806fb9b0a35cb28d80c"
+    },
+    "build-list": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/build-list/SKILL.md",
+      "computedHash": "1267f96eee8df6c77c1379dc59345d22f4c744f36306deb3c77e400b85561072"
+    },
+    "buying-signals-6": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/buying-signals-6/SKILL.md",
+      "computedHash": "e7033d6d9ac86d8580424d1ab5705c561cc729ef173baeb6e4eb35b34b12e36f"
+    },
+    "call-scorecards": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/kevin-kd-dorsey/call-scorecards/SKILL.md",
+      "computedHash": "c6c17b6ecaf638c223b646b9e868c8ef1693822419e7cd426c959cf249a02898"
+    },
+    "campaign-benchmarking": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/campaign-benchmarking/SKILL.md",
+      "computedHash": "ca3219650e9e10dd7dde34bb3840054f548406012584358b7801b1a82fdca883"
+    },
+    "category-of-one-positioning": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/luke-shalom/category-of-one-positioning/SKILL.md",
+      "computedHash": "45ad68d160f8d1670005951162bc776c6b47084a98d773578da06dbeb866feaf"
+    },
+    "champion-move-detection": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ariel-cohen/champion-move-detection/SKILL.md",
+      "computedHash": "37354e1aafd5c9019bb35d0bc948fd83b982cfd1c69e746d5187cb9b272bf5e0"
+    },
+    "citation-gap-outreach": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/huxley-peckham/citation-gap-outreach/SKILL.md",
+      "computedHash": "4b331bceb7b89aa202cd5464ba7e9da57f584d86e500ce11401510eb335c7726"
+    },
+    "clay-buying-signals-5": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/clay-buying-signals-5/SKILL.md",
+      "computedHash": "4c92523ce7baee892ebb70ae093fcb9510a9804d412c84e8693c1f37688f23f1"
+    },
+    "clay-enrichment-9step": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/clay-enrichment-9step/SKILL.md",
+      "computedHash": "d86e854cb3c1cd0a8e1d6553b735f9aa1f1147dbb457bf7aa5fff06615b9b995"
+    },
+    "clay-expert": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/clay-expert/SKILL.md",
+      "computedHash": "1947a266762e07e8a346880e6e45a4c172dd73ba96032dcd70b37e60d87eaa15"
+    },
+    "clear-my-desk": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/clear-my-desk/SKILL.md",
+      "computedHash": "798b7b5d1ea0fbc29ff4b06e46d1ff976eacb35bb6b831ab3ead26b6db0545fd"
+    },
+    "closed-won-replication-play": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ariel-cohen/closed-won-replication-play/SKILL.md",
+      "computedHash": "51f9fccd9b6cc7a1c40c14f7f0437024b3dbfe512d4db3d172617756cae6364e"
+    },
+    "cold-call-scripts": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/cold-call-scripts/SKILL.md",
+      "computedHash": "2442d5b6c30e415560f4490fa4a7b5bca7589ff9c63d7f9505a1ae6dd16938da"
+    },
+    "cold-email-4-sequence": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/cold-email-4-sequence/SKILL.md",
+      "computedHash": "44b7266e2e5c209d747891d4fce77d0f6e678d42cea96a1e75a4cbc50b67b23d"
+    },
+    "cold-email-first-touch": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/cold-email-first-touch/SKILL.md",
+      "computedHash": "a1285c22a0add3d70d0677fe949078ad6aaf870dfd66c9e7fc990f016af96243"
+    },
+    "cold-email-inbox-warmup": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/imad-badreddine/cold-email-inbox-warmup/SKILL.md",
+      "computedHash": "dca0b254d319f432530e45b3122c90ccd9d66b0b30bacf122a299b05dcf28a47"
+    },
+    "cold-email-preflight": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/imad-badreddine/cold-email-preflight/SKILL.md",
+      "computedHash": "c0f28d826ca899cc111d906e85e25722d5d0c2901bc793f93caec97c8c205ede"
+    },
+    "cold-email-strategist": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/cold-email-strategist/SKILL.md",
+      "computedHash": "8ec3a2b2915cfaad25ce8878a93992db5ca570ba04d1f18b0753785b0736cc35"
+    },
+    "cold-email-templates-34": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/cold-email-templates-34/SKILL.md",
+      "computedHash": "2b5dbcfc0b614bc1e5e26756f1e5bac09ccc0bea2c047d677acb90d99faf13d9"
+    },
+    "cold-offer-architect": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/cold-offer-architect/SKILL.md",
+      "computedHash": "c0ee134c17feaf586a3e4382fac3da53e893e92ea45d7a677e80043a7e205ac9"
+    },
+    "community-radar": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/community-radar/SKILL.md",
+      "computedHash": "6d4b5419fa00ab03b985a57cfdccb2a103cff48f39e9b286c9c1e329d51beb11"
+    },
+    "competitive-intelligence-radar": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sabahudin-murtic/competitive-intelligence-radar/SKILL.md",
+      "computedHash": "721f437c5e687c6b3732a64fd956849e7cd08382d780fb8bdf21d6b411cd5705"
+    },
+    "competitor-connection-displacement": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/peter-cools/competitor-connection-displacement/SKILL.md",
+      "computedHash": "022d8ba530dad51f8c987239bcfbecddd7ae1eb2b742ee9405711cd482b6aa26"
+    },
+    "conference-recommendation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/dave-engel/conference-recommendation/SKILL.md",
+      "computedHash": "362abd9eb27256a3fe17ce2be6e7e2d7347f32b990c6c91d7b4f4b388d7e6c63"
+    },
+    "creating-campaigns-ads-audiences": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/creating-campaigns-ads-audiences/SKILL.md",
+      "computedHash": "d4ee75f9d333543d0dd75855c465db3c57324f0e529ebed83218ae0821f995a3"
+    },
+    "creative-cadence-operating-system": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/creative-cadence-operating-system/SKILL.md",
+      "computedHash": "6859bff6efaa931c8caa669feffedaeab76e5474ef86acac08ebeb3902f6a2c8"
+    },
+    "creative-fatigue-detection": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/creative-fatigue-detection/SKILL.md",
+      "computedHash": "00b9158ef83e2badfae59199ae35a8e64cd6ba8ec17c34a1780e0197f7792980"
+    },
+    "creator-deal-pricing": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/creator-deal-pricing/SKILL.md",
+      "computedHash": "f75d2f58daabe32bb94ad2cbb3f76dc99fbe371deb46909a4f975717ee771a7c"
+    },
+    "creator-led-growth-90-days": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/creator-led-growth-90-days/SKILL.md",
+      "computedHash": "cf7d5e7237982b59cf03527c4b152c545e71e6210c81f7fa91563dc3499fb016"
+    },
+    "creator-programme-qbr": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/maxwell-nimmo/creator-programme-qbr/SKILL.md",
+      "computedHash": "02483e3e1a261ae03c88049d183128feb12d00afb88912023c3d58e1f02e2f3a"
+    },
+    "credit-packaging": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/manny-medina/credit-packaging/SKILL.md",
+      "computedHash": "5463772bec7192191530486809c7ce41e9fdc121976182315a8bb46864933d6a"
+    },
+    "crm-migration-consolidation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/crm-migration-consolidation/SKILL.md",
+      "computedHash": "470b334ddfac197f65abd4fad5c0479f4fe7a573b36965c1d7ad783076d31051"
+    },
+    "cs-operations": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/cs-operations/SKILL.md",
+      "computedHash": "dcc6be4c26e95caa3ea6078e8610f12f2dcf32f9d2dc02f9a756828291c871de"
+    },
+    "customer-expansion-scoring": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ariel-cohen/customer-expansion-scoring/SKILL.md",
+      "computedHash": "f344db642cf4f9d405e1ef35af3e4a462bcdabdcf56d489d7ee8832d4dac16dc"
+    },
+    "data-enrichment": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/data-enrichment/SKILL.md",
+      "computedHash": "e9381e84155ef3dc36881845c93c89582411cc85aba0247759959c23a1552e9a"
+    },
+    "deal-desk-operations": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/deal-desk-operations/SKILL.md",
+      "computedHash": "1a6bf463be62fc85a5ed0a6acdd1e1b44d52fea62e52e430d8f0bf5e5ff0909f"
+    },
+    "deal-velocity-engineer": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/deal-velocity-engineer/SKILL.md",
+      "computedHash": "7c9e2d0062997112094579634a108fc84809cd2eb26106cf86603c41a3a0e188"
+    },
+    "demand-lifecycle": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/demand-lifecycle/SKILL.md",
+      "computedHash": "e5848bee8a26ec0c09c62af1509a58625b2605c8965e3f5e00ce320838d07b34"
+    },
+    "dev-tool-pricing": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/shane-oconnor/dev-tool-pricing/SKILL.md",
+      "computedHash": "8ce37d2da6e9cd66e1eae0408b27d68311083cd43930c98dcfcb0097ac764dab"
+    },
+    "draft-creator-campaign-brief": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/maxwell-nimmo/draft-creator-campaign-brief/SKILL.md",
+      "computedHash": "7e6e2c24805d80e7d94a206a645b5eeebca798d7edc926dea51d97ada8e95bfd"
+    },
+    "earned-autonomy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nadav-david/earned-autonomy/SKILL.md",
+      "computedHash": "5b7e9896b3baeacb5856b0291ca11f01757d9578eca0ed03dce520e615546818"
+    },
+    "email-1-variations-7": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/email-1-variations-7/SKILL.md",
+      "computedHash": "35b67a84e24f3216fa72d5a01697db0864efec133295a63e26a64ce4d8ee811f"
+    },
+    "email-content-ideas": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/email-content-ideas/SKILL.md",
+      "computedHash": "8c2b3c7cb9f02246b6b3391e6cc0657afab24d67b6c6a3bfba3ea911cf254f7c"
+    },
+    "email-copy-optimizer": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/email-copy-optimizer/SKILL.md",
+      "computedHash": "ce6147991a82e1a613c2c5c05f3e987d16226ac9cc0a36b206bd41e502acb720"
+    },
+    "email-deliverability": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/joshua-waldman/email-deliverability/SKILL.md",
+      "computedHash": "5eb322958c70e76a37c6bcf7efe71b22da6d72e354869aeb769b311f88e9ba86"
+    },
+    "email-metrics-benchmarks": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/email-metrics-benchmarks/SKILL.md",
+      "computedHash": "3b844a4812b746d05e11787f76fec6b18ff99364f17bf6a52d77656d90e7513f"
+    },
+    "email-sequence": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/email-sequence/SKILL.md",
+      "computedHash": "0c79b73a594c5c1354495aac9a1a7139ee1008b591bde16242105a11767d1ad0"
+    },
+    "email-subject-lines": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/email-subject-lines/SKILL.md",
+      "computedHash": "14a7fe876068bef329ad7002f42f01f80278e8f9c11cdb93e623db8bbc4c47eb"
+    },
+    "email-writing-frameworks": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/email-writing-frameworks/SKILL.md",
+      "computedHash": "bc14bc606b32fb07099547c6c9a7f84d94dbbe862eb05aece2e31ef58561324f"
+    },
+    "estimate-creator-rate": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/maxwell-nimmo/estimate-creator-rate/SKILL.md",
+      "computedHash": "94fdc1b31355a4e37a4723a32ddd33844675febc4f0c8afd1d01e48a2de97cf6"
+    },
+    "event-radar": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/event-radar/SKILL.md",
+      "computedHash": "21a71dcf2e318f8f343f38cabf80648853974e3a7db333153261964db7960478"
+    },
+    "expansion-opportunity-analysis": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/jeremy-hurst/expansion-opportunity-analysis/SKILL.md",
+      "computedHash": "1f57917276c2ed5933d0cb7369e1628e584a5ce5f1fe11ce86dfbec99abb5b27"
+    },
+    "expansion-revenue-architect": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/expansion-revenue-architect/SKILL.md",
+      "computedHash": "93c20bce0cd2644f478f8af1a3b4d1d347bb0a29c33254fef79039856f94a425"
+    },
+    "find-b2b-creators-linkedin": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/find-b2b-creators-linkedin/SKILL.md",
+      "computedHash": "f7cb6a70a91e64b0102642ca98d8ddc85437e59c45f5540bc743a2f434bbb9a0"
+    },
+    "forecast-creator-pipeline": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/forecast-creator-pipeline/SKILL.md",
+      "computedHash": "a8a85e743e83e7a8bbfdc1140d227c19ddaf10eb22556ebd8d6ec421e2870b27"
+    },
+    "founder-employees-or-creators": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/founder-employees-or-creators/SKILL.md",
+      "computedHash": "45b21e141028551e546cd169511480542ba1862ae87ed58a94d198eefd610f7b"
+    },
+    "founder-led-sales": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/shane-oconnor/founder-led-sales/SKILL.md",
+      "computedHash": "266231cea5642d557f74ad6969cdd2fd958cf15f139ac62c6ac81e499ee41155"
+    },
+    "founder-post-triggers-24": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/danni-chen/founder-post-triggers-24/SKILL.md",
+      "computedHash": "f7cceeafb07aaaa52fbe6709eedacf24ca0c3927a5eaf45fa3ebb38da59a4d6e"
+    },
+    "frontal-messaging-templates": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/frontal-messaging-templates/SKILL.md",
+      "computedHash": "ae6468c515e6d447373b13179411da32552072ca5d17d64a6b9fb6eac606be86"
+    },
+    "give-first-cold-email": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/dima-bilous/give-first-cold-email/SKILL.md",
+      "computedHash": "d3ff7a705730d3d5ca7a0aee733afae91773b3ad070139842adf69667f9e7527"
+    },
+    "google-ads": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/google-ads/SKILL.md",
+      "computedHash": "1321865514312bb8da869772876dd86e4eafd2c82604666bbd740fa542b91115"
+    },
+    "google-ads-budget-portfolio-reallocation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/john-williams/google-ads-budget-portfolio-reallocation/SKILL.md",
+      "computedHash": "793db81413fd8a9c1955559a631a792648fa5d2a0f9d04567469443ec4efa6c3"
+    },
+    "google-ads-pmax-asset-groups": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/john-williams/google-ads-pmax-asset-groups/SKILL.md",
+      "computedHash": "c445e769afc6d0877015a2c682d0752b403fa1f35f9cea950e5e1d5697b82b42"
+    },
+    "google-ads-ppc-math": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/john-williams/google-ads-ppc-math/SKILL.md",
+      "computedHash": "33bae1eb346da776e1e00910cbe6653d2c6b0c41645d203ec95b2aa678441cca"
+    },
+    "google-ads-quality-score-diagnosis": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/john-williams/google-ads-quality-score-diagnosis/SKILL.md",
+      "computedHash": "aad44021b583751545df138b78854c5fa51983329d10e3714193f4d35b09fbe8"
+    },
+    "google-ads-write-safety": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/john-williams/google-ads-write-safety/SKILL.md",
+      "computedHash": "38b3e77c39ea5c90b640ba62e537b8443557a5eed985a91ba078070c39dd8d91"
+    },
+    "gtm-compensation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/gtm-compensation/SKILL.md",
+      "computedHash": "f5ffc35892d10e9206c650ad4f7be34213819e73d93b98960511b13284dd966e"
+    },
+    "gtm-data-architecture": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/gtm-data-architecture/SKILL.md",
+      "computedHash": "70efb277deb606e16f008901ced7616b7f962770483c0b6124e751add3a5a45e"
+    },
+    "gtm-philosophy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/gtm-philosophy/SKILL.md",
+      "computedHash": "d5611ca495a854cb4288509d325f6ebfb575bf703a2ae91c2f07723121ccebdf"
+    },
+    "gtm-planning": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/gtm-planning/SKILL.md",
+      "computedHash": "6b85585d72113bbaaa26827f8079d31c9b8e97a500c15cb4764afd9f50806a27"
+    },
+    "gtm-plays-11": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/gtm-plays-11/SKILL.md",
+      "computedHash": "1d7df0746d0c8e9ec575da49112d053a50ac7163e7619c0e043014aaec00eb35"
+    },
+    "handle-linkedin-profile-view-signal": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ariel-cohen/handle-linkedin-profile-view-signal/SKILL.md",
+      "computedHash": "5fd40a9589e7c146a7b21f63288df9c5b8594ad3dbc835a12a562393fd0c008d"
+    },
+    "handle-reply": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/handle-reply/SKILL.md",
+      "computedHash": "8f7139222fccbb741fdf2fa81436a2ce5793b90efd1475e1f9abd12b5d245f7e"
+    },
+    "hiring-radar": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/dusan-vystrcil/hiring-radar/SKILL.md",
+      "computedHash": "c3c788666ed02678974ab4a1222a42da1f65f25b11c68c35206846430f0a5fee"
+    },
+    "i-made-this-for-you-email": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/i-made-this-for-you-email/SKILL.md",
+      "computedHash": "9d47e820e522bf3d692547ff20cedc06988b0fe71127ae0de82d1789498325b4"
+    },
+    "icp": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/icp/SKILL.md",
+      "computedHash": "53a863a611b4542eb33111848dcd2b1b032f476314d78b28d271d82f3516c418"
+    },
+    "icp-builder": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/icp-builder/SKILL.md",
+      "computedHash": "935b985a87f1ac445b5bea787761f9c6a80d7b38dfc1f1236327b4b4cde49865"
+    },
+    "icp-matrix-builder": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/icp-matrix-builder/SKILL.md",
+      "computedHash": "26fbda3a8759ba1dfe4fc0ec2f2a1837256c5c0684d88ff8ba1038afdd4381df"
+    },
+    "inbound-is-data": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nadav-david/inbound-is-data/SKILL.md",
+      "computedHash": "61e2f96e3ea8a4cd571c7b5b7ee44b2d6d7348472e206eb5314c87046fdfd8dc"
+    },
+    "inbound-triggers-30": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/inbound-triggers-30/SKILL.md",
+      "computedHash": "86bb2b54d5e0dab8ba2a015729d104e6dae25e5afc25ce193a8a791b2688fa9c"
+    },
+    "inbox-warm-up-ramp": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/lucas-godtfredsen/inbox-warm-up-ramp/SKILL.md",
+      "computedHash": "d291cbeab862d39a63b026f3fc5df3ff9b60319316a38aaf3fe90980fc6c0e42"
+    },
+    "inbox-zero": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/inbox-zero/SKILL.md",
+      "computedHash": "c0b6d9074c9cedeba8d49b7a03de882005ff6f1a7474c2344ae945b83f21fd0c"
+    },
+    "influencer-post-engager-capture": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ariel-cohen/influencer-post-engager-capture/SKILL.md",
+      "computedHash": "105065f3a61ac24aa9e53d566d52a336f73767a779470f214428dd3ca5a3cb37"
+    },
+    "josh-braun-copywriting": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/josh-braun-copywriting/SKILL.md",
+      "computedHash": "d5ecf8efc786a7569fb55990aa1e604008b6f4a7f9c8b2ec8dc94dac423b7627"
+    },
+    "lead-form-optimization": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/lead-form-optimization/SKILL.md",
+      "computedHash": "6597a8ace07b90c651ee4a152f74a43a4d532df0ed43f0b2f879325681ded077"
+    },
+    "lead-magnet-welcome-email": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/lead-magnet-welcome-email/SKILL.md",
+      "computedHash": "a12a2367e1097a04806713745dbd22165d02dcc8a3b107a659d20b47c0c45f58"
+    },
+    "lead-routing": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/lead-routing/SKILL.md",
+      "computedHash": "f7b66d6382cd102e3b9bcc435a2b0e522cb926a55658509f5dd12c260dc21f31"
+    },
+    "lead-sources-guide": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/lead-sources-guide/SKILL.md",
+      "computedHash": "25478f58c1154d5af6928a323c517550f816e71bc39018cdbde5f9f2f02bb608"
+    },
+    "linkedin-7-day-warmup": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/imad-badreddine/linkedin-7-day-warmup/SKILL.md",
+      "computedHash": "fb0e80ace9e71b9ca5c3ec6611c4e917f14ae8caecb7820b6ca19a14c6907334"
+    },
+    "linkedin-abm-1to1-few-many": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/linkedin-abm-1to1-few-many/SKILL.md",
+      "computedHash": "2a462ecc4f13c83db708707a28c87c1f29bf62a21f32aedc3ef56c2e1cca6e99"
+    },
+    "linkedin-abm-ad-design": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/emilia-korczynska/linkedin-abm-ad-design/SKILL.md",
+      "computedHash": "995eb3d488ccde6e27e8e156c0343ed8a97e9d9f94bcde12147589ea141cc1ae"
+    },
+    "linkedin-abm-audit": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/emilia-korczynska/linkedin-abm-audit/SKILL.md",
+      "computedHash": "98399228c6ba450ce8c6574ba4f5952c35055ad04e684bb16afdca4b3a4a37dd"
+    },
+    "linkedin-abm-monthly-report": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/emilia-korczynska/linkedin-abm-monthly-report/SKILL.md",
+      "computedHash": "b8df6522c44652159199563803b03f14374237467f856cfe887102f1491ff353"
+    },
+    "linkedin-abm-strategy-planner": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/emilia-korczynska/linkedin-abm-strategy-planner/SKILL.md",
+      "computedHash": "b2e840310fe7fa993fb3eed0d2d0a10c681f0db8db850156f387f3c7a5124826"
+    },
+    "linkedin-ads": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/linkedin-ads/SKILL.md",
+      "computedHash": "ff9d879555e3597ce98f8d0092d9b3f459b7cc4b5a8cdd3822343da3669ac062"
+    },
+    "linkedin-ads-abm-guide": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/linkedin-ads-abm-guide/SKILL.md",
+      "computedHash": "3a5a08ff36ee672bc580f96f2eb158a49000f081efb2d306ad28bc6cf812c4f2"
+    },
+    "linkedin-ads-audience-guide": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/linkedin-ads-audience-guide/SKILL.md",
+      "computedHash": "3d7f1b5c3936ab43f2f50b61fd4cfc7e99c28b4acc537a894094d28d9c161319"
+    },
+    "linkedin-ads-ctr-signal": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/brianne-thomas/linkedin-ads-ctr-signal/SKILL.md",
+      "computedHash": "aa32918fae7e67d92a3a1c97bb872f6aa7cdd03186ec648b5d93322afd1741c1"
+    },
+    "linkedin-campaign-complete": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/linkedin-campaign-complete/SKILL.md",
+      "computedHash": "1fb6dcb2d0758bf5fbe1a810bc4c0e5eec3502f16f5a4958b005bbb1906ba0ed"
+    },
+    "linkedin-creator-campaign-launch": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/linkedin-creator-campaign-launch/SKILL.md",
+      "computedHash": "aa209b1a024d76d97b518225f872d17f4a32aefccea4b0d853bacff25587dbf1"
+    },
+    "linkedin-dm-signal-classifier": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ariel-cohen/linkedin-dm-signal-classifier/SKILL.md",
+      "computedHash": "dc548d4bd785745072369f972ea6cd56c1a8cffbc6471280942aad9cdfa54d9b"
+    },
+    "linkedin-engagement-handler": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ariel-cohen/linkedin-engagement-handler/SKILL.md",
+      "computedHash": "a277277a2f031275a2c0f16ed7eef6473b6bf06ae6e8640dbdff2b153156a581"
+    },
+    "linkedin-inmail": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/linkedin-inmail/SKILL.md",
+      "computedHash": "a7a69efe8486f5a84ae5e03b8b4cf7cec8731853d6458bcb3b8b71d647a3ca71"
+    },
+    "linkedin-limits-warmup": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/linkedin-limits-warmup/SKILL.md",
+      "computedHash": "bd4b102dae24ceb070d66eb1b812e17c4748f4213e36b6ac19c1ed7eeccdb5c4"
+    },
+    "linkedin-post-to-newsletter": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/linkedin-post-to-newsletter/SKILL.md",
+      "computedHash": "0ad9e511dfe13c0c3d7171ee141b56ae06cfe687b0446fe3fbd21009710841fe"
+    },
+    "linkedin-success-factors": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/linkedin-success-factors/SKILL.md",
+      "computedHash": "f8c2f6d11cd2b309f6648e8052f2c7328f0c793cc9ee042f3b07f6bde137410c"
+    },
+    "list-architect": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/list-architect/SKILL.md",
+      "computedHash": "738306aac5cd44e042787df7f09d030d7168d16377408112d982618253000509"
+    },
+    "list-building-tips": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/list-building-tips/SKILL.md",
+      "computedHash": "8830bb3f6e3150a3510e1186e9c23b60f864c016844c1c8d25179fa3586b2791"
+    },
+    "local-ai-visibility": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/huxley-peckham/local-ai-visibility/SKILL.md",
+      "computedHash": "b1fa346ca74cfc7e728fe22ea9acf9640e7166216833e67b8364200f4f6a9470"
+    },
+    "map-contacts": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/map-contacts/SKILL.md",
+      "computedHash": "a6a0ada132b8c7270e04351e111f525312c12d812b15c1bbe563b144ab55c0f8"
+    },
+    "marketing-operations": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/marketing-operations/SKILL.md",
+      "computedHash": "b038d4197928123e8a7efa8c9fe18e99642a37f451e3cccd648f23f7ae535b39"
+    },
+    "measure-creator-roi": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/measure-creator-roi/SKILL.md",
+      "computedHash": "cf5cf4bf09dc8ff302552daa094b7fa31d35b780962b92e46e160c649bb254fb"
+    },
+    "message-validation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/message-validation/SKILL.md",
+      "computedHash": "0cbab60b961bad914f60e418e138ba328e98f8f0d49763f32306a300cf557120"
+    },
+    "meta-ads": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-ads/SKILL.md",
+      "computedHash": "dc1f0b777d6695a52087a5d20dd9139286ba25ab7faef611fd77621874ec8df4"
+    },
+    "meta-ads-operating-system": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-ads-operating-system/SKILL.md",
+      "computedHash": "04f9892b535a6435db8e910b954a31df1ca5ce595942ae7b2dd8c470effd6a89"
+    },
+    "meta-api-reference": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-api-reference/SKILL.md",
+      "computedHash": "2f0cc95a3af8e4335183c83302377d0e6d56f4594050a7877792a9aa0a8fbad2"
+    },
+    "meta-audience-strategy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-audience-strategy/SKILL.md",
+      "computedHash": "92aecd149311aee2b6f13e1537b41ee3e268290f4ffd6bc9dfef4fe850c6a554"
+    },
+    "meta-b2b-overview": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-b2b-overview/SKILL.md",
+      "computedHash": "0fcf756197c8ed3cefe8361c86d550e1c8437dd143f4ceb6ece6cb86c6fbf4ed"
+    },
+    "meta-campaign-structure": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-campaign-structure/SKILL.md",
+      "computedHash": "69a1a6e0e5c60834dbeba15a28dd3f7d3a8cf9965042b712fd9d12443554664e"
+    },
+    "meta-capi-and-events": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-capi-and-events/SKILL.md",
+      "computedHash": "9d8063682ba2ea8c8b42a7f34c35295cd955459bd1df3fbf182ac5b1f61a007f"
+    },
+    "meta-creative-strategy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-creative-strategy/SKILL.md",
+      "computedHash": "beea9acf80aa7af7aebf6b2120bd96fc0039bbd9ee557f8c1e0cf990f2c4c9e2"
+    },
+    "meta-offer-strategy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-offer-strategy/SKILL.md",
+      "computedHash": "0c24b621987142dc16c8c3f599d28ad5190aebcf72eb10637e7b6c56da0aef8b"
+    },
+    "meta-onboarding": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-onboarding/SKILL.md",
+      "computedHash": "6dd66d49af27df4a1f7af1e120f193d72978e57e8382c7aa826ab81c5d2cdb14"
+    },
+    "meta-optimization-playbook": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-optimization-playbook/SKILL.md",
+      "computedHash": "768c7d8c5ae518a1e8e51c9f212d0f55c343a6064270d668bfe76978c73732c8"
+    },
+    "meta-reporting": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-reporting/SKILL.md",
+      "computedHash": "2c6fa45b3df3affd6f545d4fabe70d1ad7838eb5df9c443e0b21c161890b8b99"
+    },
+    "meta-setup-and-tracking": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-setup-and-tracking/SKILL.md",
+      "computedHash": "fef0b1b74b286d896c4f24ce1fed307435e706e20244144dc5e17f03d3046233"
+    },
+    "meta-third-party-conversion-tracking": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/meta-third-party-conversion-tracking/SKILL.md",
+      "computedHash": "947a730468d15662da2a16bff77e79ef3f7f7f1bec462c23ef9124bc8c3b90eb"
+    },
+    "move-gtm-diagnostic": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sangram-vajre/move-gtm-diagnostic/SKILL.md",
+      "computedHash": "f98ba36ef3ea748b09ff361d9d089eb75989f3d7156738c35fbb524261dd922e"
+    },
+    "multi-sender-rotation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/imad-badreddine/multi-sender-rotation/SKILL.md",
+      "computedHash": "6c3ea738b43872b81920ddbf23fb896612f1335ae9b297d3c79ec673c1e18784"
+    },
+    "multi-thread-deals": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/multi-thread-deals/SKILL.md",
+      "computedHash": "f580c34045d3d69d576e201f236570f9a6e97dfad15a2fa404bffa274e63bf93"
+    },
+    "negotiate-creator-rate": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/maxwell-nimmo/negotiate-creator-rate/SKILL.md",
+      "computedHash": "02dacac6cbb8b0c26bc1f03759a8778bfab9bdd45174c61735ed7c43e433a88f"
+    },
+    "never-guess-an-email": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/lucas-godtfredsen/never-guess-an-email/SKILL.md",
+      "computedHash": "949e2fca26f9f8e8166695b7b5f12ff4cc4789e0fcdf95312c6768f8dbb1508b"
+    },
+    "newsletter-format": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/newsletter-format/SKILL.md",
+      "computedHash": "7e6d8caff4e43bc29e6582534e0f225b17fe781e1333a33d8ce2becab2701690"
+    },
+    "newsletter-landing-page": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/newsletter-landing-page/SKILL.md",
+      "computedHash": "f2eaad685c4420133bb30b9b232621a851e21a07432203ac0ab57b3e500bd815"
+    },
+    "newsletter-value-prop": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/newsletter-value-prop/SKILL.md",
+      "computedHash": "0097663c21d8194d4dc8567b8b5829c3d517664bb7ecc60f56602ebca873f012"
+    },
+    "newsletter-welcome-email": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/newsletter-welcome-email/SKILL.md",
+      "computedHash": "03b18d98a62de359412759df6939ae1858515ab8da29ebaa1118ce1a5ac72930"
+    },
+    "newsletter-welcome-gift": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/newsletter-welcome-gift/SKILL.md",
+      "computedHash": "c250aa8d7cc6177c61bcc06a60bbbd6f09e42c85904f14d897c193b5814b3bd2"
+    },
+    "newsletter-welcome-sequence": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/newsletter-welcome-sequence/SKILL.md",
+      "computedHash": "9949f07062dd9a5beafff41475e575a3d48febdf529c27349c36d016d835f7a1"
+    },
+    "objection-mining": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/objection-mining/SKILL.md",
+      "computedHash": "a275f54a1a704b31537c84a7b3f6762ce8609cb5fa11720e9eb6cc3848b45dfe"
+    },
+    "operating-cadence-designer": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/operating-cadence-designer/SKILL.md",
+      "computedHash": "ae4250160cbafef9d350340fd41cd44028d25f9e91d22e3a304da70a99223886"
+    },
+    "outbound-performance-diagnosis": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/outbound-performance-diagnosis/SKILL.md",
+      "computedHash": "dd0dbda56a57dc4c7cccc8bae10e11c1007a612fc31f5cbd5a7575273b26187c"
+    },
+    "outbound-strategy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/peter-cools/outbound-strategy/SKILL.md",
+      "computedHash": "2053fcc9345d45a67c633e621236a7c26ac88da12e1d8d8f4a5e25dd3d25c9bf"
+    },
+    "outbound-triggers-6": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/outbound-triggers-6/SKILL.md",
+      "computedHash": "912a54cba35379e951569379a54de7fee1a20160ae46a1e32c2b9142761d778f"
+    },
+    "outreach-4-categories": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/outreach-4-categories/SKILL.md",
+      "computedHash": "9b57aa70b8832a58e56865077fe7a39d86e52d88f29b345ab1b864202c0c96d2"
+    },
+    "outreach-execution": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/jeremy-hurst/outreach-execution/SKILL.md",
+      "computedHash": "36a55ba808b738de4ae60a17ab78eda1afd7d5938463708aa55f4ef50f21f302"
+    },
+    "outreach-messaging": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/maja-voje/outreach-messaging/SKILL.md",
+      "computedHash": "f9cc5b21d4e577f0058ce2afd1541ff5a872f3a1843306eba5543cc81a6946f8"
+    },
+    "pain-is-the-pitch": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/pain-is-the-pitch/SKILL.md",
+      "computedHash": "c06c1305c61686836ea128beeb35c4ebd29f57afadef2356680bbdc55107033b"
+    },
+    "partner-channel-operations": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/partner-channel-operations/SKILL.md",
+      "computedHash": "1749f7a2adae98d44956eb29f2b186b6030324bd1cfcfd4f5346b07c324156eb"
+    },
+    "partner-ecosystem-architect": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/partner-ecosystem-architect/SKILL.md",
+      "computedHash": "cc16c6a827abea086d4e150529c31b96645ce96cb3be93d92b17ad100b90382b"
+    },
+    "patent-backed-seo-quick-wins": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thebigasif/patent-backed-seo-quick-wins/SKILL.md",
+      "computedHash": "31fde0014c6f40c42f8afebc55d01fa97492a1f3a3b2499a9b116d0c97b269e3"
+    },
+    "persona-mapping-framework": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/persona-mapping-framework/SKILL.md",
+      "computedHash": "1fd9b9ee7766870756c63f58918c08fccde778e43771b652677c3b2392b0b3c0"
+    },
+    "personalization-6-buckets": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/personalization-6-buckets/SKILL.md",
+      "computedHash": "2721657587d7972ecad3a65194dd1865069e6b961dc4a78976cfb6e3be0d04e3"
+    },
+    "personalization-hooks": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/personalization-hooks/SKILL.md",
+      "computedHash": "8f819975c336389e5e37f0e59a73cb2655dee9f6e2e222c4892b3ec587804fd0"
+    },
+    "personalization-playbooks": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/personalization-playbooks/SKILL.md",
+      "computedHash": "91ea014177a331e617eebba5ac4d35f68c67478d69cdef956bb2f8cc22bae2d7"
+    },
+    "pipeline-review": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/pipeline-review/SKILL.md",
+      "computedHash": "ab7f3bbccb2ea379dab09c419e511b2c02020ebf6688156228cfdc837a4d43bf"
+    },
+    "pipeline-visibility": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/pipeline-visibility/SKILL.md",
+      "computedHash": "b4a886ac8938ac8d559016a82b0f839badc0a8c8fdd92d7950888aebf672c49b"
+    },
+    "positioning-and-story": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/shane-oconnor/positioning-and-story/SKILL.md",
+      "computedHash": "c87410fdeacd6fd3e2b0f6e850d90ba38ae2aab66cca1568f2a13b03fabd55f3"
+    },
+    "positioning-messaging-designer": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/positioning-messaging-designer/SKILL.md",
+      "computedHash": "0146366c72468211d03f7fc7947b09b46fbb1266eb24260272299757643c2315"
+    },
+    "post-meeting-execution": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/jeremy-hurst/post-meeting-execution/SKILL.md",
+      "computedHash": "c9cb26b3ac56d858f2f28729dd2bfe93d59e430b8b6ede9c0b6bcf8e0889b902"
+    },
+    "post-radar": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/post-radar/SKILL.md",
+      "computedHash": "c656af1b2dd27f71f63b6a88a24ed1d23dca52a1e8b714b56d38305ca17a123e"
+    },
+    "pricing-monetisation-ops": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/pricing-monetisation-ops/SKILL.md",
+      "computedHash": "36ccc710f306b51db34773c9039d7b0de7ea7be0a10bdfd5f632defbc3339d03"
+    },
+    "reach-out": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/reach-out/SKILL.md",
+      "computedHash": "4f277d68889fd10bdb240a7fd73a3ab0aa8fefcfd497e709e29f62f0c4242f50"
+    },
+    "recent-discourse-sweep": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nadav-david/recent-discourse-sweep/SKILL.md",
+      "computedHash": "a0f853344192bcb0f67b2a3d06b18176aa5869832d34ba7099214f938202370a"
+    },
+    "reddit-account-health": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/reddit-account-health/SKILL.md",
+      "computedHash": "c2202683aec0638bbb66833d7e4290802c9647e2b4f209857b080da22eeb3141"
+    },
+    "reddit-account-warmup": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/reddit-account-warmup/SKILL.md",
+      "computedHash": "09a11f387df5e82f970440cbc8d9ae509cfd5491ad7207b2d653801944f82e38"
+    },
+    "reddit-attribution-tracking": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/reddit-attribution-tracking/SKILL.md",
+      "computedHash": "6794024956a6b18f7b781763c5b12918b3a036ef4ca5b9331233a37829c60300"
+    },
+    "reddit-brand-mention-triage": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/reddit-brand-mention-triage/SKILL.md",
+      "computedHash": "c3d7c4765278a55e1fa6d158c41a90c970cba7121de0645c15df53028cfd83ba"
+    },
+    "reddit-campaign-launcher": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/reddit-campaign-launcher/SKILL.md",
+      "computedHash": "28ddf97f46b496aaf91caddb929730a87855b0323542069c0d398f971fd69a19"
+    },
+    "reddit-comment-safety": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/reddit-comment-safety/SKILL.md",
+      "computedHash": "2cdc5ffdf8f5f4f8b8b3bd91713c7d6a7751ed3c34d9178ff23a7a2189c2f0f7"
+    },
+    "reply-pull-gate": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nadav-david/reply-pull-gate/SKILL.md",
+      "computedHash": "2149ea8c7c1b007e6b9476ae86cf99c97e481c17bb6190dec1d2bc9a4a21470f"
+    },
+    "research": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/research/SKILL.md",
+      "computedHash": "d67be3bfdf69ea49b06f5775bf469daa2f8b62ce397083b7b687d6d322adcfa4"
+    },
+    "revenue-operating-cadence": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revenue-operating-cadence/SKILL.md",
+      "computedHash": "f27633239470b1fbbb60d57ba7f2e86188695325182f15a951f0ddafdb390391"
+    },
+    "reverse-etl-activation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/austin-hay/reverse-etl-activation/SKILL.md",
+      "computedHash": "aba0bd8e2ef6daff57e858df5a326ae9fc3cce71433c8a486ae264b11f38a4b5"
+    },
+    "revops-change-management": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-change-management/SKILL.md",
+      "computedHash": "d713114d82f7198d43ef40b51be4c131fd2589bf9f2433d3a14b2dfcfca5a77d"
+    },
+    "revops-crisis": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-crisis/SKILL.md",
+      "computedHash": "d12dbfdfff6c7627d46edfc052624ed9666079a98d3eb77697ea06aa4c1eca3b"
+    },
+    "revops-data-governance": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-data-governance/SKILL.md",
+      "computedHash": "bca93382670f9ae813b42a2d036539ffca27dffab43633ab41198c23b0168ea8"
+    },
+    "revops-diagnostic": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-diagnostic/SKILL.md",
+      "computedHash": "a48a3dd6aaaf60c8409cf61b5c1691eb8a28ec69f940e1c64f4d9ce573f8cabe"
+    },
+    "revops-forecasting": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-forecasting/SKILL.md",
+      "computedHash": "a9c79d326aafc6355a17c8a64fbc05f9c14adf61054cbaa5c5b6cccaa6477e1f"
+    },
+    "revops-handoffs": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-handoffs/SKILL.md",
+      "computedHash": "3dc9be25646f63553462bd1630a9bfc192cc0886161def5eafe868cf6a9ae324"
+    },
+    "revops-hubspot": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-hubspot/SKILL.md",
+      "computedHash": "def6020f8a64742a6ed820a4143a9c7df9af971be9540a565498024e532c05a2"
+    },
+    "revops-metrics": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-metrics/SKILL.md",
+      "computedHash": "9236d96241740529f6d10bd6d4f0f741934540679c4868447aa19a2a250f1778"
+    },
+    "revops-org-chart": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-org-chart/SKILL.md",
+      "computedHash": "09ef83104971dd45eca81d76f7f3aaa664953ff0e923be4ae03224dd0db227ff"
+    },
+    "revops-revenue-planning": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-revenue-planning/SKILL.md",
+      "computedHash": "75d8dab9fcf176a6a6110e87b3af04ae60722f048b4dc7e6d721e718f0a95721"
+    },
+    "revops-salesforce": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-salesforce/SKILL.md",
+      "computedHash": "c7ee63c82773802b9b7fca37169fdfd312092b42e5c874c7c0da6c4346a422dc"
+    },
+    "revops-strategy": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-strategy/SKILL.md",
+      "computedHash": "3ba995703eb688fdf1122204b4f18fc2dc236859e06567a11371591740792737"
+    },
+    "revops-tech-stack": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/revops-tech-stack/SKILL.md",
+      "computedHash": "83cec931be365da400e46eae68e842d0d5323dcd32f9a3f73c300d81b523e131"
+    },
+    "roi-proof-generator": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/manny-medina/roi-proof-generator/SKILL.md",
+      "computedHash": "82019ed60de9ac2fd7c7fab04a9db085c60ecebee98812c6fb88b76d82af709e"
+    },
+    "saas-lifecycle": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/saas-lifecycle/SKILL.md",
+      "computedHash": "8cc0f3782ae0065a1a6b0dc57673aa90e934934388af143fdeeafba33a05da23"
+    },
+    "sales-methodology": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rutger-katz/sales-methodology/SKILL.md",
+      "computedHash": "56d5f8117c8988a240f002f4a636e8842407f90a930efde6db4d1f3cf4241dfd"
+    },
+    "sales-playbook-foundations": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/kevin-kd-dorsey/sales-playbook-foundations/SKILL.md",
+      "computedHash": "f55bf92f95529baf1a1ee8cf6ec084c22972fec00064cb729058bc9b773c97cb"
+    },
+    "scale-b2b-qualified-pipeline": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ivan-falco/scale-b2b-qualified-pipeline/SKILL.md",
+      "computedHash": "cd04fc23d6250b4aa016694ee15c26f4f84b7e9a0862011b27ac60592e17a411"
+    },
+    "score": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/score/SKILL.md",
+      "computedHash": "af9ea1bf3aa0e6f04b317b1b669159755799fc358bf3a6516584aef2d73d1674"
+    },
+    "sdr-master-prompts": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/sdr-master-prompts/SKILL.md",
+      "computedHash": "90ec3d1e5639f9d69dd7373f40a3bb0f1a300f9dec13e9b6c27881bc83cad48f"
+    },
+    "sdr-outbound-rules": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/sdr-outbound-rules/SKILL.md",
+      "computedHash": "bbe3afca9745fac177dfad6aa27e11bc8a2101fcf63d29f2a1ca64150d44ba61"
+    },
+    "seo-business-context": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sam-dunning/seo-business-context/SKILL.md",
+      "computedHash": "333421521a559220d759b85a46930b6381483464dc9c60c3619467703e569f95"
+    },
+    "seo-business-fit-filter": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sam-dunning/seo-business-fit-filter/SKILL.md",
+      "computedHash": "f3ddfedf30ef9fbfc7532ed98284cc43d5f662b58594191b9c1039581fa98898"
+    },
+    "seo-keyword-validation": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sam-dunning/seo-keyword-validation/SKILL.md",
+      "computedHash": "f6ed337dd89978be6318adcd4bddfd982afea4a726e267d44de983caf3f58adb"
+    },
+    "seo-opportunity-extraction": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sam-dunning/seo-opportunity-extraction/SKILL.md",
+      "computedHash": "ba1aa74ff43212445be22b62b28157dce8ebfc97ed9a37dc23d5c6203bbdf2d6"
+    },
+    "seo-serp-qualification": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sam-dunning/seo-serp-qualification/SKILL.md",
+      "computedHash": "2363845fb63bc114e62394ce552ef007fe0824d8a6bf4c1b19f0fd3995f53fc3"
+    },
+    "seo-topic-prioritization": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sam-dunning/seo-topic-prioritization/SKILL.md",
+      "computedHash": "b40371ad9300c8328557f99c71ae18a367f5fc44f4e659206ce1891897c48e7e"
+    },
+    "seo-topic-research-pipeline": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sam-dunning/seo-topic-research-pipeline/SKILL.md",
+      "computedHash": "fcb42b5336fdb2687672f94a64d4aa07f7688bfeb2a478a68d83259fb2d3b2bb"
+    },
+    "seo-topic-shaping": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sam-dunning/seo-topic-shaping/SKILL.md",
+      "computedHash": "3d4ce1497b76fe545dca43713bed5dfdd8ed1b3d51b640225ff2d2b20db9d06c"
+    },
+    "set-creator-benchmarks": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/maxwell-nimmo/set-creator-benchmarks/SKILL.md",
+      "computedHash": "952a3d312ff28ac8b7ef90d22f1af59e8258a8ffb2278bcc8c4f41580aefbc95"
+    },
+    "signal-anchored-message": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/peter-cools/signal-anchored-message/SKILL.md",
+      "computedHash": "620aedb0292d71f51dcbbe3b4ee3472385f248931053ccf8f0a971539bfb5ec5"
+    },
+    "signal-interpreter": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/din-arbel/signal-interpreter/SKILL.md",
+      "computedHash": "5d70ed6c32a28c78a6076553dda83cdaa764ec56b9a42f4938a1fa1fac0e9634"
+    },
+    "signal-sourcer": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/alex-vacca/signal-sourcer/SKILL.md",
+      "computedHash": "28c8c352a0e396b768bdfc380f58134899f2af1090d78447ddfcec95501b747e"
+    },
+    "signal-timing": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/peter-cools/signal-timing/SKILL.md",
+      "computedHash": "5268f35160c3833b18781c5e7cfe877e732f3939444e43d1c8275e552fe55a75"
+    },
+    "signal-to-campaign": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bojan-berisavljevic/signal-to-campaign/SKILL.md",
+      "computedHash": "ee7646e654d305e4ceb236a64b78f3b62055a0e740be18a9b6eb3e392b0ff199"
+    },
+    "skillify": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/skillify/SKILL.md",
+      "computedHash": "c99759fb7bb63a10baa45369ed1c6c30bd0f739f94943b0d748ba98d5d5129f6"
+    },
+    "stage-aware-follow-up": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/stage-aware-follow-up/SKILL.md",
+      "computedHash": "5ed569db875429e998089f4593d6fd123441e8436584462ddb7e57e189f2348a"
+    },
+    "subreddit-pre-post-check": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/subreddit-pre-post-check/SKILL.md",
+      "computedHash": "d0d8baec7000140d49a7af551f2e137e38bb4e2d886ca9229da89cb4e674cd9c"
+    },
+    "subreddit-research": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/yahav-fuchs/subreddit-research/SKILL.md",
+      "computedHash": "1be4c42f43af9b221e33f7a85dd0270c36bb3233f56a6d07f1e8542fef7394de"
+    },
+    "tam-builder": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanyo-gochev/tam-builder/SKILL.md",
+      "computedHash": "72ef87745e3a92e6067d76a6f7537d99ab02ce1bed381618e90f700bf9c47711"
+    },
+    "track-contact-job-changes": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/jorge-macias/track-contact-job-changes/SKILL.md",
+      "computedHash": "34e5c7d07a2daefd353a97fed33b4b2f4bbac6ec287595c6ba6738a252ceccf7"
+    },
+    "vc-portfolio-research": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/brad-smith/vc-portfolio-research/SKILL.md",
+      "computedHash": "067df88ae7ba6ce9ead07b07be1842aebe71b85b9c360384769311556c29409f"
+    },
+    "viral-linkedin-lead-magnet-post": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/pete-mientkiewicz/viral-linkedin-lead-magnet-post/SKILL.md",
+      "computedHash": "ed5ca7b036ce2749e3cb1b58e8f2de8af6928e5808ead557ddaa0ba93460fb49"
+    },
+    "visitor-radar": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ido-goldberg/visitor-radar/SKILL.md",
+      "computedHash": "6a045dd90de0096b38348b71200476ae0b1c24c5d41dd49d842f1c355b1fbc35"
+    },
+    "warm-intro-intelligence": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/din-arbel/warm-intro-intelligence/SKILL.md",
+      "computedHash": "fa2fb4bf4b6cdbb25ce13a30fb2332d562fe066a724bf46dd1a94c51a79b4e6d"
+    },
+    "website-to-signals": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/peter-cools/website-to-signals/SKILL.md",
+      "computedHash": "18676c50a71b93b7b2d6b897557fc1267c86007114123c39cc2bf6f1919cff36"
+    },
+    "weekly-roundup-email": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/daniel-bustamante/weekly-roundup-email/SKILL.md",
+      "computedHash": "6213d62f56b520cf9d070f60d3a6766942bd3ac5ee11fca5ca010d4da46620f7"
+    },
+    "write-b2b-sponsored-post": {
+      "source": "swan-gtm/gtm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/thomas-marcelle/write-b2b-sponsored-post/SKILL.md",
+      "computedHash": "b1aba971374fc04a7b3fe24d3400fb74d493eb0254b0e2cf1993a55c9695ccfa"
+    }
+  }
+}

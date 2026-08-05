@@ -1,0 +1,40 @@
+{
+  "_comment": "1:1 ABM build config. Copy to abm_config.json, fill from the client's KNOWLEDGE_BASE + the landing pages. geo/function/seniority URNs: resolve from the API, never guess. Run: python3 abm_1to1_build.py --config abm_config.json  (dry-run), then add --execute.",
+
+  "account_id": "512058598",
+  "org_id": "65826193",
+  "group_name": "ABM 1:1",
+  "ad_set_prefix": "ABM",
+  "currency": "USD",
+  "daily_budget": "10",
+  "locale": { "country": "US", "language": "en" },
+
+  "geo": ["urn:li:geo:103644278"],
+  "job_functions": ["urn:li:function:4", "urn:li:function:15", "urn:li:function:16", "urn:li:function:25"],
+  "exclude_seniorities": ["urn:li:seniority:1", "urn:li:seniority:2", "urn:li:seniority:3"],
+
+  "objective": { "type": "ENGAGEMENT", "cost": "CPM", "optimization": "MAX_CLICK" },
+  "cta_label": "LEARN_MORE",
+
+  "conversions": [],
+  "utm": {},
+
+  "companies": [
+    {
+      "name": "HubSpot",
+      "org_urn": "urn:li:organization:68529",
+      "landing_page": "https://client-reports-one.vercel.app/frontal/abm/hubspot",
+      "image": "../openai-bot/output/frontal-abm-hubspot/v6.png",
+      "headline": "5 GTM plays, built for HubSpot",
+      "commentary": "Hey HubSpot, we built 5 plays for your GTM to book more meetings with RevOps leaders at funded B2B startups. See them on the page."
+    },
+    {
+      "name": "Ramp",
+      "org_urn": "urn:li:organization:1406226",
+      "landing_page": "https://client-reports-one.vercel.app/frontal/abm/ramp",
+      "image": "../openai-bot/output/frontal-abm-ramp/v6.png",
+      "headline": "5 GTM plays, built for Ramp",
+      "commentary": "Hey Ramp, we built 5 plays for your GTM to book more meetings with CFOs at fast-growing startups. See them on the page."
+    }
+  ]
+}
