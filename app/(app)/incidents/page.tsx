@@ -93,11 +93,9 @@ function IncidentTable({ incidents }: { incidents: IncidentRow[] }) {
             return (
               <tr key={inc.id} style={{ borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
                 <td style={{ padding: '12px 16px' }}>
-                  {(() => { const svc = Array.isArray(inc.services) ? inc.services[0] : inc.services; return svc ? (
-                    <Link href={`/services/${svc.id}`} style={{ color: '#f0f0f0', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>
-                      {svc.name}
-                    </Link>
-                  ) : <span style={{ fontSize: 13, color: '#555' }}>—</span>; })()}
+                  <Link href={`/incidents/${inc.id}`} style={{ color: '#f0f0f0', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>
+                    {(() => { const svc = Array.isArray(inc.services) ? inc.services[0] : inc.services; return svc?.name ?? '—'; })()}
+                  </Link>
                 </td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{ fontSize: 12, color: SEVERITY_COLOR[inc.severity] ?? '#888', fontWeight: 500 }}>
