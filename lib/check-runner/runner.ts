@@ -317,8 +317,7 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-PAYMENT': txHash,
-            'X-PAYMENT-RESPONSE': JSON.stringify({ txHash, network: 'base', payer: walletAddress }),
+            'X-Payment': txHash, // base64-encoded EIP-3009 signed authorization
           },
           body: JSON.stringify(config.test_input),
         },
