@@ -137,11 +137,18 @@ export async function executePayment(
     },
   });
 
+  // Normalize CAIP-2 network identifiers to short names expected by facilitators
+  const NETWORK_SHORT: Record<string, string> = {
+    'eip155:8453': 'base',
+    'eip155:84532': 'base-sepolia',
+  };
+  const networkShort = NETWORK_SHORT[usdcOption.network] ?? usdcOption.network ?? 'base';
+
   // Build x402 payment payload (Coinbase standard format)
   const paymentPayload = {
     x402Version: 1,
     scheme: 'exact',
-    network: usdcOption.network ?? 'base',
+    network: networkShort,
     payload: {
       signature,
       authorization: {
