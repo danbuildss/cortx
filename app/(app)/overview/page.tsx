@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
+import { StatusPageLink } from './_components/status-page-link';
 
 const STATUS_COLORS: Record<string, string> = {
   operational: '#22c55e',
@@ -58,6 +59,9 @@ export default async function OverviewPage() {
           Add service
         </Link>
       </div>
+
+      {/* Status page link */}
+      {user && <StatusPageLink userId={user.id} />}
 
       {/* Summary cards */}
       {total > 0 && (
