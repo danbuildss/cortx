@@ -32,12 +32,21 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
   async function startConnect() {
     setError('');
     setConnecting(true);
+    // Open the window synchronously before any await so browsers don't block it as a popup
+    const win = window.open('', '_blank');
     try {
       const res = await fetch('/api/telegram/connect', { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed to generate link');
+      if (!res.ok) {
+        win?.close();
+        throw new Error(data.error ?? 'Failed to generate link');
+      }
 
-      window.open(data.deepLinkUrl, '_blank');
+      if (win) {
+        win.location.href = data.deepLinkUrl;
+      } else {
+        window.location.href = data.deepLinkUrl;
+      }
       setConnecting(false);
       setWaitingForBot(true);
 
