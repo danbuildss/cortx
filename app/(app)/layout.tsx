@@ -6,12 +6,12 @@ import { AppThemeProvider } from '@/components/app-theme-provider';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user = null;
   let openIncidents = 0;
+  let displayName: string | null = null;
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
     user = data.user;
 
-    let displayName: string | null = null;
     if (user) {
       const [{ count }, { data: profile }] = await Promise.all([
         supabase
