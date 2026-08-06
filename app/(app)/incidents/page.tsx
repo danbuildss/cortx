@@ -33,7 +33,7 @@ export default async function IncidentsPage() {
   const resolved = incidents?.filter(i => i.status === 'resolved') ?? [];
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 960, margin: '0 auto' }}>
+    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 960, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Incidents</h1>
@@ -97,7 +97,8 @@ type IncidentRow = {
 function IncidentTable({ incidents }: { incidents: IncidentRow[] }) {
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
             {['', 'Service', 'Severity', 'Status', 'Failed stage', 'Opened', 'Duration'].map((h, idx) => (
@@ -166,6 +167,7 @@ function IncidentTable({ incidents }: { incidents: IncidentRow[] }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
