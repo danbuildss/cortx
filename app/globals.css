@@ -7,44 +7,44 @@
 
 /* ── App theme tokens — dark (default) ─────────────────── */
 :root {
-  --bg-page: #000000;
-  --bg-surface: #111111;
-  --bg-elevated: #1a1a1a;
-  --bg-subdued: #0d0d0d;
-  --bg-muted: #272727;
+  --bg-page: #08090a;
+  --bg-surface: #111214;
+  --bg-elevated: #16181d;
+  --bg-subdued: #0d0e11;
+  --bg-muted: #1e2028;
   --bg-hover: rgba(255, 255, 255, 0.05);
-  --border-subtle: #1a1a1a;
-  --border-mid: #1f1f1f;
-  --border-default: #2a2a2a;
+  --border-subtle: #16181d;
+  --border-mid: #1e2028;
+  --border-default: #2a2d35;
   --border-focus: rgba(255, 255, 255, 0.22);
-  --text-primary: #f0f0f0;
-  --text-secondary: #888888;
-  --text-muted: #555555;
-  --text-dim: #444444;
-  --sidebar-bg: #111111;
-  --sidebar-border: #1f1f1f;
+  --text-primary: #f0f1f3;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --text-dim: #4b5563;
+  --sidebar-bg: #111214;
+  --sidebar-border: #1e2028;
   --status-operational: #22c55e;
   --status-degraded: #f59e0b;
   --status-critical: #ef4444;
-  --status-unknown: #555555;
+  --status-unknown: #6b7280;
 }
 
 /* ── Light theme overrides ──────────────────────────────── */
 [data-theme="light"] {
-  --bg-page: #f3f4f6;
+  --bg-page: #f7f8f8;
   --bg-surface: #ffffff;
-  --bg-elevated: #f9fafb;
-  --bg-subdued: #f3f4f6;
+  --bg-elevated: #f3f4f6;
+  --bg-subdued: #f7f8f8;
   --bg-muted: #e5e7eb;
   --bg-hover: rgba(0, 0, 0, 0.05);
-  --border-subtle: #f0f0f0;
+  --border-subtle: #eaecef;
   --border-mid: #e5e7eb;
   --border-default: #d1d5db;
   --border-focus: rgba(0, 0, 0, 0.22);
-  --text-primary: #111827;
-  --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
-  --text-dim: #d1d5db;
+  --text-primary: #0d0d0e;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --text-dim: #9ca3af;
   --sidebar-bg: #ffffff;
   --sidebar-border: #e5e7eb;
 }
