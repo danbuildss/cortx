@@ -14,10 +14,11 @@ Stack: Next.js 14+ (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Sch
 
 - [x] In planning
 - [x] Building MVP
-- [ ] In testing
+- [x] Beta readiness sprint (in progress — security done, polish nearly done)
+- [ ] Private beta (5–10 Bankr builders)
 - [ ] Live
 
-Core loop working end-to-end. PR #12 open with the latest batch of features.
+**Security audit passed.** All 7 high-severity issues resolved. Ready for beta from a security standpoint.
 
 ---
 
@@ -25,9 +26,9 @@ Core loop working end-to-end. PR #12 open with the latest batch of features.
 
 ### Infrastructure
 - Next.js 14 App Router project on Vercel
-- Supabase: Postgres + Auth + RLS (5 tables)
+- Supabase: Postgres + Auth + RLS (6 tables, including feedback)
 - Session hooks: gstack skill suite installed
-- cron-job.org calls `GET /api/cron` every minute with `Authorization: Bearer {CRON_SECRET}`
+- cron-job.org calls `GET /api/cron` with `Authorization: Bearer {CRON_SECRET}` (NOT query param)
 
 ### Database Tables
 - `profiles` — user profiles (linked to Supabase auth)
@@ -35,6 +36,9 @@ Core loop working end-to-end. PR #12 open with the latest batch of features.
 - `checks` — insert-only check results with per-stage evidence JSONB (status, latency_ms, stages, failure_stage)
 - `incidents` — incident records with JSONB timeline (opened → escalated → resolved events)
 - `alert_configs` — per-service Telegram alert configs (destination, on_open, on_severity_increase, on_resolve, enabled)
+- `telegram_connections` — user → chat_id after bot deep-link auth
+- `telegram_link_tokens` — single-use 10-min tokens for Telegram deep-link flow
+- `feedback` — beta feedback submissions (task + problem, linked to user, forwarded to Telegram)
 
 ### Check Runner (`lib/check-runner/`)
 7-stage synthetic payment pipeline:
@@ -50,26 +54,37 @@ Key implementation details:
 - Uses `x402/client` npm package (`createPaymentHeader`) for EIP-3009 signing
 - CAIP-2 normalization: `eip155:8453` → `base` (Bankr sends CAIP-2 format)
 - Seeds EIP-712 domain with USDC defaults (`name: "USD Coin"`, `version: "2"`), overridable via `extra` field
-- `CORTX_TEST_WALLET_KEY` env var holds 0x-prefixed private key — never logged
+- `CORTX_TEST_WALLET_KEY` env var holds 0x-prefixed private key — never logged (private key redacted in all catch paths)
+- Response body capped at 1MB via `readBodyCapped()` streaming helper
+- Cumulative spend cap enforced daily + monthly (not just per-request)
 - 2 consecutive failures required before incident opens
 - `status = 'error'` (infra errors) does NOT update service status or open incidents
 - Telegram alerts fire via `alert_configs` on incident open / severity escalate / resolve
 
 ### API Routes
 - `GET /api/cron` — scheduled check runner, requires `Authorization: Bearer {CRON_SECRET}`
-- `POST /api/check/[serviceId]` — manual "Run check" trigger from UI
+- `POST /api/checks/run` — manual "Run check" trigger from UI
+- `POST /api/services/detect` — SSRF-protected x402 endpoint prober (returns detected config + missing fields)
+- `POST /api/services/onboard` — creates service + runs first check
+- `POST /api/telegram/connect` — generates 10-min deep-link token
+- `POST /api/telegram/webhook` — Telegram bot webhook (timing-safe secret verify, atomic token claim)
+- `POST /api/feedback` — beta feedback submission (→ DB + owner Telegram)
 
 ### App Pages (auth-protected, under `(app)/`)
 | Page | Route | What it does |
 |---|---|---|
-| Login | `/login` | Supabase auth |
+| Login | `/login` | Supabase auth (CSS token vars, network error handling) |
+| Signup | `/signup` | Supabase auth (CSS token vars, network error handling) |
 | Overview | `/overview` | Service list, summary cards, status page copy link |
 | Service detail | `/services/[id]` | Status, meta, latency sparkline chart, recent checks table, stage breakdown |
-| Service add | `/services/new` | Full config form (endpoint, prices, schema, interval, alerts) |
-| Service edit | `/services/[id]/edit` | Pre-filled edit form for all config fields |
+| Service add | `/services/new` | 3-step onboarding wizard (detect → configure → run check) |
+| Service edit | `/services/[id]/edit` | Pre-filled edit form, inline "Saved!" confirmation |
 | Incidents | `/incidents` | Open + resolved incident list, clickable rows |
 | Incident detail | `/incidents/[id]` | Timeline view with colored event dots, meta cards |
-| Alert settings | `/settings/alerts` | Telegram alert config per service (add/toggle/remove) |
+| Alert settings | `/settings/alerts` | Telegram alert config per service |
+| Account | `/settings/account` | Display name edit (network error handling) |
+
+All app pages have `loading.tsx` skeleton screens (no more blank screens during fetch).
 
 ### Public Pages
 | Page | Route | What it does |
@@ -77,11 +92,24 @@ Key implementation details:
 | Status page | `/status/[userId]` | Per-user public status page — overall banner, per-service 90-day uptime bars, active incidents |
 
 ### UI Features
+- Fixed bottom-right `💬 Feedback` button on all app pages
 - Overview: copy-link button for status page URL
-- Service detail: SVG latency sparkline (avg/min/max, green=passed/red=failed dots)
+- Service detail: SVG latency sparkline (avg/min/max, CSS token colors)
 - Service detail: stage breakdown with evidence JSON for last check
+- Service detail: open incident banner links to specific incident
 - Status page: 90-day colored bar grid per service (green/red/dim-gray), ISR 60s
-- Alert settings: per-event toggles (on_open, on_severity_increase, on_resolve) with optimistic updates
+- Alert settings: per-event toggles with optimistic updates
+- Loading skeletons on all high-traffic pages
+
+### Security (all resolved)
+- Cron: `Authorization: Bearer` header (not query param)
+- Telegram webhook: `timingSafeEqual` constant-time secret comparison
+- Telegram token: atomic `UPDATE WHERE used_at IS NULL` (no TOCTOU)
+- Checks RLS: policy requires `auth.uid() = user_id AND service belongs to user`
+- Payment key: fully redacted in all error paths (`replaceAll`)
+- Response bodies: capped at 1MB via streaming reader
+- Spend cap: cumulative daily + monthly (not just single-payment check)
+- Telegram tokens: expired tokens deleted on each `/api/telegram/connect` call
 
 ---
 
@@ -92,9 +120,18 @@ Key implementation details:
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key for server-side queries |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key for client-side auth |
-| `CORTX_TEST_WALLET_KEY` | 0x-prefixed 32-byte private key for test wallet (funded with USDC on Base mainnet) |
-| `CRON_SECRET` | Bearer token cron-job.org sends in Authorization header |
+| `CORTX_TEST_WALLET_KEY` | 0x-prefixed 32-byte private key for test wallet |
+| `CRON_SECRET` | Bearer token for cron-job.org Authorization header |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token for alerts |
+| `TELEGRAM_BOT_USERNAME` | Bot username (without @) for deep-link URL |
+| `FEEDBACK_TELEGRAM_CHAT_ID` | Owner's Telegram chat ID for receiving feedback |
+
+## User Action Items
+
+- [ ] Run migration 004 in Supabase SQL editor (`supabase/migrations/004_fix_checks_rls.sql`)
+- [ ] Run migration 005 in Supabase SQL editor (`supabase/migrations/005_feedback.sql`)
+- [ ] Update cron-job.org: use `Authorization: Bearer {CRON_SECRET}` header (not `?secret=`)
+- [ ] Set `FEEDBACK_TELEGRAM_CHAT_ID` env var in Vercel (your own Telegram chat ID)
 
 ---
 
@@ -103,20 +140,25 @@ Key implementation details:
 | Date | Decision | Reasoning |
 |------|----------|-----------|
 | 2026-08-05 | Base **mainnet** only, real USDC | Test with real stakes — testnet doesn't reflect production reliability |
-| 2026-08-05 | x402/client npm package for payment signing | Coinbase's reference client handles EIP-712 domain correctly, avoids hand-rolled signing bugs |
+| 2026-08-05 | x402/client npm package for payment signing | Coinbase's reference client handles EIP-712 domain correctly |
 | 2026-08-05 | cron-job.org instead of Vercel cron | Vercel Hobby plan only allows daily crons; cron-job.org gives per-minute scheduling free |
 | 2026-08-05 | 2 consecutive failures to open incident | Reduces noise from transient failures |
-| 2026-08-05 | `error` status never opens incidents | Infra errors (timeouts, DNS) shouldn't page you — only real payment failures matter |
-| 2026-08-05 | Public status page at `/status/[userId]` | Makes CORTX feel like a real product; shareable without requiring login |
+| 2026-08-05 | `error` status never opens incidents | Infra errors shouldn't page you — only real payment failures matter |
+| 2026-08-05 | Public status page at `/status/[userId]` | Makes CORTX feel like a real product; shareable without login |
+| 2026-08-06 | 3-step onboarding wizard (detect → configure → run) | Reduces time-to-first-monitor to under 2 minutes |
+| 2026-08-06 | Feedback button in app (not modal) | Bottom-right fixed button keeps it accessible without interrupting workflow |
 
 ## Open Questions
 
 - Who are the 5 Bankr builders for the private beta?
-- Email alerts alongside Telegram? (infrastructure not built yet)
+- Email alerts alongside Telegram? (not built)
 - Custom domain for status pages?
 
 ## Branch / PR History
 
 - Branch: `claude/persistent-skills-sessions-727k7h`
-- PRs 1–11: merged to main
-- PR #12: open — service edit, incident detail, latency chart, 90-day uptime bars, nav fix
+- PRs 1–17: merged to main
+- PR #18: open — security fixes batch (all 7 high-severity issues)
+  - Commit 1: cron auth, Telegram webhook, onboarding wizard, detect API
+  - Commit 2: response size limits, spend caps, token cleanup, private key redaction
+- Feedback widget, loading skeletons, polish fixes: committed to branch (not yet PRed)
