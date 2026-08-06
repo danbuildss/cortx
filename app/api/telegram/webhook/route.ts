@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { sendTelegramAlert } from '@/lib/telegram';
 
@@ -10,9 +11,13 @@ function serviceClient() {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Validate webhook secret — reject anything without it
-  const secret = req.headers.get('x-telegram-bot-api-secret-token');
-  if (!secret || secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+  // Validate webhook secret — constant-time comparison to prevent timing attacks
+  const secret = req.headers.get('x-telegram-bot-api-secret-token') ?? '';
+  const expected = process.env.TELEGRAM_WEBHOOK_SECRET ?? '';
+  const secretOk = secret.length === expected.length &&
+    expected.length > 0 &&
+    timingSafeEqual(Buffer.from(secret), Buffer.from(expected));
+  if (!secretOk) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
@@ -39,23 +44,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const db = serviceClient();
 
-  // Look up token — must exist, unused, not expired
-  const { data: tokenRow } = await db
+  // Atomically claim the token — single UPDATE WHERE used_at IS NULL prevents TOCTOU race
+  const { data: claimed } = await db
     .from('telegram_link_tokens')
-    .select('id, user_id, expires_at, used_at')
+    .update({ used_at: new Date().toISOString() })
     .eq('token', token)
+    .is('used_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .select('id, user_id')
     .maybeSingle();
 
-  if (!tokenRow || tokenRow.used_at || new Date(tokenRow.expires_at) < new Date()) {
+  if (!claimed) {
     await sendTelegramAlert(chatId, '❌ This link has expired or already been used. Generate a new one from the CORTX dashboard.');
     return NextResponse.json({ ok: true });
   }
 
-  // Mark token used
-  await db
-    .from('telegram_link_tokens')
-    .update({ used_at: new Date().toISOString() })
-    .eq('id', tokenRow.id);
+  const tokenRow = claimed;
 
   // Upsert connection (one per user)
   await db
