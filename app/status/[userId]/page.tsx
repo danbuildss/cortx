@@ -61,7 +61,8 @@ export default async function StatusPage({ params }: { params: Promise<{ userId:
       .from('checks')
       .select('service_id, status, started_at')
       .eq('user_id', userId)
-      .gte('started_at', new Date(Date.now() - 90 * 864e5).toISOString()),
+      .gte('started_at', new Date(Date.now() - 90 * 864e5).toISOString())
+      .limit(5000),
   ]);
 
   // Uptime % per service (last 90 days, errors excluded)

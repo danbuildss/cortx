@@ -414,7 +414,7 @@ export default function LandingPage() {
               <div className="ft-col-links">
                 <a href="https://cortx.mintlify.site">Docs</a>
                 <a href="#how-it-works">How it works</a>
-                <a href="#">Help &amp; Support</a>
+                <a href="https://t.me/usecortxdev">Help &amp; Support</a>
               </div>
             </div>
             <div>
@@ -424,13 +424,6 @@ export default function LandingPage() {
                 <a href="https://t.me/usecortxdev">Telegram</a>
                 <a href="https://t.me/AskCortxBot">Cortx Bot</a>
                 <a href="https://github.com/danbuildss/cortx">GitHub</a>
-              </div>
-            </div>
-            <div>
-              <div className="ft-col-label">Company</div>
-              <div className="ft-col-links">
-                <a href="#">About us</a>
-                <a href="#">Blog</a>
               </div>
             </div>
           </div>
@@ -465,10 +458,6 @@ export default function LandingPage() {
 
           {/* Legal bar */}
           <div className="ft-legal">
-            <div className="ft-legal-links">
-              <a href="#">Terms of Use</a>
-              <a href="#">Privacy Policy</a>
-            </div>
             <div className="ft-copy">© 2026 CORTX, Inc.</div>
           </div>
         </div>

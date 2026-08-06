@@ -71,7 +71,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
       {/* Open incident banner */}
       {openIncident && (
         <div style={{
-          background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+          background: 'var(--status-critical-bg)', border: '1px solid var(--status-critical-border)',
           borderRadius: 8, padding: '12px 16px', marginBottom: 24,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
@@ -83,7 +83,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
               {openIncident.failure_stage} · opened {formatRelative(openIncident.opened_at)}
             </span>
           </div>
-          <Link href="/incidents" style={{ fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none' }}>View →</Link>
+          <Link href={`/incidents/${openIncident.id}`} style={{ fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none' }}>View →</Link>
         </div>
       )}
 
@@ -239,10 +239,10 @@ function LatencyChart({ checks }: { checks: { latency_ms: number | null; started
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 72, display: 'block', overflow: 'visible' }}>
-        <path d={pathD} fill="none" stroke="#22c55e" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d={pathD} fill="none" stroke="var(--status-operational)" strokeWidth="1.5" strokeLinejoin="round" />
         {points.map((p, i) => (
           <circle key={i} cx={cx(p.t)} cy={cy(p.ms)} r={3}
-            fill={p.status === 'passed' ? '#22c55e' : '#ef4444'}
+            fill={p.status === 'passed' ? 'var(--status-operational)' : 'var(--status-critical)'}
             stroke="var(--bg-surface)" strokeWidth="1" />
         ))}
       </svg>

@@ -8,8 +8,8 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 const SEVERITY_BG: Record<string, string> = {
-  critical: 'rgba(239,68,68,0.12)',
-  degraded: 'rgba(245,158,11,0.12)',
+  critical: 'var(--status-critical-bg)',
+  degraded: 'var(--status-degraded-bg)',
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -19,9 +19,9 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const STATUS_BG: Record<string, string> = {
-  open: 'rgba(239,68,68,0.1)',
-  acknowledged: 'rgba(245,158,11,0.1)',
-  resolved: 'rgba(34,197,94,0.1)',
+  open: 'var(--status-critical-bg)',
+  acknowledged: 'var(--status-degraded-bg)',
+  resolved: 'var(--status-operational-bg)',
 };
 
 type TimelineEvent = {
@@ -119,9 +119,9 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {timeline.map((evt, i) => {
               const isLast = i === timeline.length - 1;
-              const dotColor = evt.event === 'resolved' ? '#22c55e'
-                : evt.event === 'escalated' ? '#ef4444'
-                : evt.event === 'opened' ? '#f59e0b'
+              const dotColor = evt.event === 'resolved' ? 'var(--status-operational)'
+                : evt.event === 'escalated' ? 'var(--status-critical)'
+                : evt.event === 'opened' ? 'var(--status-degraded)'
                 : 'var(--text-muted)';
 
               return (
@@ -159,9 +159,9 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
       {/* Resolution note */}
       {incident.resolved_at && (
         <div style={{
-          marginTop: 24, background: 'rgba(34,197,94,0.05)',
-          border: '1px solid rgba(34,197,94,0.15)', borderRadius: 8,
-          padding: '12px 16px', fontSize: 13, color: '#22c55e',
+          marginTop: 24, background: 'var(--status-operational-bg)',
+          border: '1px solid var(--status-operational-border)', borderRadius: 8,
+          padding: '12px 16px', fontSize: 13, color: 'var(--status-operational)',
         }}>
           ✓ Resolved {formatRelative(incident.resolved_at)} — {incident.resolution_type ?? 'auto'}
         </div>
