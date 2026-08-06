@@ -7,8 +7,8 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 const SEVERITY_BG: Record<string, string> = {
-  critical: 'rgba(239,68,68,0.1)',
-  degraded: 'rgba(245,158,11,0.1)',
+  critical: 'var(--status-critical-bg)',
+  degraded: 'var(--status-degraded-bg)',
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -45,9 +45,9 @@ export default async function IncidentsPage() {
           <span style={{
             fontSize: 12, fontWeight: 600,
             padding: '4px 10px',
-            background: 'rgba(239,68,68,0.1)',
+            background: 'var(--status-critical-bg)',
             color: 'var(--status-critical)',
-            border: '1px solid rgba(239,68,68,0.2)',
+            border: '1px solid var(--status-critical-border)',
             borderRadius: 6,
           }}>
             {open.length} active

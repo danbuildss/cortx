@@ -76,7 +76,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (response.status === 402) {
       let rawBody = '';
-      try { rawBody = await response.text(); } catch { /* ignore */ }
+      try {
+        // Cap at 64 KB — payment terms should never be larger
+        const MAX = 65_536;
+        const cl = parseInt(response.headers.get('content-length') ?? '0', 10);
+        if (cl <= MAX) {
+          const reader = response.body?.getReader();
+          if (reader) {
+            const chunks: Uint8Array[] = [];
+            let total = 0;
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value) { total += value.length; if (total > MAX) { reader.cancel(); break; } chunks.push(value); }
+            }
+            reader.releaseLock();
+            const merged = new Uint8Array(total);
+            let off = 0;
+            for (const c of chunks) { merged.set(c, off); off += c.length; }
+            rawBody = new TextDecoder().decode(merged);
+          }
+        }
+      } catch { /* ignore */ }
 
       let terms: {
         accepts?: Array<{

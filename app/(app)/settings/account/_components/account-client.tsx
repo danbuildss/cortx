@@ -17,17 +17,22 @@ export function AccountForm({
     e.preventDefault();
     setSaving(true);
     setMsg('');
-    const res = await fetch('/api/account/profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: displayName.trim() || null }),
-    });
-    setSaving(false);
-    if (res.ok) {
-      setMsg('Saved.');
-      setTimeout(() => setMsg(''), 3000);
-    } else {
-      setMsg('Failed to save.');
+    try {
+      const res = await fetch('/api/account/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: displayName.trim() || null }),
+      });
+      if (res.ok) {
+        setMsg('Saved.');
+        setTimeout(() => setMsg(''), 3000);
+      } else {
+        setMsg('Failed to save.');
+      }
+    } catch {
+      setMsg('Network error — try again.');
+    } finally {
+      setSaving(false);
     }
   }
 

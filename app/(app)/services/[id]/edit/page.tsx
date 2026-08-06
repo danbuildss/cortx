@@ -12,6 +12,7 @@ export default function EditServicePage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
   const [name, setName] = useState('');
@@ -74,7 +75,9 @@ export default function EditServicePage() {
       .eq('id', id);
 
     if (err) { setError(err.message); setSaving(false); return; }
-    router.push(`/services/${id}`);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => { setSaved(false); router.push(`/services/${id}`); }, 1500);
   }
 
   if (loading) {
@@ -145,16 +148,17 @@ export default function EditServicePage() {
           </Field>
 
           {error && <p style={{ fontSize: 12, color: 'var(--status-critical)', marginBottom: 12 }}>{error}</p>}
+          {saved && <p style={{ fontSize: 12, color: 'var(--status-operational)', marginBottom: 12 }}>Changes saved.</p>}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            <button type="submit" disabled={saving}
+            <button type="submit" disabled={saving || saved}
               style={{
                 flex: 1, padding: '9px 16px',
-                background: saving ? 'var(--border-default)' : 'var(--text-primary)',
+                background: (saving || saved) ? 'var(--border-default)' : 'var(--text-primary)',
                 color: 'var(--bg-page)', border: 'none', borderRadius: 6, fontSize: 13,
-                fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer',
+                fontWeight: 500, cursor: (saving || saved) ? 'not-allowed' : 'pointer',
               }}>
-              {saving ? 'Saving…' : 'Save changes'}
+              {saving ? 'Saving…' : saved ? 'Saved!' : 'Save changes'}
             </button>
             <Link href={`/services/${id}`} style={{
               padding: '9px 16px', background: 'transparent', color: 'var(--text-secondary)',

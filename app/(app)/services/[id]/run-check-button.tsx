@@ -7,10 +7,12 @@ export function RunCheckButton({ serviceId }: { serviceId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ status: string; failure_stage: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function run() {
     setLoading(true);
     setResult(null);
+    setError(null);
     try {
       const res = await fetch('/api/checks/run', {
         method: 'POST',
@@ -18,8 +20,14 @@ export function RunCheckButton({ serviceId }: { serviceId: string }) {
         body: JSON.stringify({ service_id: serviceId }),
       });
       const data = await res.json();
-      setResult(data);
-      router.refresh();
+      if (!res.ok) {
+        setError(data.error ?? 'Check failed');
+      } else {
+        setResult(data);
+        router.refresh();
+      }
+    } catch {
+      setError('Network error — try again');
     } finally {
       setLoading(false);
     }
@@ -29,7 +37,10 @@ export function RunCheckButton({ serviceId }: { serviceId: string }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {result && (
+      {error && (
+        <span style={{ fontSize: 12, color: 'var(--status-critical)', fontWeight: 500 }}>{error}</span>
+      )}
+      {result && !error && (
         <span style={{ fontSize: 12, color, fontWeight: 500 }}>
           {result.status}{result.failure_stage ? ` — ${result.failure_stage}` : ''}
         </span>
