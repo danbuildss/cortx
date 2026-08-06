@@ -298,9 +298,11 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
       walletAddress = result.walletAddress;
     } catch (err) {
       const code = err instanceof StageError ? err.code : 'WALLET_ERROR';
-      const msg = err instanceof Error ? err.message : String(err);
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      const walletKey = process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__';
+      const msg = rawMsg.replaceAll(walletKey, '[REDACTED]');
       fail(stagePayment, code, {
-        error: msg.includes('CORTX_TEST_WALLET_KEY') ? '[REDACTED]' : msg,
+        error: msg,
         network: 'base',
       }, Math.round(performance.now() - t7));
       markRemaining();
@@ -453,7 +455,7 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
       failure_stage,
       stages,
       observed_price,
-      error_message: String(err).replace(process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__', '[REDACTED]'),
+      error_message: String(err).replaceAll(process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__', '[REDACTED]'),
     };
   }
 }

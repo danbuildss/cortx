@@ -4,10 +4,12 @@ import { runCheck } from '@/lib/check-runner/runner';
 import { persistCheckResult } from '@/lib/check-runner/persist';
 
 
-// GET /api/cron?secret=... — called by cron-job.org on schedule
+// GET /api/cron — called by cron-job.org on schedule
+// Requires: Authorization: Bearer {CRON_SECRET}
 // Processes all services where next_check_at <= now()
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const secret = req.nextUrl.searchParams.get('secret');
+  const auth = req.headers.get('authorization') ?? '';
+  const secret = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
