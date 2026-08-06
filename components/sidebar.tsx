@@ -127,6 +127,7 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0 }: Sideb
 
   return (
     <aside
+      className="sidebar-el"
       style={{
         width: 224,
         minWidth: 224,
