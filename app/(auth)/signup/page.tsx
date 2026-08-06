@@ -132,8 +132,8 @@ export default function SignupPage() {
 
         <p style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', marginTop: 16 }}>
           No invite code?{' '}
-          <a href="mailto:infodanweb3@gmail.com" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-            Request early access
+          <a href="https://x.com/danbuildss" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
+            Request early access →
           </a>
         </p>
       </div>
