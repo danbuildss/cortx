@@ -5,19 +5,48 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ── App theme tokens — dark (default) ─────────────────── */
 :root {
   --bg-page: #000000;
   --bg-surface: #111111;
   --bg-elevated: #1a1a1a;
+  --bg-subdued: #0d0d0d;
   --bg-muted: #272727;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --border-subtle: #1a1a1a;
+  --border-mid: #1f1f1f;
   --border-default: #2a2a2a;
+  --border-focus: rgba(255, 255, 255, 0.22);
   --text-primary: #f0f0f0;
   --text-secondary: #888888;
   --text-muted: #555555;
+  --text-dim: #444444;
+  --sidebar-bg: #111111;
+  --sidebar-border: #1f1f1f;
   --status-operational: #22c55e;
   --status-degraded: #f59e0b;
   --status-critical: #ef4444;
   --status-unknown: #555555;
+}
+
+/* ── Light theme overrides ──────────────────────────────── */
+[data-theme="light"] {
+  --bg-page: #f3f4f6;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f9fafb;
+  --bg-subdued: #f3f4f6;
+  --bg-muted: #e5e7eb;
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --border-subtle: #f0f0f0;
+  --border-mid: #e5e7eb;
+  --border-default: #d1d5db;
+  --border-focus: rgba(0, 0, 0, 0.22);
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --text-dim: #d1d5db;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e5e7eb;
 }
 
 * { box-sizing: border-box; }
@@ -32,3 +61,48 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+/* ── App nav links (sidebar) ────────────────────────────── */
+.app-nav-link {
+  display: block;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: transparent;
+  text-decoration: none;
+  margin-bottom: 2px;
+  transition: background 0.1s, color 0.1s;
+}
+.app-nav-link:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.app-nav-link.active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ── App form inputs ────────────────────────────────────── */
+.app-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+.app-input::placeholder {
+  color: var(--text-muted);
+}
+.app-input:focus {
+  border-color: var(--border-focus);
+}
+.app-input option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}

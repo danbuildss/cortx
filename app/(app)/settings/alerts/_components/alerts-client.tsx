@@ -1,302 +1,361 @@
 'use client';
 
-import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useState, useEffect, useRef } from 'react';
 
-type AlertConfig = {
-  id: string;
-  service_id: string;
-  destination: string;
-  enabled: boolean;
+type Connection = {
+  chat_id: string;
+  username: string | null;
+  connected_at: string;
+  active: boolean;
   on_open: boolean;
   on_severity_increase: boolean;
   on_resolve: boolean;
 };
 
-type Service = {
-  id: string;
-  name: string;
-};
-
-type Props = {
-  services: Service[];
-  configs: AlertConfig[];
-  userId: string;
-};
-
-const inp: React.CSSProperties = {
-  width: '100%', padding: '7px 10px', background: '#1a1a1a',
-  border: '1px solid #2a2a2a', borderRadius: 6, fontSize: 13,
-  color: '#f0f0f0', outline: 'none', boxSizing: 'border-box',
-  fontFamily: 'var(--font-geist-mono)',
-};
-
-export function AlertsClient({ services, configs: initialConfigs, userId }: Props) {
-  const supabase = createClient();
-  const [configs, setConfigs] = useState<AlertConfig[]>(initialConfigs);
-  const [addingFor, setAddingFor] = useState<string | null>(null);
-  const [newChatId, setNewChatId] = useState('');
-  const [saving, setSaving] = useState<string | null>(null);
+export function TelegramConnect({ initialConnection }: { initialConnection: Connection | null }) {
+  const [connection, setConnection] = useState<Connection | null>(initialConnection);
+  const [connecting, setConnecting] = useState(false);
+  const [waitingForBot, setWaitingForBot] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState('');
   const [error, setError] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const configsByService = new Map<string, AlertConfig[]>();
-  for (const cfg of configs) {
-    const list = configsByService.get(cfg.service_id) ?? [];
-    list.push(cfg);
-    configsByService.set(cfg.service_id, list);
-  }
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
-  async function addConfig(serviceId: string) {
-    if (!newChatId.trim()) return;
-    setSaving('new-' + serviceId);
+  async function startConnect() {
     setError('');
+    setConnecting(true);
+    try {
+      const res = await fetch('/api/telegram/connect', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate link');
 
-    const { data, error: err } = await supabase
-      .from('alert_configs')
-      .insert({
-        service_id: serviceId,
-        user_id: userId,
-        channel: 'telegram',
-        destination: newChatId.trim(),
-        enabled: true,
-        on_open: true,
-        on_severity_increase: true,
-        on_resolve: true,
-      })
-      .select('id, service_id, destination, enabled, on_open, on_severity_increase, on_resolve')
-      .single();
+      window.open(data.deepLinkUrl, '_blank');
+      setConnecting(false);
+      setWaitingForBot(true);
 
-    setSaving(null);
-    if (err || !data) { setError(err?.message ?? 'Failed to add alert'); return; }
-    setConfigs(prev => [...prev, data]);
-    setAddingFor(null);
-    setNewChatId('');
+      // Poll for connection
+      pollRef.current = setInterval(async () => {
+        const r = await fetch('/api/telegram/status');
+        const d = await r.json();
+        if (d.connected && d.connection) {
+          setConnection(d.connection);
+          setWaitingForBot(false);
+          if (pollRef.current) clearInterval(pollRef.current);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        }
+      }, 3000);
+
+      // Stop polling after 10 minutes (token expiry)
+      timeoutRef.current = setTimeout(() => {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setWaitingForBot(false);
+        setError('Link expired. Generate a new one to try again.');
+      }, 10 * 60 * 1000);
+    } catch (e) {
+      setConnecting(false);
+      setError(e instanceof Error ? e.message : 'Failed to connect');
+    }
   }
 
-  async function toggleField(configId: string, field: keyof AlertConfig, value: boolean) {
-    setSaving(configId + ':' + field);
-    await supabase.from('alert_configs').update({ [field]: value }).eq('id', configId);
-    setConfigs(prev => prev.map(c => c.id === configId ? { ...c, [field]: value } : c));
-    setSaving(null);
+  function cancelConnect() {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setWaitingForBot(false);
+    setConnecting(false);
+    setError('');
   }
 
-  async function deleteConfig(configId: string) {
-    setSaving('del-' + configId);
-    await supabase.from('alert_configs').delete().eq('id', configId);
-    setConfigs(prev => prev.filter(c => c.id !== configId));
-    setSaving(null);
+  async function sendTest() {
+    setTesting(true);
+    setTestMsg('');
+    const res = await fetch('/api/telegram/test', { method: 'POST' });
+    setTesting(false);
+    if (res.ok) {
+      setTestMsg('Sent! Check your Telegram.');
+      setTimeout(() => setTestMsg(''), 4000);
+    } else {
+      setTestMsg('Failed to send test alert.');
+    }
   }
 
-  if (services.length === 0) {
+  async function disconnect() {
+    await fetch('/api/telegram/disconnect', { method: 'DELETE' });
+    setConnection(null);
+    setTestMsg('');
+  }
+
+  async function toggleEvent(field: 'on_open' | 'on_severity_increase' | 'on_resolve') {
+    if (!connection) return;
+    const newVal = !connection[field];
+    setConnection(c => c ? { ...c, [field]: newVal } : c);
+    await fetch('/api/telegram/events', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: newVal }),
+    });
+  }
+
+  if (connection) {
     return (
-      <div style={{
-        background: '#111', border: '1px solid #1f1f1f', borderRadius: 8,
-        padding: '32px 24px', textAlign: 'center', color: '#555', fontSize: 13,
-      }}>
-        No services yet. Add a service first.
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Connected card */}
+        <div style={{
+          background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
+          borderRadius: 8, padding: '20px 24px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Green connected indicator */}
+              <div style={{ position: 'relative', width: 36, height: 36 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(34,197,94,0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18,
+                }}>
+                  ✈
+                </div>
+                <div style={{
+                  position: 'absolute', bottom: 0, right: 0,
+                  width: 11, height: 11, borderRadius: '50%',
+                  background: '#22c55e',
+                  border: '2px solid var(--bg-surface)',
+                }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
+                  Telegram connected
+                </div>
+                {connection.username && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    @{connection.username}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={sendTest}
+                disabled={testing}
+                style={{
+                  padding: '6px 14px', background: 'transparent',
+                  border: '1px solid var(--border-default)', borderRadius: 6,
+                  fontSize: 12, color: testing ? 'var(--text-muted)' : 'var(--text-secondary)',
+                  cursor: testing ? 'wait' : 'pointer',
+                }}
+              >
+                {testing ? 'Sending…' : 'Test alert'}
+              </button>
+              <button
+                onClick={disconnect}
+                style={{
+                  padding: '6px 14px', background: 'transparent',
+                  border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6,
+                  fontSize: 12, color: '#ef4444', cursor: 'pointer',
+                }}
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+
+          {testMsg && (
+            <p style={{ fontSize: 12, color: testMsg.startsWith('Failed') ? 'var(--status-critical)' : 'var(--status-operational)', marginBottom: 16 }}>
+              {testMsg}
+            </p>
+          )}
+
+          <div style={{ height: 1, background: 'var(--border-subtle)', marginBottom: 16 }} />
+
+          {/* Connection meta */}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 16 }}>
+            Connected {new Date(connection.connected_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+            {' '}· Chat ID <span style={{ fontFamily: 'var(--font-geist-mono)' }}>{connection.chat_id}</span>
+          </div>
+
+          {/* Event toggles */}
+          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 10 }}>
+            Alert me when
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <EventToggle
+              label="Incident opened"
+              hint="A service starts failing checks"
+              checked={connection.on_open}
+              onChange={() => toggleEvent('on_open')}
+            />
+            <EventToggle
+              label="Severity escalated"
+              hint="Degraded incident escalates to critical"
+              checked={connection.on_severity_increase}
+              onChange={() => toggleEvent('on_severity_increase')}
+            />
+            <EventToggle
+              label="Incident resolved"
+              hint="Service recovers and checks pass again"
+              checked={connection.on_resolve}
+              onChange={() => toggleEvent('on_resolve')}
+            />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {error && (
-        <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 8 }}>{error}</p>
-      )}
-
-      {services.map((svc, i) => {
-        const svcConfigs = configsByService.get(svc.id) ?? [];
-        const isFirst = i === 0;
-        const isLast = i === services.length - 1;
-
-        return (
-          <div key={svc.id} style={{
-            background: '#111', border: '1px solid #1a1a1a',
-            borderTopLeftRadius: isFirst ? 8 : 0,
-            borderTopRightRadius: isFirst ? 8 : 0,
-            borderBottomLeftRadius: isLast && addingFor !== svc.id ? 8 : 0,
-            borderBottomRightRadius: isLast && addingFor !== svc.id ? 8 : 0,
-            padding: '16px 20px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: svcConfigs.length > 0 || addingFor === svc.id ? 16 : 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 500, color: '#f0f0f0' }}>{svc.name}</span>
-              {addingFor !== svc.id && (
-                <button
-                  onClick={() => { setAddingFor(svc.id); setNewChatId(''); setError(''); }}
-                  style={{
-                    padding: '4px 12px', background: 'transparent',
-                    border: '1px solid #2a2a2a', borderRadius: 5,
-                    fontSize: 12, color: '#888', cursor: 'pointer',
-                  }}
-                >
-                  + Add alert
-                </button>
-              )}
-            </div>
-
-            {/* Existing configs */}
-            {svcConfigs.map(cfg => (
-              <div key={cfg.id} style={{
-                background: '#0d0d0d', border: '1px solid #1f1f1f', borderRadius: 7,
-                padding: '12px 14px', marginBottom: 8,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, color: '#555' }}>Telegram</span>
-                    <span style={{ fontSize: 12, color: '#888', fontFamily: 'var(--font-geist-mono)' }}>
-                      {cfg.destination}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Toggle
-                      label="Enabled"
-                      checked={cfg.enabled}
-                      loading={saving === cfg.id + ':enabled'}
-                      onChange={v => toggleField(cfg.id, 'enabled', v)}
-                      accent
-                    />
-                    <button
-                      onClick={() => deleteConfig(cfg.id)}
-                      disabled={saving === 'del-' + cfg.id}
-                      style={{
-                        padding: '3px 8px', background: 'transparent',
-                        border: '1px solid rgba(239,68,68,0.2)', borderRadius: 4,
-                        fontSize: 11, color: '#ef4444', cursor: 'pointer',
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <Toggle
-                    label="On open"
-                    checked={cfg.on_open}
-                    loading={saving === cfg.id + ':on_open'}
-                    onChange={v => toggleField(cfg.id, 'on_open', v)}
-                  />
-                  <Toggle
-                    label="On escalate"
-                    checked={cfg.on_severity_increase}
-                    loading={saving === cfg.id + ':on_severity_increase'}
-                    onChange={v => toggleField(cfg.id, 'on_severity_increase', v)}
-                  />
-                  <Toggle
-                    label="On resolve"
-                    checked={cfg.on_resolve}
-                    loading={saving === cfg.id + ':on_resolve'}
-                    onChange={v => toggleField(cfg.id, 'on_resolve', v)}
-                  />
-                </div>
-              </div>
-            ))}
-
-            {/* Add form */}
-            {addingFor === svc.id && (
-              <div style={{
-                background: '#0d0d0d', border: '1px solid #1f1f1f', borderRadius: 7,
-                padding: '12px 14px',
-              }}>
-                <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>
-                  Telegram chat ID
-                  <span style={{ marginLeft: 6, color: '#444' }}>e.g. -1001234567890 or your personal ID</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    type="text"
-                    value={newChatId}
-                    onChange={e => setNewChatId(e.target.value)}
-                    placeholder="-1001234567890"
-                    style={{ ...inp, flex: 1 }}
-                    onKeyDown={e => { if (e.key === 'Enter') addConfig(svc.id); if (e.key === 'Escape') setAddingFor(null); }}
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => addConfig(svc.id)}
-                    disabled={saving === 'new-' + svc.id || !newChatId.trim()}
-                    style={{
-                      padding: '7px 14px', background: '#fff', color: '#000',
-                      border: 'none', borderRadius: 6, fontSize: 12,
-                      fontWeight: 500, cursor: 'pointer', flexShrink: 0,
-                    }}
-                  >
-                    {saving === 'new-' + svc.id ? 'Saving…' : 'Save'}
-                  </button>
-                  <button
-                    onClick={() => setAddingFor(null)}
-                    style={{
-                      padding: '7px 14px', background: 'transparent', color: '#555',
-                      border: '1px solid #2a2a2a', borderRadius: 6, fontSize: 12,
-                      cursor: 'pointer', flexShrink: 0,
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Bot setup instructions */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Disconnected card */}
       <div style={{
-        marginTop: 24, background: '#0d0d0d', border: '1px solid #1a1a1a',
+        background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
+        borderRadius: 8, padding: '28px 24px', textAlign: 'center',
+      }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: '50%',
+          background: 'var(--bg-elevated)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22, margin: '0 auto 16px',
+        }}>
+          ✈
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 6 }}>
+          Connect Telegram
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24, maxWidth: 360, margin: '0 auto 24px' }}>
+          Receive incident alerts directly in Telegram. One connection covers all your monitored services.
+        </p>
+
+        {waitingForBot ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              Waiting for you to press <strong>Start</strong> in Telegram…
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: 'var(--text-muted)',
+                    animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                  }} />
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={cancelConnect}
+              style={{
+                padding: '6px 14px', background: 'transparent',
+                border: '1px solid var(--border-default)', borderRadius: 6,
+                fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={startConnect}
+            disabled={connecting}
+            style={{
+              padding: '9px 20px',
+              background: connecting ? 'var(--border-default)' : 'var(--text-primary)',
+              color: 'var(--bg-page)',
+              border: 'none', borderRadius: 6,
+              fontSize: 13, fontWeight: 500,
+              cursor: connecting ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {connecting ? 'Opening Telegram…' : 'Connect Telegram'}
+          </button>
+        )}
+
+        {error && (
+          <p style={{ fontSize: 12, color: 'var(--status-critical)', marginTop: 12 }}>{error}</p>
+        )}
+      </div>
+
+      {/* How it works */}
+      <div style={{
+        background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
         borderRadius: 8, padding: '16px 20px',
       }}>
-        <div style={{ fontSize: 12, fontWeight: 500, color: '#555', marginBottom: 8 }}>
-          How to get your Telegram chat ID
+        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          How it works
         </div>
-        <ol style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <ol style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
-            'Start a chat with your bot (or add it to a group)',
-            'Send a message to the bot',
-            <>Message <span style={{ fontFamily: 'var(--font-geist-mono)', color: '#888' }}>@userinfobot</span> — it replies with your chat ID</>,
-            'For groups: add @userinfobot to the group and send any message',
+            'Click "Connect Telegram" — a secure link opens the CORTX bot',
+            'Press Start in Telegram',
+            'Your account is connected automatically',
           ].map((step, i) => (
-            <li key={i} style={{ fontSize: 12, color: '#555' }}>{step}</li>
+            <li key={i} style={{ fontSize: 12, color: 'var(--text-muted)' }}>{step}</li>
           ))}
         </ol>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+          40% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
 
-function Toggle({
-  label, checked, onChange, loading, accent,
+function EventToggle({
+  label, hint, checked, onChange,
 }: {
   label: string;
+  hint: string;
   checked: boolean;
-  onChange: (v: boolean) => void;
-  loading?: boolean;
-  accent?: boolean;
+  onChange: () => void;
 }) {
   return (
-    <button
-      onClick={() => !loading && onChange(!checked)}
-      disabled={loading}
+    <div
       style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        background: 'transparent', border: 'none',
-        cursor: loading ? 'wait' : 'pointer', padding: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px',
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 7, cursor: 'pointer',
       }}
+      onClick={onChange}
     >
+      <div>
+        <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 400 }}>{label}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{hint}</div>
+      </div>
+      <ToggleSwitch checked={checked} />
+    </div>
+  );
+}
+
+function ToggleSwitch({ checked }: { checked: boolean }) {
+  return (
+    <span style={{
+      display: 'inline-block', width: 32, height: 18,
+      borderRadius: 99,
+      background: checked ? '#22c55e' : 'var(--border-default)',
+      position: 'relative', transition: 'background 0.15s', flexShrink: 0,
+    }}>
       <span style={{
-        display: 'inline-block', width: accent ? 28 : 24, height: accent ? 16 : 14,
-        borderRadius: 99, background: checked ? (accent ? '#22c55e' : '#3b82f6') : '#2a2a2a',
-        position: 'relative', transition: 'background 0.15s', flexShrink: 0,
-      }}>
-        <span style={{
-          position: 'absolute',
-          top: accent ? 2 : 2,
-          left: checked ? (accent ? 14 : 12) : 2,
-          width: accent ? 12 : 10, height: accent ? 12 : 10,
-          background: '#fff', borderRadius: '50%',
-          transition: 'left 0.15s',
-        }} />
-      </span>
-      <span style={{ fontSize: 11, color: '#666' }}>{label}</span>
-    </button>
+        position: 'absolute',
+        top: 3, left: checked ? 17 : 3,
+        width: 12, height: 12,
+        background: '#fff', borderRadius: '50%',
+        transition: 'left 0.15s',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+      }} />
+    </span>
   );
 }

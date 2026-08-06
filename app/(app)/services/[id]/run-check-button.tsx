@@ -25,7 +25,7 @@ export function RunCheckButton({ serviceId }: { serviceId: string }) {
     }
   }
 
-  const color = result?.status === 'passed' ? '#22c55e' : result?.status === 'failed' ? '#ef4444' : '#f59e0b';
+  const color = result?.status === 'passed' ? 'var(--status-operational)' : result?.status === 'failed' ? 'var(--status-critical)' : 'var(--status-degraded)';
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -38,9 +38,12 @@ export function RunCheckButton({ serviceId }: { serviceId: string }) {
         onClick={run}
         disabled={loading}
         style={{
-          padding: '7px 14px', background: loading ? '#1a1a1a' : '#1f1f1f',
-          color: loading ? '#555' : '#f0f0f0', border: '1px solid #2a2a2a',
-          borderRadius: 6, fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer',
+          padding: '7px 14px',
+          background: 'var(--bg-elevated)',
+          color: loading ? 'var(--text-muted)' : 'var(--text-primary)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 6, fontSize: 13,
+          cursor: loading ? 'not-allowed' : 'pointer',
           fontWeight: 400,
         }}
       >

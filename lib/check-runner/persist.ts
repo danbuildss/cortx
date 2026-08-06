@@ -75,12 +75,13 @@ export async function persistCheckResult(
     next_check_at: nextCheckAt(svc.check_interval_minutes),
   }).eq('id', svc.id);
 
-  // 4. Fetch alert configs for this service
-  const { data: alertConfigs } = await db
-    .from('alert_configs')
-    .select('destination, on_open, on_severity_increase, on_resolve, enabled')
-    .eq('service_id', svc.id)
-    .eq('enabled', true);
+  // 4. Fetch user's Telegram connection
+  const { data: telegramConn } = await db
+    .from('telegram_connections')
+    .select('chat_id, on_open, on_severity_increase, on_resolve')
+    .eq('user_id', svc.user_id)
+    .eq('active', true)
+    .maybeSingle();
 
   // 5. Incident logic
   if (result.status === 'failed' && newConsecutiveFailures >= 2) {
@@ -110,15 +111,11 @@ export async function persistCheckResult(
         }],
       }).select('id').single();
 
-      if (incident) {
-        for (const cfg of alertConfigs ?? []) {
-          if (cfg.on_open) {
-            await sendTelegramAlert(
-              cfg.destination,
-              `🚨 <b>Incident opened</b> — ${svc.name}\nFailed stage: <code>${result.failure_stage}</code>\nSeverity: ${newSeverity}`
-            );
-          }
-        }
+      if (incident && telegramConn?.on_open) {
+        await sendTelegramAlert(
+          telegramConn.chat_id,
+          `🚨 <b>Incident opened</b> — ${svc.name}\nFailed stage: <code>${result.failure_stage}</code>\nSeverity: ${newSeverity}`
+        );
       }
     } else if (existing.severity === 'degraded' && newSeverity === 'critical') {
       // Severity escalation
@@ -136,13 +133,11 @@ export async function persistCheckResult(
         timeline: updatedTimeline,
       }).eq('id', existing.id);
 
-      for (const cfg of alertConfigs ?? []) {
-        if (cfg.on_severity_increase) {
-          await sendTelegramAlert(
-            cfg.destination,
-            `⚠️ <b>Incident escalated</b> — ${svc.name}\nSeverity increased to <b>critical</b>\nFailed stage: <code>${result.failure_stage}</code>`
-          );
-        }
+      if (telegramConn?.on_severity_increase) {
+        await sendTelegramAlert(
+          telegramConn.chat_id,
+          `⚠️ <b>Incident escalated</b> — ${svc.name}\nSeverity increased to <b>critical</b>\nFailed stage: <code>${result.failure_stage}</code>`
+        );
       }
     }
   } else if (result.status === 'passed') {
@@ -165,13 +160,11 @@ export async function persistCheckResult(
         ],
       }).eq('id', open.id);
 
-      for (const cfg of alertConfigs ?? []) {
-        if (cfg.on_resolve) {
-          await sendTelegramAlert(
-            cfg.destination,
-            `✅ <b>Incident resolved</b> — ${svc.name}\nService is operational again`
-          );
-        }
+      if (telegramConn?.on_resolve) {
+        await sendTelegramAlert(
+          telegramConn.chat_id,
+          `✅ <b>Incident resolved</b> — ${svc.name}\nService is operational again`
+        );
       }
     }
   }

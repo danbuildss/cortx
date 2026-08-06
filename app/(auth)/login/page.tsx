@@ -30,8 +30,15 @@ export default function LoginPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <span style={{ fontSize: 18, fontWeight: 600, color: '#f0f0f0', letterSpacing: '-0.02em' }}>CORTX</span>
+        <div style={{ textAlign: 'center', marginBottom: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <svg width="48" height="36" viewBox="0 0 80 60" fill="none" aria-label="CORTX">
+            <circle cx="23" cy="30" r="18" stroke="#f0f0f0" strokeWidth="3" />
+            <circle cx="57" cy="30" r="18" stroke="#f0f0f0" strokeWidth="3" />
+            <line x1="7" y1="30" x2="33" y2="30" stroke="#f0f0f0" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M40 23 A7 7 0 0 1 40 37" stroke="#f0f0f0" strokeWidth="2.5" strokeLinecap="round" />
+            <circle cx="40" cy="30" r="5" fill="#f0f0f0" />
+          </svg>
+          <span style={{ fontSize: 18, fontWeight: 600, color: '#f0f0f0', letterSpacing: '0.06em' }}>CORTX</span>
         </div>
 
         <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: 24 }}>

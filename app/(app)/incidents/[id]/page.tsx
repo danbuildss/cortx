@@ -3,14 +3,25 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
 const SEVERITY_COLOR: Record<string, string> = {
-  critical: '#ef4444',
-  degraded: '#f59e0b',
+  critical: 'var(--status-critical)',
+  degraded: 'var(--status-degraded)',
+};
+
+const SEVERITY_BG: Record<string, string> = {
+  critical: 'rgba(239,68,68,0.12)',
+  degraded: 'rgba(245,158,11,0.12)',
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  open: '#ef4444',
-  acknowledged: '#f59e0b',
-  resolved: '#22c55e',
+  open: 'var(--status-critical)',
+  acknowledged: 'var(--status-degraded)',
+  resolved: 'var(--status-operational)',
+};
+
+const STATUS_BG: Record<string, string> = {
+  open: 'rgba(239,68,68,0.1)',
+  acknowledged: 'rgba(245,158,11,0.1)',
+  resolved: 'rgba(34,197,94,0.1)',
 };
 
 type TimelineEvent = {
@@ -46,7 +57,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
   return (
     <div style={{ padding: '32px 40px', maxWidth: 720, margin: '0 auto' }}>
       <div style={{ marginBottom: 20 }}>
-        <Link href="/incidents" style={{ fontSize: 13, color: '#555', textDecoration: 'none' }}>← Incidents</Link>
+        <Link href="/incidents" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none' }}>← Incidents</Link>
       </div>
 
       {/* Header */}
@@ -54,26 +65,26 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <span style={{
             fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
-            background: `${SEVERITY_COLOR[incident.severity] ?? '#888'}22`,
-            color: SEVERITY_COLOR[incident.severity] ?? '#888',
+            background: SEVERITY_BG[incident.severity] ?? 'transparent',
+            color: SEVERITY_COLOR[incident.severity] ?? 'var(--text-secondary)',
             textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
             {incident.severity}
           </span>
           <span style={{
             fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 4,
-            background: `${STATUS_COLOR[incident.status] ?? '#888'}18`,
-            color: STATUS_COLOR[incident.status] ?? '#888',
+            background: STATUS_BG[incident.status] ?? 'transparent',
+            color: STATUS_COLOR[incident.status] ?? 'var(--text-secondary)',
             textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
             {incident.status}
           </span>
         </div>
-        <h1 style={{ fontSize: 20, fontWeight: 600, color: '#f0f0f0', marginBottom: 4 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
           {svc?.name ?? 'Unknown service'}
         </h1>
         {svc && (
-          <Link href={`/services/${svc.id}`} style={{ fontSize: 12, color: '#555', textDecoration: 'none', fontFamily: 'var(--font-geist-mono)' }}>
+          <Link href={`/services/${svc.id}`} style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none', fontFamily: 'var(--font-geist-mono)' }}>
             {svc.endpoint_url}
           </Link>
         )}
@@ -90,20 +101,19 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
       </div>
 
       {/* Timeline */}
-      <h2 style={{ fontSize: 13, fontWeight: 500, color: '#888', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <h2 style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         Timeline
       </h2>
 
       {timeline.length === 0 ? (
-        <div style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, padding: '24px', color: '#555', fontSize: 13 }}>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '24px', color: 'var(--text-muted)', fontSize: 13 }}>
           No timeline events recorded.
         </div>
       ) : (
         <div style={{ position: 'relative', paddingLeft: 24 }}>
-          {/* Vertical line */}
           <div style={{
             position: 'absolute', left: 7, top: 8, bottom: 8,
-            width: 1, background: '#1f1f1f',
+            width: 1, background: 'var(--border-mid)',
           }} />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -112,32 +122,31 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
               const dotColor = evt.event === 'resolved' ? '#22c55e'
                 : evt.event === 'escalated' ? '#ef4444'
                 : evt.event === 'opened' ? '#f59e0b'
-                : '#555';
+                : 'var(--text-muted)';
 
               return (
                 <div key={i} style={{ display: 'flex', gap: 16, paddingBottom: isLast ? 0 : 24 }}>
-                  {/* Dot */}
                   <div style={{
                     width: 14, height: 14, borderRadius: '50%',
-                    background: dotColor, border: '2px solid #000',
+                    background: dotColor, border: '2px solid var(--bg-page)',
                     flexShrink: 0, marginLeft: -21, marginTop: 2,
                     boxShadow: `0 0 6px ${dotColor}66`,
                   }} />
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 2 }}>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: '#f0f0f0', textTransform: 'capitalize' }}>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
                         {evt.event}
                       </span>
-                      <span style={{ fontSize: 11, color: '#444' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                         {new Date(evt.at).toLocaleString()}
                       </span>
-                      <span style={{ fontSize: 11, color: '#333', marginLeft: 'auto' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>
                         by {evt.actor}
                       </span>
                     </div>
                     {evt.note && (
-                      <p style={{ fontSize: 12, color: '#666', margin: 0 }}>{evt.note}</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>{evt.note}</p>
                     )}
                   </div>
                 </div>
@@ -163,9 +172,9 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
 
 function MetaCard({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, padding: '12px 16px' }}>
-      <div style={{ fontSize: 11, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-      <div style={{ fontSize: 13, color: '#f0f0f0', fontFamily: mono ? 'var(--font-geist-mono)' : undefined }}>{value}</div>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '12px 16px' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ fontSize: 13, color: 'var(--text-primary)', fontFamily: mono ? 'var(--font-geist-mono)' : undefined }}>{value}</div>
     </div>
   );
 }
