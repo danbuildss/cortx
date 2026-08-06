@@ -61,6 +61,7 @@ export default async function StatusPage({ params }: { params: Promise<{ userId:
       .from('checks')
       .select('service_id, status, started_at')
       .eq('user_id', userId)
+      // eslint-disable-next-line react-hooks/purity
       .gte('started_at', new Date(Date.now() - 90 * 864e5).toISOString())
       .limit(5000),
   ]);
@@ -77,6 +78,7 @@ export default async function StatusPage({ params }: { params: Promise<{ userId:
 
   // Daily buckets for 90-day uptime bars
   const dailyMap = new Map<string, Map<string, { passed: number; failed: number }>>();
+  // eslint-disable-next-line react-hooks/purity
   const now90 = Date.now();
   for (const c of recentChecks ?? []) {
     if (c.status === 'error') continue;

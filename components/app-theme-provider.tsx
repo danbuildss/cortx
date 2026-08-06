@@ -14,15 +14,16 @@ export function useAppTheme() {
 }
 
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const saved = localStorage.getItem('cortx-app-theme');
+    return saved === 'light' || saved === 'dark' ? saved : 'dark';
+  });
 
+  // Sync DOM attribute after hydration in case SSR/client theme diverges
   useEffect(() => {
-    const saved = localStorage.getItem('cortx-app-theme') as Theme | null;
-    if (saved === 'light' || saved === 'dark') {
-      setTheme(saved);
-      document.documentElement.setAttribute('data-theme', saved);
-    }
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   function toggle() {
     setTheme((t) => {
