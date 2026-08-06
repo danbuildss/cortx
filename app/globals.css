@@ -139,3 +139,21 @@ body {
 .delay-2 { animation-delay: 0.10s; }
 .delay-3 { animation-delay: 0.15s; }
 .delay-4 { animation-delay: 0.20s; }
+
+/* ── Mobile / Responsive ─────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Show mobile nav bar, hide desktop sidebar */
+  .mobile-nav-bar { display: flex !important; }
+  .sidebar-el     { display: none !important; }
+
+  /* Shrink app shell by the height of the mobile nav bar */
+  .app-shell { height: calc(100vh - 48px) !important; }
+
+  /* Overview page */
+  .overview-page  { padding: 16px !important; }
+  .metric-grid    { grid-template-columns: repeat(2, 1fr) !important; }
+  .overview-body  { grid-template-columns: 1fr !important; }
+
+  /* Generic page padding */
+  .page-content   { padding: 16px !important; }
+}

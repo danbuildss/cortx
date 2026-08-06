@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Sidebar } from '@/components/sidebar';
+import { MobileNav } from '@/components/mobile-nav';
 import { AppThemeProvider } from '@/components/app-theme-provider';
 import { FeedbackWidget } from '@/components/feedback-widget';
 
@@ -34,6 +35,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login');
 
+  const sharedNavProps = {
+    email: user!.email ?? '',
+    displayName,
+    userId: user!.id,
+    openIncidents,
+  };
+
   return (
     <>
       {/* Inline script prevents flash of wrong theme before React hydrates */}
@@ -43,12 +51,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }}
       />
       <AppThemeProvider>
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-          <Sidebar email={user!.email ?? ''} displayName={displayName} userId={user!.id} openIncidents={openIncidents} />
+        {/* Mobile top bar (hidden on desktop via CSS) */}
+        <MobileNav {...sharedNavProps} />
+
+        {/* App shell — full height on desktop, minus top bar on mobile */}
+        <div className="app-shell" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+          {/* Desktop sidebar (hidden on mobile via CSS) */}
+          <div className="sidebar-el">
+            <Sidebar {...sharedNavProps} />
+          </div>
+
           <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-page)' }}>
             {children}
           </main>
         </div>
+
         <FeedbackWidget />
       </AppThemeProvider>
     </>

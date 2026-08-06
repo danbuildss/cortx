@@ -101,7 +101,7 @@ export default async function OverviewPage() {
   const svcNameMap = new Map((services ?? []).map(s => [s.id, s.name]));
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
+    <div className="overview-page" style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Header */}
       <div className="anim-fade-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -124,7 +124,7 @@ export default async function OverviewPage() {
       </div>
 
       {/* Metric cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
+      <div className="metric-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
         {[
           { label: 'Total Services', value: String(total), cls: 'anim-fade-up delay-1' },
           { label: 'Operational', value: String(operationalCount), accent: 'var(--status-operational)', cls: 'anim-fade-up delay-2' },
@@ -146,7 +146,7 @@ export default async function OverviewPage() {
       )}
 
       {/* Two-column body */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 272px', gap: 16, alignItems: 'start' }}>
+      <div className="overview-body" style={{ display: 'grid', gridTemplateColumns: '1fr 272px', gap: 16, alignItems: 'start' }}>
 
         {/* ── Left column ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -168,7 +168,8 @@ export default async function OverviewPage() {
               <div style={{ padding: '12px 18px 10px', borderBottom: '1px solid var(--border-subtle)' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Services</span>
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     {['Service', 'Status', 'Resp. Time', 'Last Check', 'Incidents'].map(h => (
@@ -222,6 +223,7 @@ export default async function OverviewPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>
