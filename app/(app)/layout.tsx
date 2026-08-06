@@ -44,7 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <AppThemeProvider>
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-          <Sidebar email={user!.email ?? ''} displayName={displayName} openIncidents={openIncidents} />
+          <Sidebar email={user!.email ?? ''} displayName={displayName} userId={user!.id} openIncidents={openIncidents} />
           <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-page)' }}>
             {children}
           </main>
