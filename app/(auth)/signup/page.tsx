@@ -3,13 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 
 export default function SignupPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -21,16 +20,21 @@ export default function SignupPage() {
       setError('Password must be at least 8 characters.');
       return;
     }
+    if (!inviteCode.trim()) {
+      setError('An invite code is required to join the beta.');
+      return;
+    }
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        if (error.message.toLowerCase().includes('already registered')) {
-          setError('An account with this email already exists. Sign in instead.');
-        } else {
-          setError(error.message);
-        }
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, inviteCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Something went wrong — try again.');
       } else {
         router.push('/overview');
         router.refresh();
@@ -57,10 +61,25 @@ export default function SignupPage() {
         </div>
 
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: 24 }}>
-          <h1 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 20 }}>Create account</h1>
+          <h1 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Join the beta</h1>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>You need an invite code to get access.</p>
 
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6 }}>Invite code</label>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                required
+                autoComplete="off"
+                placeholder="CORTX-XXXXXX"
+                className="app-input"
+                style={{ fontSize: 14, fontFamily: 'var(--font-geist-mono)', letterSpacing: '0.05em' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6 }}>Email</label>
               <input
                 type="email"
@@ -101,7 +120,7 @@ export default function SignupPage() {
                 fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer',
               }}
             >
-              {loading ? 'Creating account…' : 'Get started'}
+              {loading ? 'Creating account…' : 'Get access'}
             </button>
           </form>
 
@@ -110,6 +129,13 @@ export default function SignupPage() {
             <Link href="/login" style={{ color: 'var(--text-primary)', textDecoration: 'none' }}>Sign in</Link>
           </p>
         </div>
+
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', marginTop: 16 }}>
+          No invite code?{' '}
+          <a href="mailto:infodanweb3@gmail.com" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
+            Request early access
+          </a>
+        </p>
       </div>
     </div>
   );
