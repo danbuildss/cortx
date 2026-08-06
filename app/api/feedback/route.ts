@@ -31,12 +31,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Also persist to DB so nothing is lost if Telegram is down
-  await supabase.from('feedback').insert({
+  void supabase.from('feedback').insert({
     user_id: user.id,
     email: user.email,
     task,
     problem,
-  }).then(() => {}).catch(() => {});
+  });
 
   return NextResponse.json({ ok: true });
 }
