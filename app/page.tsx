@@ -86,12 +86,12 @@ export default function LandingPage() {
       <nav>
         <div className="nav-inner">
           <a href="/" className="nav-logo">
-            <svg width="28" height="20" viewBox="0 0 74 54" fill="none">
-              <circle cx="20" cy="27" r="18" stroke="currentColor" strokeWidth="3" />
-              <circle cx="54" cy="27" r="18" stroke="currentColor" strokeWidth="3" />
-              <line x1="4" y1="27" x2="30" y2="27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-              <path d="M37 20 A7 7 0 0 1 37 34" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-              <circle cx="37" cy="27" r="5" fill="currentColor" />
+            <svg width="28" height="21" viewBox="0 0 80 60" fill="none">
+              <circle cx="23" cy="30" r="18" stroke="currentColor" strokeWidth="3" />
+              <circle cx="57" cy="30" r="18" stroke="currentColor" strokeWidth="3" />
+              <line x1="7" y1="30" x2="33" y2="30" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M40 23 A7 7 0 0 1 40 37" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx="40" cy="30" r="5" fill="currentColor" />
             </svg>
             CORTX
           </a>
@@ -439,12 +439,12 @@ export default function LandingPage() {
           <div className="ft-brand">
             <div className="ft-brand-left">
               <div className="ft-brand-logo">
-                <svg width="26" height="19" viewBox="0 0 74 54" fill="none">
-                  <circle cx="20" cy="27" r="18" stroke="currentColor" strokeWidth="3" />
-                  <circle cx="54" cy="27" r="18" stroke="currentColor" strokeWidth="3" />
-                  <line x1="4" y1="27" x2="30" y2="27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                  <path d="M37 20 A7 7 0 0 1 37 34" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                  <circle cx="37" cy="27" r="5" fill="currentColor" />
+                <svg width="26" height="20" viewBox="0 0 80 60" fill="none">
+                  <circle cx="23" cy="30" r="18" stroke="currentColor" strokeWidth="3" />
+                  <circle cx="57" cy="30" r="18" stroke="currentColor" strokeWidth="3" />
+                  <line x1="7" y1="30" x2="33" y2="30" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  <path d="M40 23 A7 7 0 0 1 40 37" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="40" cy="30" r="5" fill="currentColor" />
                 </svg>
                 CORTX
               </div>
