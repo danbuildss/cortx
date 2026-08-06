@@ -7,6 +7,12 @@ export async function POST(): Promise<NextResponse> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Clean up expired tokens (fire-and-forget — never block the response)
+  void supabase
+    .from('telegram_link_tokens')
+    .delete()
+    .lt('expires_at', new Date().toISOString());
+
   const token = randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 

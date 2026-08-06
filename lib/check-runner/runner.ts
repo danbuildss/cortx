@@ -1,5 +1,6 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import { createClient } from '@supabase/supabase-js';
 import { StageError, validateAndResolveUrl } from './ssrf';
 import { executePayment, getWalletAddress, getWalletBalance } from './payment';
 import { classifyStatus } from './classify';
@@ -8,6 +9,7 @@ import type { ServiceConfig, CheckResult, StageResult, StageName, X402PaymentTer
 const REQUEST_TIMEOUT_MS = 10_000;
 const DELIVERY_TIMEOUT_MS = 15_000;
 const PAYMENT_TIMEOUT_MS = 30_000;
+const RESPONSE_BODY_MAX_BYTES = 1_048_576; // 1 MB cap on any remote response body
 
 async function fetchWithTimeout(
   url: string,
@@ -26,6 +28,71 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function readBodyCapped(response: Response, maxBytes = RESPONSE_BODY_MAX_BYTES): Promise<string> {
+  const contentLength = parseInt(response.headers.get('content-length') ?? '0', 10);
+  if (contentLength > maxBytes) {
+    throw new StageError('RESPONSE_TOO_LARGE', `Response Content-Length ${contentLength} exceeds ${maxBytes} byte limit`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        total += value.length;
+        if (total > maxBytes) {
+          throw new StageError('RESPONSE_TOO_LARGE', `Response body exceeds ${maxBytes} byte limit`);
+        }
+        chunks.push(value);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
+  return new TextDecoder().decode(merged);
+}
+
+async function getCumulativeSpendToday(): Promise<number> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return 0;
+  const db = createClient(url, key);
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const monthStart = new Date(todayStart);
+  monthStart.setUTCDate(1);
+  const { data } = await db
+    .from('checks')
+    .select('observed_price')
+    .gte('started_at', todayStart.toISOString())
+    .eq('status', 'passed')
+    .not('observed_price', 'is', null);
+  return (data ?? []).reduce((sum, r) => sum + parseFloat(String(r.observed_price ?? 0)), 0);
+}
+
+async function getCumulativeSpendThisMonth(): Promise<number> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return 0;
+  const db = createClient(url, key);
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const { data } = await db
+    .from('checks')
+    .select('observed_price')
+    .gte('started_at', monthStart.toISOString())
+    .eq('status', 'passed')
+    .not('observed_price', 'is', null);
+  return (data ?? []).reduce((sum, r) => sum + parseFloat(String(r.observed_price ?? 0)), 0);
 }
 
 function makeStage(
@@ -144,9 +211,11 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
     let rawBody: string;
 
     try {
-      rawBody = await response402.text();
-    } catch {
-      fail(stageTerms, 'INVALID_PAYMENT_TERMS', { error: 'Could not read response body' }, 0);
+      rawBody = await readBodyCapped(response402);
+    } catch (err) {
+      const code = err instanceof StageError ? err.code : 'INVALID_PAYMENT_TERMS';
+      const msg = err instanceof StageError ? err.message : 'Could not read response body';
+      fail(stageTerms, code, { error: msg }, 0);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
@@ -281,12 +350,20 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
     try {
       const walletAddr = getWalletAddress();
 
-      // Check daily spend cap
+      // Enforce cumulative daily and monthly spend caps
       const dailyCap = parseFloat(process.env.CORTX_DAILY_SPEND_CAP_USDC ?? '1.00');
       const monthlyCap = parseFloat(process.env.CORTX_MONTHLY_SPEND_CAP_USDC ?? '10.00');
 
-      if (parsedPrice > dailyCap) {
-        throw new StageError('SPEND_CAP_EXCEEDED', `Payment of ${observed_price} USDC would exceed daily cap of ${dailyCap}`);
+      const [dailySpent, monthlySpent] = await Promise.all([
+        getCumulativeSpendToday(),
+        getCumulativeSpendThisMonth(),
+      ]);
+
+      if (dailySpent + parsedPrice > dailyCap) {
+        throw new StageError('DAILY_SPEND_CAP_EXCEEDED', `Daily cap of ${dailyCap} USDC reached (spent ${dailySpent.toFixed(6)} today)`);
+      }
+      if (monthlySpent + parsedPrice > monthlyCap) {
+        throw new StageError('MONTHLY_SPEND_CAP_EXCEEDED', `Monthly cap of ${monthlyCap} USDC reached (spent ${monthlySpent.toFixed(6)} this month)`);
       }
 
       const result = await Promise.race([
@@ -358,9 +435,11 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
 
     let responseBody: string;
     try {
-      responseBody = await deliveryResponse.text();
-    } catch {
-      fail(stageDelivery, 'NO_RESPONSE', { http_status: deliveryResponse.status }, d8);
+      responseBody = await readBodyCapped(deliveryResponse);
+    } catch (err) {
+      const code = err instanceof StageError ? err.code : 'NO_RESPONSE';
+      const msg = err instanceof StageError ? err.message : 'Could not read response body';
+      fail(stageDelivery, code, { http_status: deliveryResponse.status, error: msg }, d8);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
