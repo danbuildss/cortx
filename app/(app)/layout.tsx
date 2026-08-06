@@ -11,12 +11,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const { data } = await supabase.auth.getUser();
     user = data.user;
 
+    let displayName: string | null = null;
     if (user) {
-      const { count } = await supabase
-        .from('incidents')
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['open', 'acknowledged']);
+      const [{ count }, { data: profile }] = await Promise.all([
+        supabase
+          .from('incidents')
+          .select('id', { count: 'exact', head: true })
+          .in('status', ['open', 'acknowledged']),
+        supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', user.id)
+          .maybeSingle(),
+      ]);
       openIncidents = count ?? 0;
+      displayName = profile?.display_name ?? null;
     }
   } catch {
     // Supabase unavailable — fall through to redirect
@@ -34,7 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <AppThemeProvider>
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-          <Sidebar email={user!.email ?? ''} openIncidents={openIncidents} />
+          <Sidebar email={user!.email ?? ''} displayName={displayName} openIncidents={openIncidents} />
           <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-page)' }}>
             {children}
           </main>
