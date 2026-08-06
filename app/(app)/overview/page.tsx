@@ -111,13 +111,7 @@ export default async function OverviewPage() {
         </div>
         <Link
           href="/services/new"
-          style={{
-            padding: '7px 14px', background: 'var(--text-primary)', color: 'var(--bg-page)',
-            borderRadius: 6, fontSize: 13, fontWeight: 500, textDecoration: 'none',
-            transition: 'opacity 0.15s',
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.85'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+          className="btn-primary"
         >
           + Add service
         </Link>
@@ -277,14 +271,12 @@ export default async function OverviewPage() {
                     <Link
                       key={inc.id}
                       href={`/incidents/${inc.id}`}
+                      className="incident-row-link"
                       style={{
                         display: 'block', padding: '10px 16px',
                         borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)',
                         textDecoration: 'none',
-                        transition: 'background 0.1s',
                       }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
                         <span style={{
