@@ -57,9 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* App shell — full height on desktop, minus top bar on mobile */}
         <div className="app-shell" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
           {/* Desktop sidebar (hidden on mobile via CSS) */}
-          <div className="sidebar-el">
-            <Sidebar {...sharedNavProps} />
-          </div>
+          <Sidebar {...sharedNavProps} />
 
           <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-page)' }}>
             {children}
