@@ -115,7 +115,7 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0 }: Sideb
 
   const mainNav = [
     { label: 'Overview', href: '/overview', icon: <OverviewIcon /> },
-    { label: 'Services', href: '/overview', activePath: '/services', icon: <ServicesIcon /> },
+    { label: 'Services', href: '/services', icon: <ServicesIcon /> },
     { label: 'Incidents', href: '/incidents', icon: <IncidentsIcon /> },
     { label: 'Status Pages', href: `/status/${userId}`, icon: <StatusPagesIcon />, external: true },
   ];
@@ -159,7 +159,7 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0 }: Sideb
       {/* Main nav */}
       <nav style={{ padding: '6px 6px', flex: 1 }}>
         {mainNav.map((item) => {
-          const active = item.external ? false : isActive(item.href, item.activePath);
+          const active = item.external ? false : isActive(item.href, (item as { activePath?: string }).activePath);
           return item.external ? (
             <a
               key={item.href}

@@ -54,7 +54,7 @@ export function MobileNav({ email, displayName, userId, openIncidents = 0 }: Mob
 
   const mainNav = [
     { label: 'Overview',     href: '/overview',            activePath: undefined },
-    { label: 'Services',     href: '/overview',            activePath: '/services' },
+    { label: 'Services',     href: '/services',            activePath: undefined },
     { label: 'Incidents',    href: '/incidents',           activePath: undefined, badge: openIncidents || null },
     { label: 'Status Pages', href: `/status/${userId}`,   activePath: undefined, external: true },
   ];
