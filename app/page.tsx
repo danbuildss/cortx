@@ -86,12 +86,12 @@ export default function LandingPage() {
       <nav>
         <div className="nav-inner">
           <a href="/" className="nav-logo">
-            <svg width="18" height="18" viewBox="0 0 22 22" fill="none">
-              <circle cx="3" cy="11" r="2" fill="#c7cad1" /><circle cx="19" cy="11" r="2" fill="#c7cad1" />
-              <line x1="5" y1="11" x2="17" y2="11" stroke="#e0e2e6" strokeWidth="1.5" />
-              <circle cx="11" cy="3" r="2" fill="#5e6ad2" /><circle cx="11" cy="19" r="2" fill="#5e6ad2" />
-              <line x1="11" y1="5" x2="11" y2="17" stroke="#5e6ad2" strokeWidth="1.5" />
-              <circle cx="11" cy="11" r="2.5" fill="#5e6ad2" />
+            <svg width="28" height="20" viewBox="0 0 74 54" fill="none">
+              <circle cx="20" cy="27" r="18" stroke="currentColor" strokeWidth="3" />
+              <circle cx="54" cy="27" r="18" stroke="currentColor" strokeWidth="3" />
+              <line x1="4" y1="27" x2="30" y2="27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M37 20 A7 7 0 0 1 37 34" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx="37" cy="27" r="5" fill="currentColor" />
             </svg>
             CORTX
           </a>
@@ -122,6 +122,7 @@ export default function LandingPage() {
             <li><a href="#status">Status</a></li>
             <li><a href="https://cortx.mintlify.site">Docs</a></li>
             <li><a href="https://github.com/danbuildss/cortx">GitHub</a></li>
+            <li><a href="https://t.me/AskCortxBot">Bot</a></li>
           </ul>
           <div className="nav-actions">
             <button className="btn-theme" id="themeToggle" aria-label="Toggle theme">
@@ -419,8 +420,9 @@ export default function LandingPage() {
             <div>
               <div className="ft-col-label">Community</div>
               <div className="ft-col-links">
-                <a href="https://x.com/cortxapp">X (Twitter)</a>
-                <a href="#">Telegram</a>
+                <a href="https://x.com/usecortx">X (Twitter)</a>
+                <a href="https://t.me/usecortxdev">Telegram</a>
+                <a href="https://t.me/AskCortxBot">Cortx Bot</a>
                 <a href="https://github.com/danbuildss/cortx">GitHub</a>
               </div>
             </div>
@@ -437,22 +439,22 @@ export default function LandingPage() {
           <div className="ft-brand">
             <div className="ft-brand-left">
               <div className="ft-brand-logo">
-                <svg width="18" height="18" viewBox="0 0 22 22" fill="none">
-                  <circle cx="3" cy="11" r="2" fill="#4b5563" /><circle cx="19" cy="11" r="2" fill="#4b5563" />
-                  <line x1="5" y1="11" x2="17" y2="11" stroke="#374151" strokeWidth="1.5" />
-                  <circle cx="11" cy="3" r="2" fill="#5e6ad2" /><circle cx="11" cy="19" r="2" fill="#5e6ad2" />
-                  <line x1="11" y1="5" x2="11" y2="17" stroke="#5e6ad2" strokeWidth="1.5" />
-                  <circle cx="11" cy="11" r="2.5" fill="#5e6ad2" />
+                <svg width="26" height="19" viewBox="0 0 74 54" fill="none">
+                  <circle cx="20" cy="27" r="18" stroke="currentColor" strokeWidth="3" />
+                  <circle cx="54" cy="27" r="18" stroke="currentColor" strokeWidth="3" />
+                  <line x1="4" y1="27" x2="30" y2="27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  <path d="M37 20 A7 7 0 0 1 37 34" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="37" cy="27" r="5" fill="currentColor" />
                 </svg>
                 CORTX
               </div>
               <div className="ft-brand-tagline">x402 reliability monitoring for builders on Base mainnet.</div>
             </div>
             <div className="ft-social-row">
-              <a href="https://x.com/cortxapp" className="ft-social-btn" aria-label="X / Twitter">
+              <a href="https://x.com/usecortx" className="ft-social-btn" aria-label="X / Twitter">
                 <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2.5l4.1 5.5-4.1 4.5h1.3l3.6-3.9 2.8 3.9H13L8.7 7.7l3.8-4.2h-1.3L8.1 7 5.6 2.5H2.5z"/></svg>
               </a>
-              <a href="#" className="ft-social-btn" aria-label="Telegram">
+              <a href="https://t.me/usecortxdev" className="ft-social-btn" aria-label="Telegram">
                 <svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 2L1.5 6.8l4.2 1.5 1.6 4.7 2.2-2.7 3.2 2.3L13.5 2zm-7.8 5.9l5.5-3.4-3.4 4-.1.1L5.7 7.9z"/></svg>
               </a>
               <a href="https://github.com/danbuildss/cortx" className="ft-social-btn" aria-label="GitHub">

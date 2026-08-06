@@ -46,7 +46,14 @@ export function Sidebar({ email }: SidebarProps) {
       }}
     >
       {/* Wordmark */}
-      <div style={{ padding: '20px 20px 16px' }}>
+      <div style={{ padding: '20px 20px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <svg width="26" height="19" viewBox="0 0 74 54" fill="none" aria-hidden="true">
+          <circle cx="20" cy="27" r="18" stroke="#f0f0f0" strokeWidth="3" />
+          <circle cx="54" cy="27" r="18" stroke="#f0f0f0" strokeWidth="3" />
+          <line x1="4" y1="27" x2="30" y2="27" stroke="#f0f0f0" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M37 20 A7 7 0 0 1 37 34" stroke="#f0f0f0" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="37" cy="27" r="5" fill="#f0f0f0" />
+        </svg>
         <span style={{ fontSize: 15, fontWeight: 600, color: '#f0f0f0', letterSpacing: '-0.02em' }}>
           CORTX
         </span>
