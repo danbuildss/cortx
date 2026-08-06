@@ -89,6 +89,24 @@ body {
   color: var(--text-primary);
 }
 
+/* ── Primary button / link ──────────────────────────────── */
+.btn-primary {
+  display: inline-block;
+  padding: 7px 14px;
+  background: var(--text-primary);
+  color: var(--bg-page);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.85; }
+
+/* ── Incident row link (server component safe) ──────────── */
+.incident-row-link { transition: background 0.1s; }
+.incident-row-link:hover { background: var(--bg-hover); }
+
 /* ── App form inputs ────────────────────────────────────── */
 .app-input {
   width: 100%;
