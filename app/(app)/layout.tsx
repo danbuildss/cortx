@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Sidebar } from '@/components/sidebar';
 import { AppThemeProvider } from '@/components/app-theme-provider';
+import { FeedbackWidget } from '@/components/feedback-widget';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user = null;
@@ -48,6 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             {children}
           </main>
         </div>
+        <FeedbackWidget />
       </AppThemeProvider>
     </>
   );
