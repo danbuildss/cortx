@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Link from 'next/link';
 import './landing.css';
 
 export default function LandingPage() {
@@ -85,7 +86,7 @@ export default function LandingPage() {
       {/* NAV */}
       <nav>
         <div className="nav-inner">
-          <a href="/" className="nav-logo">
+          <Link href="/" className="nav-logo">
             <svg width="28" height="21" viewBox="0 0 80 60" fill="none">
               <circle cx="23" cy="30" r="18" stroke="currentColor" strokeWidth="3" />
               <circle cx="57" cy="30" r="18" stroke="currentColor" strokeWidth="3" />
@@ -94,7 +95,7 @@ export default function LandingPage() {
               <circle cx="40" cy="30" r="5" fill="currentColor" />
             </svg>
             CORTX
-          </a>
+          </Link>
           <ul className="nav-links">
             <li className="nav-drop-host" id="dropHost">
               <button className="nav-drop-btn" id="dropBtn" aria-expanded="false" aria-haspopup="true">
