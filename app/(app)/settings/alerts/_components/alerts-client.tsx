@@ -19,6 +19,7 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState('');
   const [error, setError] = useState('');
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -99,6 +100,7 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
     await fetch('/api/telegram/disconnect', { method: 'DELETE' });
     setConnection(null);
     setTestMsg('');
+    setConfirmDisconnect(false);
   }
 
   async function toggleEvent(field: 'on_open' | 'on_severity_increase' | 'on_resolve') {
@@ -126,7 +128,7 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
               <div style={{ position: 'relative', width: 36, height: 36 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%',
-                  background: 'rgba(34,197,94,0.12)',
+                  background: 'var(--status-operational-bg)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 18,
                 }}>
@@ -135,7 +137,7 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
                 <div style={{
                   position: 'absolute', bottom: 0, right: 0,
                   width: 11, height: 11, borderRadius: '50%',
-                  background: '#22c55e',
+                  background: 'var(--status-operational)',
                   border: '2px solid var(--bg-surface)',
                 }} />
               </div>
@@ -164,16 +166,42 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
               >
                 {testing ? 'Sending…' : 'Test alert'}
               </button>
-              <button
-                onClick={disconnect}
-                style={{
-                  padding: '6px 14px', background: 'transparent',
-                  border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6,
-                  fontSize: 12, color: '#ef4444', cursor: 'pointer',
-                }}
-              >
-                Disconnect
-              </button>
+              {confirmDisconnect ? (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Disconnect?</span>
+                  <button
+                    onClick={disconnect}
+                    style={{
+                      padding: '5px 12px', background: 'var(--status-critical)',
+                      border: 'none', borderRadius: 6,
+                      fontSize: 12, color: '#fff', cursor: 'pointer', fontWeight: 500,
+                    }}
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => setConfirmDisconnect(false)}
+                    style={{
+                      padding: '5px 12px', background: 'transparent',
+                      border: '1px solid var(--border-default)', borderRadius: 6,
+                      fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer',
+                    }}
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDisconnect(true)}
+                  style={{
+                    padding: '6px 14px', background: 'transparent',
+                    border: '1px solid var(--status-critical-border)', borderRadius: 6,
+                    fontSize: 12, color: 'var(--status-critical)', cursor: 'pointer',
+                  }}
+                >
+                  Disconnect
+                </button>
+              )}
             </div>
           </div>
 
@@ -354,7 +382,7 @@ function ToggleSwitch({ checked }: { checked: boolean }) {
     <span style={{
       display: 'inline-block', width: 32, height: 18,
       borderRadius: 99,
-      background: checked ? '#22c55e' : 'var(--border-default)',
+      background: checked ? 'var(--status-operational)' : 'var(--border-default)',
       position: 'relative', transition: 'background 0.15s', flexShrink: 0,
     }}>
       <span style={{
