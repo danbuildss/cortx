@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { StatusPageLink } from './_components/status-page-link';
-import { RangeToggle, parseRange, rangeToMs, rangeLabel } from '../_components/range-toggle';
-import type { Range } from '../_components/range-toggle';
+import { RangeToggle } from '../_components/range-toggle';
+import { parseRange, rangeToMs, rangeLabel } from '../_components/range-utils';
+import type { Range } from '../_components/range-utils';
 import { Suspense } from 'react';
 
 const STATUS_COLORS: Record<string, string> = {
