@@ -11,6 +11,7 @@ interface MobileNavProps {
   displayName: string | null;
   userId: string;
   openIncidents?: number;
+  isAdmin?: boolean;
 }
 
 function initials(displayName: string | null, email: string): string {
@@ -22,7 +23,7 @@ function initials(displayName: string | null, email: string): string {
   return email[0].toUpperCase();
 }
 
-export function MobileNav({ email, displayName, userId, openIncidents = 0 }: MobileNavProps) {
+export function MobileNav({ email, displayName, userId, openIncidents = 0, isAdmin = false }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -200,6 +201,30 @@ export function MobileNav({ email, displayName, userId, openIncidents = 0 }: Mob
                 </Link>
               );
             })}
+
+            {isAdmin && (
+              <>
+                <div style={{ height: 1, background: 'var(--sidebar-border)', margin: '8px 6px' }} />
+                <Link
+                  href="/admin"
+                  style={{
+                    ...navLinkStyle,
+                    color: isActive('/admin') ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    background: isActive('/admin') ? 'var(--bg-hover)' : 'transparent',
+                    fontWeight: isActive('/admin') ? 500 : 400,
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = isActive('/admin') ? 'var(--bg-hover)' : 'transparent'; }}
+                >
+                  Admin
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.04em',
+                    background: 'rgba(239,68,68,0.12)', color: 'var(--status-critical)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                  }}>OWNER</span>
+                </Link>
+              </>
+            )}
           </nav>
 
           {/* Account footer */}

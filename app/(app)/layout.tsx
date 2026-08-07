@@ -40,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     displayName,
     userId: user!.id,
     openIncidents,
+    isAdmin: user!.id === 'e9374851-ac6f-4f1e-a131-6747fc37184a',
   };
 
   return (
