@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { StatusPageLink } from './_components/status-page-link';
 import { RangeToggle, parseRange, rangeToMs, rangeLabel } from '../_components/range-toggle';
 import type { Range } from '../_components/range-toggle';
+import { Suspense } from 'react';
 
 const STATUS_COLORS: Record<string, string> = {
   operational: 'var(--status-operational)',
@@ -126,7 +127,7 @@ export default async function OverviewPage({
           <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.email}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <RangeToggle current={range} />
+          <Suspense fallback={null}><RangeToggle current={range} /></Suspense>
           <Link href="/services/new" className="btn-primary">+ Add service</Link>
         </div>
       </div>
