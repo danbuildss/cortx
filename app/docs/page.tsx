@@ -430,7 +430,7 @@ export default function DocsPage() {
           </section>
 
           {/* FAQ */}
-          <section id="faq" style={{ marginBottom: 80, scrollMarginTop: 32 }}>
+          <section id="faq" style={{ marginBottom: 40, scrollMarginTop: 32 }}>
             <p style={eyebrowStyle}>Reference</p>
             <h2 style={h1Style}>FAQ</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -441,6 +441,35 @@ export default function DocsPage() {
                 </div>
               ))}
             </div>
+          </section>
+
+          {/* Cost guide callout */}
+          <section style={{ marginBottom: 80 }}>
+            <Link
+              href="/docs/cost"
+              style={{
+                display: 'block',
+                padding: '24px 28px',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 10,
+                textDecoration: 'none',
+                transition: 'border-color 0.15s',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Guide</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                    Understanding CORTX costs
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    Per-stage breakdown, spend caps, cost matrix, and planning calculators.
+                  </div>
+                </div>
+                <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontSize: 18 }}>→</div>
+              </div>
+            </Link>
           </section>
 
         </main>
