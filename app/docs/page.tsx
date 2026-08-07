@@ -48,7 +48,7 @@ const STAGES = [
 ];
 
 const FIELDS = [
-  { field: 'Endpoint URL',       required: true,  eg: 'https://api.example.com/data',   desc: 'The x402-protected URL CORTX will probe.' },
+  { field: 'Endpoint URL',       required: true,  eg: 'https://x402.bankr.bot/research', desc: 'The x402-protected URL CORTX will probe.' },
   { field: 'Expected Price',     required: true,  eg: '0.01',                            desc: 'The USDC price you expect the endpoint to charge. Alerts if it changes.' },
   { field: 'Max Price',          required: true,  eg: '0.05',                            desc: 'The ceiling CORTX will pay per check. Checks fail at price_check if exceeded.' },
   { field: 'Check Interval',     required: true,  eg: '5',                               desc: 'Minutes between synthetic checks (minimum 1, recommended 5).' },
