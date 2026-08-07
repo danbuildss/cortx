@@ -99,20 +99,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
       } catch { /* ignore */ }
 
-      let terms: {
-        accepts?: Array<{
-          network?: string; maxAmountRequired?: string; payTo?: string;
-          asset?: string; description?: string; resource?: string;
-        }>;
-        description?: string;
-        error?: string;
-      } | null = null;
+      type PaymentOpt = {
+        network?: string; maxAmountRequired?: string;
+        payTo?: string; recipient?: string;
+        asset?: string; description?: string; resource?: string;
+      };
+      type BodyTerms = { accepts?: PaymentOpt[]; description?: string; error?: string };
 
-      try { terms = JSON.parse(rawBody); } catch { missing.push('payment_terms'); }
+      // Try X-Payment-Required header first (Bankr / flat format)
+      let headerOpt: PaymentOpt | null = null;
+      const xPayHeader = response.headers.get('x-payment-required');
+      if (xPayHeader) {
+        try { headerOpt = JSON.parse(xPayHeader); } catch { /* ignore */ }
+      }
 
-      if (terms?.accepts && terms.accepts.length > 0) {
-        const opt = terms.accepts[0];
+      // Try body for x402v1 accepts[] format
+      let terms: BodyTerms | null = null;
+      try { terms = JSON.parse(rawBody); } catch { /* ignore */ }
 
+      // Resolve the best payment option — body accepts[] takes precedence, fall back to header
+      const opt: PaymentOpt | null =
+        (terms?.accepts && terms.accepts.length > 0) ? terms.accepts[0] : headerOpt;
+
+      if (opt) {
         // Network
         const net = opt.network ?? '';
         if (net === 'eip155:8453' || net === 'base') {
@@ -143,16 +152,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           missing.push('price');
         }
 
-        // Recipient
-        if (opt.payTo) {
-          detected.recipient_display = `${opt.payTo.slice(0, 6)}…${opt.payTo.slice(-4)}`;
-          detected.recipient_full = opt.payTo;
+        // Recipient — accept both payTo (x402v1) and recipient (Bankr flat format)
+        const recipientAddr = opt.payTo ?? opt.recipient;
+        if (recipientAddr) {
+          detected.recipient_display = `${recipientAddr.slice(0, 6)}…${recipientAddr.slice(-4)}`;
+          detected.recipient_full = recipientAddr;
         } else {
           missing.push('recipient');
         }
 
         // Description
-        const desc = terms.description ?? opt.description ?? opt.resource;
+        const desc = terms?.description ?? opt.description ?? opt.resource;
         if (desc) detected.description = desc;
         else missing.push('description');
 
