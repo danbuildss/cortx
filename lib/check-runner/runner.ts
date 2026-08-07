@@ -30,6 +30,38 @@ async function fetchWithTimeout(
   }
 }
 
+// Parses raw JSON string into normalized X402PaymentTerms.
+// Handles x402v1 { accepts: [] } envelope and Bankr flat format from body or header.
+// Maps recipient → payTo for gateways that use the Bankr field name.
+function parseToPaymentTerms(raw: string): X402PaymentTerms | null {
+  if (!raw?.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (Array.isArray(parsed.accepts) && parsed.accepts.length > 0) {
+      const normalizedAccepts = (parsed.accepts as Record<string, unknown>[]).map((opt) => ({
+        ...opt,
+        payTo: String(opt.payTo ?? opt.recipient ?? ''),
+      }));
+      return { ...parsed, accepts: normalizedAccepts } as unknown as X402PaymentTerms;
+    }
+    // Flat format: { network, maxAmountRequired, recipient|payTo, asset, ... }
+    if (parsed.network || parsed.maxAmountRequired) {
+      return {
+        accepts: [{
+          network: String(parsed.network ?? ''),
+          maxAmountRequired: String(parsed.maxAmountRequired ?? ''),
+          asset: String(parsed.asset ?? 'USDC'),
+          payTo: String(parsed.payTo ?? parsed.recipient ?? ''),
+          description: parsed.description ? String(parsed.description) : undefined,
+          resource: parsed.resource ? String(parsed.resource) : undefined,
+        }],
+      };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 async function readBodyCapped(response: Response, maxBytes = RESPONSE_BODY_MAX_BYTES): Promise<string> {
   const contentLength = parseInt(response.headers.get('content-length') ?? '0', 10);
   if (contentLength > maxBytes) {
@@ -157,6 +189,7 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
     const t3 = performance.now();
     let response402: Response;
     let availabilityAttempts = 0;
+    let probeMethod: 'POST' | 'GET' = 'POST';
 
     while (true) {
       try {
@@ -181,6 +214,21 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
         }
         await sleep(2000);
       }
+    }
+
+    // Some endpoints (e.g. Bankr price-quote) only gate on GET; fall back if POST didn't return 402
+    if (response402.status !== 402) {
+      try {
+        const getResp = await fetchWithTimeout(
+          validatedUrl.toString(),
+          { method: 'GET' },
+          REQUEST_TIMEOUT_MS
+        );
+        if (getResp.status === 402) {
+          response402 = getResp;
+          probeMethod = 'GET';
+        }
+      } catch { /* ignore; original POST response will trigger UNEXPECTED_STATUS below */ }
     }
 
     const d3 = Math.round(performance.now() - t3);
@@ -220,13 +268,20 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    try {
-      paymentTerms = JSON.parse(rawBody) as X402PaymentTerms;
-    } catch {
-      fail(stageTerms, 'INVALID_PAYMENT_TERMS', { error: 'Response body is not valid JSON', body_preview: rawBody.slice(0, 200) }, Math.round(performance.now() - t4));
+    // Parse body first; fall back to X-Payment-Required header (used by Bankr and similar gateways)
+    const xPayHeader = response402.headers.get('x-payment-required') ?? '';
+    const parsed402 = parseToPaymentTerms(rawBody) ?? parseToPaymentTerms(xPayHeader);
+
+    if (!parsed402) {
+      fail(stageTerms, 'INVALID_PAYMENT_TERMS', {
+        error: 'Could not parse payment terms from body or X-Payment-Required header',
+        body_preview: rawBody.slice(0, 200),
+      }, Math.round(performance.now() - t4));
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
+
+    paymentTerms = parsed402;
 
     if (!paymentTerms.accepts || paymentTerms.accepts.length === 0) {
       fail(stageTerms, 'NO_PAYMENT_OPTIONS', { raw: paymentTerms }, Math.round(performance.now() - t4));
@@ -412,16 +467,17 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
     let deliveryResponse: Response;
 
     try {
+      // Use the same method (GET/POST) that produced the 402 on the probe request
+      const deliveryInit: RequestInit = probeMethod === 'GET'
+        ? { method: 'GET', headers: { 'X-Payment': txHash } }
+        : {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Payment': txHash },
+            body: JSON.stringify(config.test_input),
+          };
       deliveryResponse = await fetchWithTimeout(
         validatedUrl.toString(),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Payment': txHash, // base64-encoded EIP-3009 signed authorization
-          },
-          body: JSON.stringify(config.test_input),
-        },
+        deliveryInit,
         DELIVERY_TIMEOUT_MS
       );
     } catch (err) {
