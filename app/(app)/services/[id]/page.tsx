@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { RunCheckButton } from './run-check-button';
-import { RangeToggle, parseRange, rangeToMs, rangeLabel } from '../../_components/range-toggle';
-import type { Range } from '../../_components/range-toggle';
+import { RangeToggle } from '../../_components/range-toggle';
+import { parseRange, rangeToMs, rangeLabel } from '../../_components/range-utils';
+import type { Range } from '../../_components/range-utils';
 import { Suspense } from 'react';
 
 export default async function ServiceDetailPage({
