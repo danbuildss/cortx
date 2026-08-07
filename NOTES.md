@@ -8,7 +8,9 @@
 
 CORTX is a reliability monitoring tool for x402 endpoints. It runs a full synthetic payment through your endpoint (availability → payment terms → price check → payment → delivery → JSON parse → schema validation) every few minutes, records evidence at every stage, opens incidents on consecutive failures, and sends Telegram alerts. Built for Bankr builders who need to know if their paid API is actually working end-to-end, not just "up."
 
-Stack: Next.js 14+ (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Schema validation), Vercel (hosting), cron-job.org (scheduled checks), Telegram Bot API, x402/client npm package (EIP-3009 payment signing).
+Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Schema validation), Vercel (hosting), cron-job.org (scheduled checks), Telegram Bot API, x402/client npm package (EIP-3009 payment signing).
+
+**Official domain: usecortx.dev**
 
 ## Current Status
 
@@ -18,7 +20,7 @@ Stack: Next.js 14+ (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Sch
 - [x] Private beta ready — invite codes seeded, all infra confirmed working
 - [ ] Live
 
-**Beta v1 is shipped.** All 7 check runner stages built and working end-to-end. All migrations run (001–006). Cron confirmed working. Security hardened. Admin dashboard live. PR #29 merged (wallet & spend tracking, copy buttons, extended admin metrics).
+**Beta v1 is shipped and live at usecortx.dev.** All 7 check runner stages working end-to-end. All migrations run (001–006). Cron confirmed working. PRs #30–#36 shipped post-beta (docs, blog, time range toggle, favicon, about page).
 
 ---
 
@@ -90,6 +92,12 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 | Page | Route | What it does |
 |---|---|---|
 | Status page | `/status/[userId]` | Per-user public status page — overall banner, per-service 90-day uptime bars, active incidents |
+| Landing page | `/` | Marketing page — usecortx.dev |
+| Docs | `/docs` | Full documentation (single-page, sidebar nav, IntersectionObserver active state) |
+| Docs cost | `/docs/cost` | Cost guide — per-stage breakdown, spend caps, cost matrix, planning calculators |
+| Blog index | `/blog` | Lists all posts (TypeScript-based, zero new packages) |
+| Blog post | `/blog/[slug]` | Individual post renderer with prose styling |
+| About | `/about` | About page — what CORTX does, why mainnet, beta status, social links |
 
 ### UI Features
 - Fixed bottom-right `💬 Feedback` button on all app pages
@@ -159,3 +167,10 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - Branch: `claude/persistent-skills-sessions-727k7h`
 - PRs 1–29: all merged to main
 - PR #29 (merged): admin wallet & spend tracking, copy buttons, extended metrics, cron maxDuration fix
+- PR #30 (merged): /docs page built into the website
+- PR #31 (merged): beta price hard cap ($0.10/call) + docs links fixed on landing page
+- PR #32 (merged): static blog (/blog, /blog/[slug]), footer Company column (About + Blog), Cost Guide in Resources, /docs cost guide callout card
+- PR #33 (merged): 24H/7D/30D time range toggle on Overview and service detail
+- PR #34 (merged): fix — Suspense boundary for RangeToggle
+- PR #35 (merged): fix — split range utilities out of 'use client' module (root cause of server crash)
+- PR #36 (open): CORTX logo favicon (app/icon.svg), /about page, domain fixes (usecortx.dev), docs example URL updated to x402.bankr.bot
