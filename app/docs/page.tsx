@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
-const NAV = [
+const NAV: { group: string; items: { id?: string; href?: string; label: string }[] }[] = [
   {
     group: 'Get Started',
     items: [
@@ -28,13 +28,14 @@ const NAV = [
   {
     group: 'Reference',
     items: [
-      { id: 'spend-caps', label: 'Spend Caps' },
-      { id: 'faq',        label: 'FAQ' },
+      { id: 'spend-caps',  label: 'Spend Caps' },
+      { href: '/docs/cost', label: 'Cost Guide' },
+      { id: 'faq',         label: 'FAQ' },
     ],
   },
 ];
 
-const ALL_IDS = NAV.flatMap(g => g.items.map(i => i.id));
+const ALL_IDS = NAV.flatMap(g => g.items.map(i => i.id).filter(Boolean)) as string[];
 
 const STAGES = [
   { key: 'availability',    label: 'Availability',    desc: 'Checks that the endpoint is reachable over HTTP.' },
@@ -457,6 +458,23 @@ export default function DocsPage() {
 }
 
 function NavContent({ activeId, scrollTo }: { activeId: string; scrollTo: (id: string) => void }) {
+  const linkStyle = (isActive: boolean): React.CSSProperties => ({
+    display: 'block',
+    width: '100%',
+    textAlign: 'left',
+    padding: '6px 12px',
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: isActive ? 500 : 400,
+    color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+    background: isActive ? 'var(--bg-hover)' : 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    marginBottom: 2,
+    transition: 'background 0.1s, color 0.1s',
+    textDecoration: 'none',
+  });
+
   return (
     <nav>
       {NAV.map(group => (
@@ -464,29 +482,21 @@ function NavContent({ activeId, scrollTo }: { activeId: string; scrollTo: (id: s
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 6, padding: '0 12px' }}>
             {group.group}
           </div>
-          {group.items.map(item => (
-            <button
-              key={item.id}
-              onClick={() => scrollTo(item.id)}
-              style={{
-                display: 'block',
-                width: '100%',
-                textAlign: 'left',
-                padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: activeId === item.id ? 500 : 400,
-                color: activeId === item.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                background: activeId === item.id ? 'var(--bg-hover)' : 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                marginBottom: 2,
-                transition: 'background 0.1s, color 0.1s',
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
+          {group.items.map(item =>
+            item.href ? (
+              <Link key={item.href} href={item.href} style={linkStyle(false)}>
+                {item.label}
+              </Link>
+            ) : (
+              <button
+                key={item.id}
+                onClick={() => scrollTo(item.id!)}
+                style={linkStyle(activeId === item.id)}
+              >
+                {item.label}
+              </button>
+            )
+          )}
         </div>
       ))}
     </nav>
