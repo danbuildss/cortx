@@ -14,11 +14,11 @@ Stack: Next.js 14+ (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Sch
 
 - [x] In planning
 - [x] Building MVP
-- [x] Beta readiness sprint (in progress — security done, polish nearly done)
-- [ ] Private beta (5–10 Bankr builders)
+- [x] Beta readiness sprint — **COMPLETE**
+- [x] Private beta ready — invite codes seeded, all infra confirmed working
 - [ ] Live
 
-**Security audit passed.** All 7 high-severity issues resolved. Ready for beta from a security standpoint.
+**Beta v1 is shipped.** All 7 check runner stages built and working end-to-end. All migrations run (001–006). Cron confirmed working. Security hardened. Admin dashboard live. PR #29 merged (wallet & spend tracking, copy buttons, extended admin metrics).
 
 ---
 
@@ -128,10 +128,10 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 
 ## User Action Items
 
-- [ ] Run migration 004 in Supabase SQL editor (`supabase/migrations/004_fix_checks_rls.sql`)
-- [ ] Run migration 005 in Supabase SQL editor (`supabase/migrations/005_feedback.sql`)
-- [ ] Update cron-job.org: use `Authorization: Bearer {CRON_SECRET}` header (not `?secret=`)
-- [ ] Set `FEEDBACK_TELEGRAM_CHAT_ID` env var in Vercel (your own Telegram chat ID)
+- [x] Run migration 004 — `supabase/migrations/004_fix_checks_rls.sql` ✓
+- [x] Run migration 005 — `supabase/migrations/005_feedback.sql` ✓
+- [x] Update cron-job.org: `Authorization: Bearer {CRON_SECRET}` header ✓ (confirmed working)
+- [x] Set `FEEDBACK_TELEGRAM_CHAT_ID` env var in Vercel ✓
 
 ---
 
@@ -157,8 +157,5 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 ## Branch / PR History
 
 - Branch: `claude/persistent-skills-sessions-727k7h`
-- PRs 1–17: merged to main
-- PR #18: open — security fixes batch (all 7 high-severity issues)
-  - Commit 1: cron auth, Telegram webhook, onboarding wizard, detect API
-  - Commit 2: response size limits, spend caps, token cleanup, private key redaction
-- Feedback widget, loading skeletons, polish fixes: committed to branch (not yet PRed)
+- PRs 1–29: all merged to main
+- PR #29 (merged): admin wallet & spend tracking, copy buttons, extended metrics, cron maxDuration fix
