@@ -322,6 +322,17 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
+    const betaCap = parseFloat(process.env.BETA_MAX_ENDPOINT_PRICE_USDC ?? '0.10');
+    if (parsedPrice > betaCap) {
+      fail(stagePriceCheck, 'BETA_PRICE_CAP_EXCEEDED', {
+        observed_price,
+        beta_max_price_usdc: betaCap.toFixed(2),
+        result: 'exceeds_beta_cap',
+      }, 0);
+      markRemaining();
+      return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
+    }
+
     if (!priceMatch) {
       fail(stagePriceCheck, 'PRICE_MISMATCH', {
         expected_price: config.expected_price,

@@ -121,7 +121,7 @@ export default function LandingPage() {
             </li>
             <li><a href="#methodology">Methodology</a></li>
             <li><a href="#status">Status</a></li>
-            <li><a href="https://cortx.mintlify.site">Docs</a></li>
+            <li><a href="/docs">Docs</a></li>
             <li><a href="https://github.com/danbuildss/cortx">GitHub</a></li>
             <li><a href="https://t.me/AskCortxBot">Bot</a></li>
           </ul>
@@ -413,7 +413,7 @@ export default function LandingPage() {
             <div>
               <div className="ft-col-label">Resources</div>
               <div className="ft-col-links">
-                <a href="https://cortx.mintlify.site">Docs</a>
+                <a href="/docs">Docs</a>
                 <a href="#how-it-works">How it works</a>
                 <a href="https://t.me/usecortxdev">Help &amp; Support</a>
               </div>
