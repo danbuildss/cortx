@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { CopyButton } from '@/components/copy-button';
+import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
 
 const ADMIN_USER_ID = 'e9374851-ac6f-4f1e-a131-6747fc37184a';
 
@@ -30,6 +31,12 @@ export default async function AdminPage() {
   );
 
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+
+  const fetchWalletBalance = async (): Promise<string | null> => {
+    try { return await getWalletBalance(getWalletAddress()); } catch { return null; }
+  };
 
   const [
     authResult,
@@ -38,13 +45,19 @@ export default async function AdminPage() {
     { data: inviteCodes },
     { data: recentIncidents },
     { data: telegramConns },
+    { data: todaySpendRows },
+    { data: monthSpendRows },
+    walletBalance,
   ] = await Promise.all([
     service.auth.admin.listUsers({ perPage: 100 }),
     service.from('services').select('id, user_id, name, endpoint_url, status, created_at').is('deleted_at', null).order('created_at', { ascending: false }),
-    service.from('checks').select('service_id, status, failure_stage').gte('started_at', since24h),
+    service.from('checks').select('service_id, status, failure_stage, observed_price').gte('started_at', since24h),
     service.from('invite_codes').select('id, code, used_by, used_at').order('used_at', { ascending: false, nullsFirst: false }),
     service.from('incidents').select('id, service_id, status, created_at').order('created_at', { ascending: false }).limit(20),
     service.from('telegram_connections').select('user_id').eq('active', true),
+    service.from('checks').select('observed_price').gte('started_at', todayStart.toISOString()).in('status', ['passed', 'success']),
+    service.from('checks').select('observed_price').gte('started_at', monthStart.toISOString()).in('status', ['passed', 'success']),
+    fetchWalletBalance(),
   ]);
 
   const authUsers = authResult.data?.users ?? [];
@@ -82,6 +95,30 @@ export default async function AdminPage() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
   const maxStageFailCount = stageFailList[0]?.[1] ?? 1;
+
+  // Spend tracking
+  const dailyCap = parseFloat(process.env.CORTX_DAILY_SPEND_CAP_USDC ?? '1.00');
+  const monthlyCap = parseFloat(process.env.CORTX_MONTHLY_SPEND_CAP_USDC ?? '10.00');
+  const todaySpend = (todaySpendRows ?? []).reduce((s, r) => s + parseFloat(String(r.observed_price ?? '0')), 0);
+  const monthSpend = (monthSpendRows ?? []).reduce((s, r) => s + parseFloat(String(r.observed_price ?? '0')), 0);
+
+  // Top cost by service (24h)
+  const spendByService = new Map<string, { total: number; count: number }>();
+  for (const c of (checks24h ?? [])) {
+    if (c.observed_price) {
+      const prev = spendByService.get(c.service_id) ?? { total: 0, count: 0 };
+      spendByService.set(c.service_id, { total: prev.total + parseFloat(String(c.observed_price)), count: prev.count + 1 });
+    }
+  }
+  const topCostServices = Array.from(spendByService.entries())
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 5)
+    .map(([svcId, { total, count }]) => {
+      const svc = services.find(s => s.id === svcId);
+      const u = svc ? authUsers.find(a => a.id === svc.user_id) : null;
+      return { svcId, endpoint: svc?.endpoint_url ?? svcId, email: u?.email ?? '—', total, count, avg: count > 0 ? total / count : 0 };
+    });
+  const maxServiceCost = topCostServices[0]?.total ?? 1;
 
   // Code by email
   const codeByEmail = new Map<string, string>();
@@ -167,6 +204,98 @@ export default async function AdminPage() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* Wallet & Spend */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+          {/* USDC Balance */}
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>USDC Balance</div>
+            <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginBottom: 4 }}>
+              {walletBalance !== null ? `${parseFloat(walletBalance).toFixed(2)}` : '—'}
+              {walletBalance !== null && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 400 }}> USDC</span>}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Base mainnet · CORTX_TEST_WALLET_KEY</div>
+          </div>
+
+          {/* Today's Spend */}
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>Today's Spend</div>
+            <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginBottom: 8 }}>
+              ${todaySpend.toFixed(4)}
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}> / ${dailyCap.toFixed(2)}</span>
+            </div>
+            <div style={{ height: 4, background: 'var(--bg-muted)', borderRadius: 2, marginBottom: 4 }}>
+              <div style={{ height: 4, borderRadius: 2, background: todaySpend / dailyCap > 0.8 ? 'var(--status-critical)' : 'var(--status-ok)', width: `${Math.min((todaySpend / dailyCap) * 100, 100)}%` }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>CORTX_DAILY_SPEND_CAP_USDC</div>
+          </div>
+
+          {/* Monthly Spend */}
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>Monthly Spend</div>
+            <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginBottom: 8 }}>
+              ${monthSpend.toFixed(4)}
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}> / ${monthlyCap.toFixed(2)}</span>
+            </div>
+            <div style={{ height: 4, background: 'var(--bg-muted)', borderRadius: 2, marginBottom: 4 }}>
+              <div style={{ height: 4, borderRadius: 2, background: monthSpend / monthlyCap > 0.8 ? 'var(--status-critical)' : 'var(--status-ok)', width: `${Math.min((monthSpend / monthlyCap) * 100, 100)}%` }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>CORTX_MONTHLY_SPEND_CAP_USDC</div>
+          </div>
+        </div>
+
+        {/* Top cost by service */}
+        {topCostServices.length > 0 && (
+          <div style={card}>
+            <div style={cardHeader}>
+              <span style={cardTitle}>Top Cost by Service (24h)</span>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>USDC on Base</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Endpoint', 'Owner', 'Avg / call', 'Checks', 'Total (24h)'].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {topCostServices.map(({ svcId, endpoint, email, total, count, avg }, i) => {
+                    const isLast = i === topCostServices.length - 1;
+                    const tdStyle: React.CSSProperties = { padding: '10px 16px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)', verticalAlign: 'middle' };
+                    return (
+                      <tr key={svcId}>
+                        <td style={tdStyle}>
+                          <div style={{ fontSize: 12, fontFamily: 'var(--font-geist-mono)', color: 'var(--text-secondary)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{endpoint}</div>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{email}</span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text-secondary)' }}>${avg.toFixed(4)}</span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>{count}</span>
+                        </td>
+                        <td style={tdStyle}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 56, height: 4, background: 'var(--bg-muted)', borderRadius: 2, flexShrink: 0 }}>
+                              <div style={{ height: 4, borderRadius: 2, background: '#3b82f6', width: `${Math.round((total / maxServiceCost) * 100)}%` }} />
+                            </div>
+                            <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)', fontWeight: 500 }}>${total.toFixed(4)}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Body */}
