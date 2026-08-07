@@ -59,67 +59,86 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   };
   const missing: string[] = [];
 
+  type PaymentOpt = {
+    network?: string; maxAmountRequired?: string;
+    payTo?: string; recipient?: string;
+    asset?: string; description?: string; resource?: string;
+  };
+  type BodyTerms = { accepts?: PaymentOpt[]; description?: string; error?: string };
+
+  // Parse a raw string (body or header value) into a PaymentOpt + BodyTerms pair.
+  // Handles both the x402v1 accepts[] envelope and the flat Bankr header format.
+  function parsePaymentTerms(raw: string): { opt: PaymentOpt | null; terms: BodyTerms | null } {
+    if (!raw?.trim()) return { opt: null, terms: null };
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed.accepts) && parsed.accepts.length > 0) {
+          return { opt: parsed.accepts[0] as PaymentOpt, terms: parsed as BodyTerms };
+        }
+        // Flat format — the object itself is the payment option
+        return { opt: parsed as PaymentOpt, terms: null };
+      }
+    } catch { /* ignore */ }
+    return { opt: null, terms: null };
+  }
+
+  async function readBodyCapped(res: Response): Promise<string> {
+    const MAX = 65_536;
+    try {
+      const cl = parseInt(res.headers.get('content-length') ?? '', 10);
+      if (!isNaN(cl) && cl > MAX) return '';
+      const reader = res.body?.getReader();
+      if (!reader) return '';
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) { total += value.length; if (total > MAX) { reader.cancel(); break; } chunks.push(value); }
+      }
+      reader.releaseLock();
+      const merged = new Uint8Array(total);
+      let off = 0;
+      for (const c of chunks) { merged.set(c, off); off += c.length; }
+      return new TextDecoder().decode(merged);
+    } catch { return ''; }
+  }
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 12_000);
     let response: Response;
     try {
+      // Try POST first; if it doesn't return 402 fall back to GET — some x402
+      // endpoints (e.g. Bankr price-quote style) only gate on GET requests.
       response = await fetch(validatedUrl.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
         signal: controller.signal,
       });
+      if (response.status !== 402) {
+        const getResp = await fetch(validatedUrl.toString(), {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        if (getResp.status === 402) response = getResp;
+      }
     } finally {
       clearTimeout(timer);
     }
 
     if (response.status === 402) {
-      let rawBody = '';
-      try {
-        // Cap at 64 KB — payment terms should never be larger
-        const MAX = 65_536;
-        const cl = parseInt(response.headers.get('content-length') ?? '0', 10);
-        if (cl <= MAX) {
-          const reader = response.body?.getReader();
-          if (reader) {
-            const chunks: Uint8Array[] = [];
-            let total = 0;
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              if (value) { total += value.length; if (total > MAX) { reader.cancel(); break; } chunks.push(value); }
-            }
-            reader.releaseLock();
-            const merged = new Uint8Array(total);
-            let off = 0;
-            for (const c of chunks) { merged.set(c, off); off += c.length; }
-            rawBody = new TextDecoder().decode(merged);
-          }
-        }
-      } catch { /* ignore */ }
+      const rawBody = await readBodyCapped(response);
 
-      type PaymentOpt = {
-        network?: string; maxAmountRequired?: string;
-        payTo?: string; recipient?: string;
-        asset?: string; description?: string; resource?: string;
-      };
-      type BodyTerms = { accepts?: PaymentOpt[]; description?: string; error?: string };
+      // Parse body and X-Payment-Required header; body accepts[] takes precedence.
+      const { opt: bodyOpt, terms: bodyTerms } = parsePaymentTerms(rawBody);
+      const xPayHeader = response.headers.get('x-payment-required') ?? '';
+      const { opt: headerOpt, terms: headerTerms } = parsePaymentTerms(xPayHeader);
 
-      // Try X-Payment-Required header first (Bankr / flat format)
-      let headerOpt: PaymentOpt | null = null;
-      const xPayHeader = response.headers.get('x-payment-required');
-      if (xPayHeader) {
-        try { headerOpt = JSON.parse(xPayHeader); } catch { /* ignore */ }
-      }
-
-      // Try body for x402v1 accepts[] format
-      let terms: BodyTerms | null = null;
-      try { terms = JSON.parse(rawBody); } catch { /* ignore */ }
-
-      // Resolve the best payment option — body accepts[] takes precedence, fall back to header
-      const opt: PaymentOpt | null =
-        (terms?.accepts && terms.accepts.length > 0) ? terms.accepts[0] : headerOpt;
+      const opt  = bodyOpt  ?? headerOpt;
+      const terms = bodyTerms ?? headerTerms;
 
       if (opt) {
         // Network
