@@ -414,6 +414,7 @@ export default function LandingPage() {
               <div className="ft-col-label">Resources</div>
               <div className="ft-col-links">
                 <a href="/docs">Docs</a>
+                <a href="/docs/cost">Cost Guide</a>
                 <a href="#how-it-works">How it works</a>
                 <a href="https://t.me/usecortxdev">Help &amp; Support</a>
               </div>
@@ -424,7 +425,13 @@ export default function LandingPage() {
                 <a href="https://x.com/usecortx">X (Twitter)</a>
                 <a href="https://t.me/usecortxdev">Telegram</a>
                 <a href="https://t.me/AskCortxBot">Cortx Bot</a>
-                <a href="https://github.com/danbuildss/cortx">GitHub</a>
+              </div>
+            </div>
+            <div>
+              <div className="ft-col-label">Company</div>
+              <div className="ft-col-links">
+                <a href="/about">About</a>
+                <a href="/blog">Blog</a>
               </div>
             </div>
           </div>
