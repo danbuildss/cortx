@@ -1,10 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { StatusPageLink } from './_components/status-page-link';
-
-// eslint-disable-next-line react-hooks/purity
-const now = Date.now();
-const since24h = new Date(now - 86400000).toISOString();
+import { RangeToggle, parseRange, rangeToMs, rangeLabel } from '../_components/range-toggle';
+import type { Range } from '../_components/range-toggle';
 
 const STATUS_COLORS: Record<string, string> = {
   operational: 'var(--status-operational)',
@@ -19,14 +17,29 @@ const STATUS_LABELS: Record<string, string> = {
   unknown:     'Unknown',
 };
 
-export default async function OverviewPage() {
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
+  const { range: rawRange } = await searchParams;
+  const range = parseRange(rawRange);
+  const windowMs = rangeToMs(range);
+  const rl = rangeLabel(range);
+
+  const now = Date.now();
+  const since = new Date(now - windowMs).toISOString();
+
+  const bucketCount = range === '24h' ? 24 : range === '7d' ? 7 : 30;
+  const checksLimit = range === '30d' ? 10000 : range === '7d' ? 5000 : 2000;
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   const [
     { data: services },
     { data: openIncidents },
-    { data: checks24h },
+    { data: windowChecks },
   ] = await Promise.all([
     supabase
       .from('services')
@@ -44,8 +57,8 @@ export default async function OverviewPage() {
     supabase
       .from('checks')
       .select('service_id, status, latency_ms, started_at')
-      .gte('started_at', since24h)
-      .limit(2000),
+      .gte('started_at', since)
+      .limit(checksLimit),
   ]);
 
   // ── Per-service incident count ──────────────────────────
@@ -54,10 +67,10 @@ export default async function OverviewPage() {
     incidentsByService.set(inc.service_id, (incidentsByService.get(inc.service_id) ?? 0) + 1);
   }
 
-  // ── Per-service avg latency (24h) ───────────────────────
+  // ── Per-service avg latency (window) ───────────────────────
   const svcLatencySum = new Map<string, number>();
   const svcLatencyCount = new Map<string, number>();
-  for (const c of checks24h ?? []) {
+  for (const c of windowChecks ?? []) {
     if (c.latency_ms == null || c.status === 'error') continue;
     svcLatencySum.set(c.service_id, (svcLatencySum.get(c.service_id) ?? 0) + c.latency_ms);
     svcLatencyCount.set(c.service_id, (svcLatencyCount.get(c.service_id) ?? 0) + 1);
@@ -68,23 +81,26 @@ export default async function OverviewPage() {
     svcAvgLatency.set(id, Math.round(sum / cnt));
   }
 
-  // ── Hourly response time buckets (24 slots) ─────────────
-  const hourlySum = new Array(24).fill(0) as number[];
-  const hourlyCnt = new Array(24).fill(0) as number[];
-  for (const c of checks24h ?? []) {
+  // ── Bucket response time (variable count) ──────────────
+  const bucketSum  = new Array(bucketCount).fill(0) as number[];
+  const bucketCnt  = new Array(bucketCount).fill(0) as number[];
+  const bucketMs   = windowMs / bucketCount;
+  const windowStart = now - windowMs;
+
+  for (const c of windowChecks ?? []) {
     if (c.latency_ms == null || c.status === 'error') continue;
     const t = new Date(c.started_at).getTime();
-    const idx = Math.min(23, Math.floor((t - (now - 86400000)) / 3600000));
+    const idx = Math.min(bucketCount - 1, Math.floor((t - windowStart) / bucketMs));
     if (idx >= 0) {
-      hourlySum[idx] += c.latency_ms;
-      hourlyCnt[idx]++;
+      bucketSum[idx] += c.latency_ms;
+      bucketCnt[idx]++;
     }
   }
-  const hourlyAvg = hourlySum.map((s, i) => hourlyCnt[i] > 0 ? Math.round(s / hourlyCnt[i]) : null);
+  const bucketAvg = bucketSum.map((s, i) => bucketCnt[i] > 0 ? Math.round(s / bucketCnt[i]) : null);
 
-  // ── 24h uptime ──────────────────────────────────────────
+  // ── Uptime ──────────────────────────────────────────────
   let uptimePassed = 0, uptimeTotal = 0;
-  for (const c of checks24h ?? []) {
+  for (const c of windowChecks ?? []) {
     if (c.status === 'error') continue;
     uptimeTotal++;
     if (c.status === 'passed') uptimePassed++;
@@ -92,12 +108,12 @@ export default async function OverviewPage() {
   const uptimePct = uptimeTotal > 0 ? uptimePassed / uptimeTotal : null;
 
   // ── Totals ──────────────────────────────────────────────
-  const total         = services?.length ?? 0;
+  const total            = services?.length ?? 0;
   const operationalCount = services?.filter(s => s.status === 'operational').length ?? 0;
-  const openCount     = openIncidents?.length ?? 0;
-  const checks24hCount = (checks24h ?? []).filter(c => c.status !== 'error').length;
+  const openCount        = openIncidents?.length ?? 0;
+  const checksCount      = (windowChecks ?? []).filter(c => c.status !== 'error').length;
 
-  // ── Service name map for incident panel ─────────────────
+  // ── Service name map ────────────────────────────────────
   const svcNameMap = new Map((services ?? []).map(s => [s.id, s.name]));
 
   return (
@@ -109,21 +125,19 @@ export default async function OverviewPage() {
           <h1 style={{ fontSize: 19, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Overview</h1>
           <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.email}</p>
         </div>
-        <Link
-          href="/services/new"
-          className="btn-primary"
-        >
-          + Add service
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <RangeToggle current={range} />
+          <Link href="/services/new" className="btn-primary">+ Add service</Link>
+        </div>
       </div>
 
       {/* Metric cards */}
       <div className="metric-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
         {[
-          { label: 'Total Services', value: String(total), cls: 'anim-fade-up delay-1' },
-          { label: 'Operational', value: String(operationalCount), accent: 'var(--status-operational)', cls: 'anim-fade-up delay-2' },
-          { label: 'Open Incidents', value: String(openCount), accent: openCount > 0 ? 'var(--status-critical)' : undefined, cls: 'anim-fade-up delay-3' },
-          { label: 'Checks (24h)', value: String(checks24hCount), cls: 'anim-fade-up delay-4' },
+          { label: 'Total Services',      value: String(total),        accent: undefined,                                          cls: 'anim-fade-up delay-1' },
+          { label: 'Operational',         value: String(operationalCount), accent: 'var(--status-operational)',                    cls: 'anim-fade-up delay-2' },
+          { label: 'Open Incidents',      value: String(openCount),    accent: openCount > 0 ? 'var(--status-critical)' : undefined, cls: 'anim-fade-up delay-3' },
+          { label: `Checks (${rl})`,      value: String(checksCount),  accent: undefined,                                          cls: 'anim-fade-up delay-4' },
         ].map(({ label, value, accent, cls }) => (
           <div key={label} className={cls} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
@@ -149,9 +163,9 @@ export default async function OverviewPage() {
           <div className="chart-fade" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Response Time</span>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>avg · 24h</span>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>avg · {rl}</span>
             </div>
-            <ResponseTimeChart data={hourlyAvg} />
+            <ResponseTimeChart data={bucketAvg} range={range} />
           </div>
 
           {/* Services table */}
@@ -163,60 +177,60 @@ export default async function OverviewPage() {
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Services</span>
               </div>
               <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    {['Service', 'Status', 'Resp. Time', 'Last Check', 'Incidents'].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {services?.map((svc, i) => {
-                    const openCnt  = incidentsByService.get(svc.id) ?? 0;
-                    const avgMs    = svcAvgLatency.get(svc.id);
-                    const isLast   = i === (services.length - 1);
-                    return (
-                      <tr key={svc.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
-                          <Link href={`/services/${svc.id}`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: 500, fontSize: 13 }}>
-                            {svc.name}
-                          </Link>
-                          <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-geist-mono)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
-                            {svc.endpoint_url}
-                          </div>
-                        </td>
-                        <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
-                          <StatusBadge status={svc.status ?? 'unknown'} />
-                        </td>
-                        <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
-                          {avgMs != null ? (
-                            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)' }}>
-                              {avgMs < 1000 ? `${avgMs}ms` : `${(avgMs / 1000).toFixed(1)}s`}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>—</span>
-                          )}
-                        </td>
-                        <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            {svc.last_checked_at ? formatRelative(svc.last_checked_at) : '—'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
-                          {openCnt > 0 ? (
-                            <Link href="/incidents" style={{ fontSize: 12, color: 'var(--status-critical)', textDecoration: 'none' }}>
-                              {openCnt} open
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      {['Service', 'Status', `Resp. (${rl})`, 'Last Check', 'Incidents'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {services?.map((svc, i) => {
+                      const openCnt = incidentsByService.get(svc.id) ?? 0;
+                      const avgMs   = svcAvgLatency.get(svc.id);
+                      const isLast  = i === (services.length - 1);
+                      return (
+                        <tr key={svc.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)' }}>
+                          <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                            <Link href={`/services/${svc.id}`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: 500, fontSize: 13 }}>
+                              {svc.name}
                             </Link>
-                          ) : (
-                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-geist-mono)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
+                              {svc.endpoint_url}
+                            </div>
+                          </td>
+                          <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                            <StatusBadge status={svc.status ?? 'unknown'} />
+                          </td>
+                          <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                            {avgMs != null ? (
+                              <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)' }}>
+                                {avgMs < 1000 ? `${avgMs}ms` : `${(avgMs / 1000).toFixed(1)}s`}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>—</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                              {svc.last_checked_at ? formatRelative(svc.last_checked_at) : '—'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                            {openCnt > 0 ? (
+                              <Link href="/incidents" style={{ fontSize: 12, color: 'var(--status-critical)', textDecoration: 'none' }}>
+                                {openCnt} open
+                              </Link>
+                            ) : (
+                              <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -227,7 +241,7 @@ export default async function OverviewPage() {
 
           {/* Uptime donut */}
           <div className="anim-fade-up" style={{ animationDelay: '0.18s', background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '18px 20px' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Uptime · 24h</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Uptime · {rl}</div>
             <UptimeDonut pct={uptimePct} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 16 }}>
               {[
@@ -314,7 +328,7 @@ export default async function OverviewPage() {
 }
 
 // ── Response Time Chart ────────────────────────────────────
-function ResponseTimeChart({ data }: { data: (number | null)[] }) {
+function ResponseTimeChart({ data, range }: { data: (number | null)[]; range: Range }) {
   const validPts = data.map((v, i) => ({ i, v })).filter(p => p.v != null) as { i: number; v: number }[];
 
   if (validPts.length < 2) {
@@ -331,8 +345,9 @@ function ResponseTimeChart({ data }: { data: (number | null)[] }) {
   const avgV = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
   const W = 600, H = 72, padT = 4, padB = 4, padX = 2;
   const chartW = W - padX * 2, chartH = H - padT - padB;
+  const lastIdx = data.length - 1;
 
-  const cx = (i: number) => padX + (i / 23) * chartW;
+  const cx = (i: number) => padX + (i / lastIdx) * chartW;
   const cy = (v: number) => padT + (1 - (v - minV) / (maxV - minV || 1)) * chartH;
 
   let line = '';
@@ -351,6 +366,8 @@ function ResponseTimeChart({ data }: { data: (number | null)[] }) {
     }
   });
 
+  const startLabel = range === '30d' ? '30d ago' : range === '7d' ? '7d ago' : '24h ago';
+
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 72, display: 'block', overflow: 'visible' }}>
@@ -362,7 +379,6 @@ function ResponseTimeChart({ data }: { data: (number | null)[] }) {
         </defs>
         <path d={area} fill="url(#rtGrad)" />
         <path d={line} fill="none" stroke="var(--status-operational)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-        {/* Latest point dot */}
         {validPts.length > 0 && (
           <circle
             cx={cx(validPts[validPts.length - 1].i)}
@@ -375,7 +391,7 @@ function ResponseTimeChart({ data }: { data: (number | null)[] }) {
         )}
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-        <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>24h ago</span>
+        <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{startLabel}</span>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)' }}>avg {avgV}ms</span>
         <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>now</span>
       </div>
@@ -386,7 +402,7 @@ function ResponseTimeChart({ data }: { data: (number | null)[] }) {
 // ── Uptime Donut ───────────────────────────────────────────
 function UptimeDonut({ pct }: { pct: number | null }) {
   const r = 44;
-  const circ = 2 * Math.PI * r; // ≈ 276.5
+  const circ = 2 * Math.PI * r;
   const filled = pct != null ? pct * circ : 0;
   const offset = circ - filled;
   const color = pct == null ? 'var(--text-dim)'
@@ -398,9 +414,7 @@ function UptimeDonut({ pct }: { pct: number | null }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
       <svg viewBox="0 0 100 100" style={{ width: 110, height: 110, display: 'block' }}>
-        {/* Track */}
         <circle cx="50" cy="50" r={r} fill="none" stroke="var(--bg-muted)" strokeWidth="7" />
-        {/* Arc */}
         {pct != null && (
           <circle
             cx="50" cy="50" r={r} fill="none"
@@ -412,7 +426,6 @@ function UptimeDonut({ pct }: { pct: number | null }) {
             style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
           />
         )}
-        {/* Center text */}
         <text x="50" y="47" textAnchor="middle" dominantBaseline="middle"
           fill="var(--text-primary)" fontSize="14" fontWeight="600" fontFamily="var(--font-geist-sans)">
           {label}
