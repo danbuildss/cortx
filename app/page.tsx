@@ -160,7 +160,7 @@ export default function LandingPage() {
         <div className="mockup-outer h-mockup">
           <div className="mockup-chrome">
             <div className="chrome-dots"><span /><span /><span /></div>
-            <div className="chrome-url">cortx.app/services/wallet-research</div>
+            <div className="chrome-url">usecortx.dev/services/wallet-research</div>
             <div style={{ width: 55 }} />
           </div>
           <div className="mockup-body">
@@ -354,7 +354,7 @@ export default function LandingPage() {
           </div>
           <div className="status-preview reveal" style={{ '--rd': '0.08s' } as React.CSSProperties}>
             <div className="status-label-row">
-              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)' }}>cortx.app/status/bankr</div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)' }}>usecortx.dev/status/bankr</div>
               <div className="status-demo-badge">Example</div>
             </div>
             <div className="status-banner">
