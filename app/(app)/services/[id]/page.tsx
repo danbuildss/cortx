@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { RunCheckButton } from './run-check-button';
 import { RangeToggle, parseRange, rangeToMs, rangeLabel } from '../../_components/range-toggle';
+import type { Range } from '../../_components/range-toggle';
+import { Suspense } from 'react';
 
 export default async function ServiceDetailPage({
   params,
@@ -73,7 +75,7 @@ export default async function ServiceDetailPage({
           <span style={{ fontSize: 12, color: STATUS_COLOR[service.status ?? 'unknown'], fontWeight: 500 }}>
             ● {service.status ?? 'unknown'}
           </span>
-          <RangeToggle current={range} />
+          <Suspense fallback={null}><RangeToggle current={range} /></Suspense>
           <Link href={`/services/${service.id}/edit`} style={{
             padding: '6px 14px', background: 'transparent', color: 'var(--text-secondary)',
             border: '1px solid var(--border-default)', borderRadius: 6, fontSize: 12,
@@ -230,8 +232,6 @@ function MetaCard({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-import type { Range } from '../../_components/range-toggle';
 
 function LatencyChart({
   checks,
