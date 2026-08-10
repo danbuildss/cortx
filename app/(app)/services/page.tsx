@@ -105,19 +105,16 @@ export default async function ServicesPage() {
       ) : (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 580 }}>
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
-                  {['', 'Service', 'Status', 'Uptime 24h', 'Avg Latency', 'Last Check', 'Incidents'].map((h, i) => (
-                    <th key={i} style={{
-                      textAlign: 'left',
-                      padding: h === '' ? '10px 0 10px 16px' : '10px 16px',
-                      fontSize: 11, fontWeight: 500,
-                      color: 'var(--text-muted)',
-                      textTransform: 'uppercase', letterSpacing: '0.05em',
-                      width: h === '' ? 4 : undefined,
-                    }}>{h}</th>
-                  ))}
+                  <th style={{ textAlign: 'left', padding: '10px 0 10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: 4 }}></th>
+                  <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</th>
+                  <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                  <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Uptime 24h</th>
+                  <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Latency</th>
+                  <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Check</th>
+                  <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Incidents</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,16 +156,16 @@ export default async function ServicesPage() {
                           <span style={{ fontSize: 12, color }}>{label}</span>
                         </span>
                       </td>
-                      <td style={{ padding: '13px 16px', fontSize: 13, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                      <td className="mobile-hide" style={{ padding: '13px 16px', fontSize: 13, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
                         {upPct}
                       </td>
-                      <td style={{ padding: '13px 16px', fontSize: 13, fontFamily: 'var(--font-geist-mono)', color: 'var(--text-secondary)' }}>
+                      <td className="mobile-hide" style={{ padding: '13px 16px', fontSize: 13, fontFamily: 'var(--font-geist-mono)', color: 'var(--text-secondary)' }}>
                         {latMs != null ? (latMs < 1000 ? `${latMs}ms` : `${(latMs / 1000).toFixed(1)}s`) : '—'}
                       </td>
-                      <td style={{ padding: '13px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
+                      <td className="mobile-hide" style={{ padding: '13px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
                         {svc.last_checked_at ? formatRelative(svc.last_checked_at) : '—'}
                       </td>
-                      <td style={{ padding: '13px 16px' }}>
+                      <td className="mobile-hide" style={{ padding: '13px 16px' }}>
                         {openCnt > 0 ? (
                           <Link href="/incidents" style={{ fontSize: 12, color: 'var(--status-critical)', textDecoration: 'none' }}>
                             {openCnt} open
