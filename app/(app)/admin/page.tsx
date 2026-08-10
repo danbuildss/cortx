@@ -162,9 +162,9 @@ export default async function AdminPage() {
   const cardTitle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' };
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1100 }}>
+    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 1100 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>Admin</h1>
           <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Internal overview — not visible to other users</p>
@@ -175,7 +175,7 @@ export default async function AdminPage() {
       </div>
 
       {/* Metric row 1 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 10 }}>
         {[
           { label: 'Beta Users',          value: String(betaUsers.length),          sub: `${usedCodes.length} of ${codes.length} codes used` },
           { label: 'Endpoints Monitored', value: String(services.length),           sub: 'across all users' },
@@ -191,7 +191,7 @@ export default async function AdminPage() {
       </div>
 
       {/* Metric row 2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
         {[
           { label: 'Operational',       value: String(operationalCount), sub: `of ${services.length} endpoints`,    green: issueCount === 0 },
           { label: 'Degraded / Critical', value: String(issueCount),    sub: 'need attention',                     amber: issueCount > 0 },
@@ -208,7 +208,7 @@ export default async function AdminPage() {
 
       {/* Wallet & Spend */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
           {/* USDC Balance */}
           <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>USDC Balance</div>
@@ -254,12 +254,14 @@ export default async function AdminPage() {
               <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>USDC on Base</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
                 <thead>
                   <tr>
-                    {['Endpoint', 'Owner', 'Avg / call', 'Checks', 'Total (24h)'].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>{h}</th>
-                    ))}
+                    <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Endpoint</th>
+                    <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Owner</th>
+                    <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Avg / call</th>
+                    <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Checks</th>
+                    <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Total (24h)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -269,15 +271,15 @@ export default async function AdminPage() {
                     return (
                       <tr key={svcId}>
                         <td style={tdStyle}>
-                          <div style={{ fontSize: 12, fontFamily: 'var(--font-geist-mono)', color: 'var(--text-secondary)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{endpoint}</div>
+                          <div style={{ fontSize: 12, fontFamily: 'var(--font-geist-mono)', color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{endpoint}</div>
                         </td>
-                        <td style={tdStyle}>
+                        <td className="mobile-hide" style={tdStyle}>
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{email}</span>
                         </td>
-                        <td style={tdStyle}>
+                        <td className="mobile-hide" style={tdStyle}>
                           <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text-secondary)' }}>${avg.toFixed(4)}</span>
                         </td>
-                        <td style={tdStyle}>
+                        <td className="mobile-hide" style={tdStyle}>
                           <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>{count}</span>
                         </td>
                         <td style={tdStyle}>
@@ -299,7 +301,7 @@ export default async function AdminPage() {
       </div>
 
       {/* Body */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
 
         {/* Left */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -314,12 +316,14 @@ export default async function AdminPage() {
               <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No beta users yet</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
                   <thead>
                     <tr>
-                      {['User', 'Services', 'Telegram', 'Joined', 'Code used'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>{h}</th>
-                      ))}
+                      <th style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>User</th>
+                      <th style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Services</th>
+                      <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Telegram</th>
+                      <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Joined</th>
+                      <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Code used</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -332,12 +336,12 @@ export default async function AdminPage() {
                       return (
                         <tr key={u.id}>
                           <td style={tdStyle}>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{u.email}</div>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{u.email}</div>
                           </td>
                           <td style={tdStyle}>
                             <span style={{ fontSize: 13, color: svcCount === 0 ? 'var(--status-degraded)' : 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{svcCount}</span>
                           </td>
-                          <td style={tdStyle}>
+                          <td className="mobile-hide" style={tdStyle}>
                             <span style={{
                               fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
                               textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -347,10 +351,10 @@ export default async function AdminPage() {
                               {hasTelegram ? '✓' : '–'}
                             </span>
                           </td>
-                          <td style={tdStyle}>
+                          <td className="mobile-hide" style={tdStyle}>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(u.created_at)}</span>
                           </td>
-                          <td style={{ ...tdStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <td className="mobile-hide" style={{ ...tdStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
                             {code
                               ? <span style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-secondary)', flex: 1 }}>{code}</span>
                               : <span style={{ fontSize: 11, color: 'var(--text-dim)', flex: 1 }}>—</span>
