@@ -23,13 +23,14 @@ export function StatusPageLink({ userId }: { userId: string }) {
       padding: '14px 18px', display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', gap: 12, marginBottom: 32,
     }}>
-      <div>
+      <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 11, fontWeight: 500, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
           Your public status page
         </div>
         <span style={{
           fontSize: 13, color: '#888',
           fontFamily: 'var(--font-geist-mono)',
+          display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {url}
         </span>

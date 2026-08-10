@@ -87,7 +87,7 @@ export default function EditServicePage() {
   }
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 600, margin: '0 auto' }}>
+    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 600, margin: '0 auto' }}>
       <div style={{ marginBottom: 24 }}>
         <Link href={`/services/${id}`} style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none' }}>← Back</Link>
       </div>
@@ -113,7 +113,7 @@ export default function EditServicePage() {
             </select>
           </Field>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
             <Field label="Expected price (USDC)">
               <input type="number" value={expectedPrice} onChange={e => setExpectedPrice(e.target.value)}
                 required step="any" min="0.000001" className="app-input" />
@@ -124,7 +124,7 @@ export default function EditServicePage() {
             </Field>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
             <Field label="Latency threshold (ms)">
               <input type="number" value={latencyThreshold} onChange={e => setLatencyThreshold(e.target.value)}
                 required min="100" step="100" className="app-input" />
