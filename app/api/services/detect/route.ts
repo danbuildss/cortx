@@ -58,6 +58,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     name: slugToName(validatedUrl),
   };
   const missing: string[] = [];
+  let _debugStatus = 0;
+  let _debugBody = '';
+  let _debugHeader = '';
 
   type PaymentOpt = {
     network?: string; maxAmountRequired?: string;
@@ -86,24 +89,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   async function readBodyCapped(res: Response): Promise<string> {
-    const MAX = 65_536;
     try {
-      const cl = parseInt(res.headers.get('content-length') ?? '', 10);
-      if (!isNaN(cl) && cl > MAX) return '';
-      const reader = res.body?.getReader();
-      if (!reader) return '';
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) { total += value.length; if (total > MAX) { reader.cancel(); break; } chunks.push(value); }
-      }
-      reader.releaseLock();
-      const merged = new Uint8Array(total);
-      let off = 0;
-      for (const c of chunks) { merged.set(c, off); off += c.length; }
-      return new TextDecoder().decode(merged);
+      const text = await res.text();
+      return text.length > 65_536 ? '' : text;
     } catch { return ''; }
   }
 
@@ -131,12 +119,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       clearTimeout(timer);
     }
 
+    _debugStatus = response.status;
+
     if (response.status === 402) {
       const rawBody = await readBodyCapped(response);
+      _debugBody = rawBody.slice(0, 500);
 
       // Parse body and X-Payment-Required header; body accepts[] takes precedence.
       const { opt: bodyOpt, terms: bodyTerms } = parsePaymentTerms(rawBody);
       const xPayHeader = response.headers.get('x-payment-required') ?? '';
+      _debugHeader = xPayHeader.slice(0, 500);
       const { opt: headerOpt, terms: headerTerms } = parsePaymentTerms(xPayHeader);
 
       const opt  = bodyOpt  ?? headerOpt;
@@ -229,5 +221,5 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     detected.output_schema = { type: 'object' };
   }
 
-  return NextResponse.json({ detected, missing });
+  return NextResponse.json({ detected, missing, _debug: { status: _debugStatus, body: _debugBody, header: _debugHeader } });
 }
