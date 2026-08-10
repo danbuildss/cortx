@@ -122,7 +122,7 @@
 .lp .eyebrow::before{content:'';width:5px;height:5px;background:var(--indigo);border-radius:50%;}
 .lp .hero-headline{font-size:clamp(32px,4.8vw,56px);font-weight:700;line-height:1.08;letter-spacing:-0.025em;color:var(--text-1);text-wrap:balance;margin-bottom:14px;}
 .lp .hero-sub{font-size:14.5px;line-height:1.65;color:var(--text-2);max-width:480px;margin:0 auto 28px;}
-.lp .hero-actions{display:flex;align-items:center;gap:9px;justify-content:center;margin-bottom:44px;}
+.lp .hero-actions{display:flex;align-items:center;gap:9px;justify-content:center;flex-wrap:wrap;margin-bottom:44px;}
 .lp .btn-cta-primary{display:inline-flex;align-items:center;gap:7px;padding:9px 19px;font-size:13.5px;font-weight:500;color:var(--cta-text);background:var(--cta-bg);border:none;border-radius:var(--r-lg);transition:opacity .12s;}
 .lp .btn-cta-primary:hover{opacity:0.82;}
 .lp .btn-cta-ghost{display:inline-flex;align-items:center;gap:7px;padding:9px 17px;font-size:13.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid var(--border-mid);border-radius:var(--r-lg);transition:all .12s;}

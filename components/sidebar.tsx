@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -85,6 +86,22 @@ function ExternalIcon() {
   );
 }
 
+function CollapseIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      {collapsed ? (
+        <>
+          <polyline points="6,4 10,8 6,12"/>
+        </>
+      ) : (
+        <>
+          <polyline points="10,4 6,8 10,12"/>
+        </>
+      )}
+    </svg>
+  );
+}
+
 // ── Types ──────────────────────────────────────────────────
 interface SidebarProps {
   email: string;
@@ -110,6 +127,20 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
   const router = useRouter();
   const supabase = createClient();
   const { theme, toggle } = useAppTheme();
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('cortx-sidebar-collapsed');
+    if (stored === '1') setCollapsed(true);
+  }, []);
+
+  function toggleCollapse() {
+    setCollapsed(c => {
+      const next = !c;
+      localStorage.setItem('cortx-sidebar-collapsed', next ? '1' : '0');
+      return next;
+    });
+  }
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -122,6 +153,7 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
   }
 
   const avatarLetters = initials(displayName, email);
+  const w = collapsed ? 52 : 224;
 
   const mainNav = [
     { label: 'Overview', href: '/overview', icon: <OverviewIcon /> },
@@ -135,12 +167,20 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
     { label: 'Account', href: '/settings/account', icon: <AccountIcon /> },
   ];
 
+  const linkStyle = (active: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: collapsed ? 0 : 8,
+    justifyContent: collapsed ? 'center' : 'flex-start',
+    padding: collapsed ? '7px 0' : '7px 12px',
+  });
+
   return (
     <aside
       className="sidebar-el"
       style={{
-        width: 224,
-        minWidth: 224,
+        width: w,
+        minWidth: w,
         background: 'var(--sidebar-bg)',
         borderRight: '1px solid var(--sidebar-border)',
         display: 'flex',
@@ -148,26 +188,35 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
         height: '100vh',
         position: 'sticky',
         top: 0,
+        overflow: 'hidden',
+        transition: 'width 0.2s ease, min-width 0.2s ease',
       }}
     >
       {/* Wordmark */}
-      <div style={{ padding: '18px 16px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <svg width="24" height="18" viewBox="0 0 80 60" fill="none" aria-hidden="true">
+      <div style={{
+        padding: collapsed ? '18px 0 14px' : '18px 16px 14px',
+        display: 'flex', alignItems: 'center',
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        gap: 8, flexShrink: 0,
+      }}>
+        <svg width="24" height="18" viewBox="0 0 80 60" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
           <circle cx="23" cy="30" r="18" stroke="var(--text-primary)" strokeWidth="3" />
           <circle cx="57" cy="30" r="18" stroke="var(--text-primary)" strokeWidth="3" />
           <line x1="7" y1="30" x2="33" y2="30" stroke="var(--text-primary)" strokeWidth="2.5" strokeLinecap="round" />
           <path d="M40 23 A7 7 0 0 1 40 37" stroke="var(--text-primary)" strokeWidth="2.5" strokeLinecap="round" />
           <circle cx="40" cy="30" r="5" fill="var(--text-primary)" />
         </svg>
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-          CORTX
-        </span>
+        {!collapsed && (
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+            CORTX
+          </span>
+        )}
       </div>
 
-      <div style={{ height: 1, background: 'var(--sidebar-border)', margin: '0 10px' }} />
+      <div style={{ height: 1, background: 'var(--sidebar-border)', margin: '0 10px', flexShrink: 0 }} />
 
       {/* Main nav */}
-      <nav style={{ padding: '6px 6px', flex: 1 }}>
+      <nav style={{ padding: '6px 6px', flex: 1, overflow: 'hidden' }}>
         {mainNav.map((item) => {
           const active = item.external ? false : isActive(item.href, (item as { activePath?: string }).activePath);
           return item.external ? (
@@ -177,32 +226,51 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
               target="_blank"
               rel="noopener noreferrer"
               className="app-nav-link"
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              title={collapsed ? item.label : undefined}
+              style={linkStyle(false)}
             >
               <span style={{ flexShrink: 0, opacity: 0.7 }}>{item.icon}</span>
-              <span style={{ flex: 1 }}>{item.label}</span>
-              <span style={{ opacity: 0.4 }}><ExternalIcon /></span>
+              {!collapsed && (
+                <>
+                  <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
+                  <span style={{ opacity: 0.4 }}><ExternalIcon /></span>
+                </>
+              )}
             </a>
           ) : (
             <Link
               key={item.href}
               href={item.href}
               className={`app-nav-link${active ? ' active' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              title={collapsed ? item.label : undefined}
+              style={linkStyle(active)}
             >
               <span style={{ flexShrink: 0, opacity: active ? 1 : 0.55 }}>{item.icon}</span>
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {item.label === 'Incidents' && openIncidents > 0 && (
+              {!collapsed && (
+                <>
+                  <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
+                  {item.label === 'Incidents' && openIncidents > 0 && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 600,
+                      background: 'var(--status-critical)',
+                      color: '#fff',
+                      borderRadius: 99,
+                      padding: '1px 5px',
+                      lineHeight: '15px',
+                    }}>
+                      {openIncidents}
+                    </span>
+                  )}
+                </>
+              )}
+              {collapsed && item.label === 'Incidents' && openIncidents > 0 && (
                 <span style={{
-                  fontSize: 10, fontWeight: 600,
+                  position: 'absolute',
+                  top: 4, right: 4,
+                  width: 6, height: 6,
+                  borderRadius: '50%',
                   background: 'var(--status-critical)',
-                  color: '#fff',
-                  borderRadius: 99,
-                  padding: '1px 5px',
-                  lineHeight: '15px',
-                }}>
-                  {openIncidents}
-                </span>
+                }} />
               )}
             </Link>
           );
@@ -217,10 +285,11 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
               key={item.href}
               href={item.href}
               className={`app-nav-link${active ? ' active' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              title={collapsed ? item.label : undefined}
+              style={linkStyle(active)}
             >
               <span style={{ flexShrink: 0, opacity: active ? 1 : 0.55 }}>{item.icon}</span>
-              <span>{item.label}</span>
+              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
             </Link>
           );
         })}
@@ -231,76 +300,66 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
             <Link
               href="/admin"
               className={`app-nav-link${isActive('/admin') ? ' active' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              title={collapsed ? 'Admin' : undefined}
+              style={linkStyle(isActive('/admin'))}
             >
               <span style={{ flexShrink: 0, opacity: isActive('/admin') ? 1 : 0.55 }}><AdminIcon /></span>
-              <span style={{ flex: 1 }}>Admin</span>
-              <span style={{
-                fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, letterSpacing: '0.04em',
-                background: 'rgba(239,68,68,0.12)', color: 'var(--status-critical)',
-                border: '1px solid rgba(239,68,68,0.2)',
-              }}>OWNER</span>
+              {!collapsed && (
+                <>
+                  <span style={{ flex: 1, whiteSpace: 'nowrap' }}>Admin</span>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, letterSpacing: '0.04em',
+                    background: 'rgba(239,68,68,0.12)', color: 'var(--status-critical)',
+                    border: '1px solid rgba(239,68,68,0.2)', whiteSpace: 'nowrap',
+                  }}>OWNER</span>
+                </>
+              )}
             </Link>
           </>
         )}
+
+        {/* Collapse toggle */}
+        <div style={{ height: 1, background: 'var(--sidebar-border)', margin: '6px 4px' }} />
+        <button
+          onClick={toggleCollapse}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            gap: collapsed ? 0 : 8,
+            width: '100%', padding: collapsed ? '7px 0' : '7px 12px',
+            background: 'none', border: 'none', borderRadius: 6,
+            cursor: 'pointer', color: 'var(--text-dim)',
+            transition: 'color 0.1s',
+            marginBottom: 2,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-dim)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}
+        >
+          <span style={{ flexShrink: 0 }}><CollapseIcon collapsed={collapsed} /></span>
+          {!collapsed && <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>Collapse</span>}
+        </button>
       </nav>
 
-      <div style={{ height: 1, background: 'var(--sidebar-border)', margin: '0 10px' }} />
+      <div style={{ height: 1, background: 'var(--sidebar-border)', margin: '0 10px', flexShrink: 0 }} />
 
       {/* Account section */}
-      <div style={{ padding: '10px 10px 12px' }}>
-        <Link
-          href="/settings/account"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 9,
-            padding: '7px 8px', borderRadius: 7,
-            textDecoration: 'none',
-            background: isActive('/settings/account') ? 'var(--bg-hover)' : 'transparent',
-            transition: 'background 0.15s',
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = isActive('/settings/account') ? 'var(--bg-hover)' : 'transparent'; }}
-        >
-          <div style={{
-            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-            background: 'var(--bg-muted)',
-            border: '1px solid var(--border-default)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
-          }}>
-            {avatarLetters}
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{
-              fontSize: 12, fontWeight: 500, color: 'var(--text-primary)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {displayName || email.split('@')[0]}
-            </div>
-            {displayName && (
-              <div style={{
-                fontSize: 11, color: 'var(--text-muted)',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {email}
-              </div>
-            )}
-          </div>
-        </Link>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2, padding: '0 2px' }}>
-          <button
-            onClick={signOut}
+      {collapsed ? (
+        <div style={{ padding: '10px 0 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <Link
+            href="/settings/account"
+            title={displayName || email.split('@')[0]}
             style={{
-              fontSize: 11, color: 'var(--text-secondary)',
-              background: 'none', border: 'none', padding: '4px 6px',
-              cursor: 'pointer', borderRadius: 4, transition: 'color 0.1s',
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'var(--bg-muted)',
+              border: '1px solid var(--border-default)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
+              textDecoration: 'none',
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}
           >
-            Sign out
-          </button>
+            {avatarLetters}
+          </Link>
           <button
             onClick={toggle}
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -310,21 +369,90 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
               background: 'none', border: '1px solid var(--border-mid)',
               borderRadius: 6, cursor: 'pointer',
               color: 'var(--text-secondary)', fontSize: 12,
-              transition: 'border-color 0.1s, color 0.1s',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-              (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-              (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-mid)';
             }}
           >
             {theme === 'dark' ? '☀' : '◑'}
           </button>
         </div>
-      </div>
+      ) : (
+        <div style={{ padding: '10px 10px 12px', flexShrink: 0 }}>
+          <Link
+            href="/settings/account"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 9,
+              padding: '7px 8px', borderRadius: 7,
+              textDecoration: 'none',
+              background: isActive('/settings/account') ? 'var(--bg-hover)' : 'transparent',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = isActive('/settings/account') ? 'var(--bg-hover)' : 'transparent'; }}
+          >
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+              background: 'var(--bg-muted)',
+              border: '1px solid var(--border-default)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
+            }}>
+              {avatarLetters}
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{
+                fontSize: 12, fontWeight: 500, color: 'var(--text-primary)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {displayName || email.split('@')[0]}
+              </div>
+              {displayName && (
+                <div style={{
+                  fontSize: 11, color: 'var(--text-muted)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {email}
+                </div>
+              )}
+            </div>
+          </Link>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2, padding: '0 2px' }}>
+            <button
+              onClick={signOut}
+              style={{
+                fontSize: 11, color: 'var(--text-secondary)',
+                background: 'none', border: 'none', padding: '4px 6px',
+                cursor: 'pointer', borderRadius: 4, transition: 'color 0.1s',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}
+            >
+              Sign out
+            </button>
+            <button
+              onClick={toggle}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                width: 26, height: 26,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'none', border: '1px solid var(--border-mid)',
+                borderRadius: 6, cursor: 'pointer',
+                color: 'var(--text-secondary)', fontSize: 12,
+                transition: 'border-color 0.1s, color 0.1s',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-mid)';
+              }}
+            >
+              {theme === 'dark' ? '☀' : '◑'}
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
