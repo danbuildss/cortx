@@ -305,6 +305,10 @@
 @media(max-width:640px){
   .lp .steps-grid,.lp .safe-grid{grid-template-columns:1fr;}
   .lp .nav-links{display:none;}
+  /* Hide "Sign in" ghost button — CTA + theme toggle is enough on mobile */
+  .lp .btn-nav-ghost{display:none;}
+  .lp .btn-nav-cta{padding:5px 12px;font-size:12px;}
+  .lp .btn-theme{width:28px;height:28px;}
   .lp .section{padding:48px 0;}
   .lp .hero{padding:48px 24px 0;}
   .lp .proof-inner{grid-template-columns:1fr;}
