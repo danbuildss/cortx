@@ -70,6 +70,7 @@ body {
 /* ── App nav links (sidebar) ────────────────────────────── */
 .app-nav-link {
   display: block;
+  position: relative;
   padding: 7px 12px;
   border-radius: 6px;
   font-size: 13px;

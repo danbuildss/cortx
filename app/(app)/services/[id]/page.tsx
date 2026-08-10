@@ -61,18 +61,18 @@ export default async function ServiceDetailPage({
   };
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 960, margin: '0 auto' }}>
+    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 960, margin: '0 auto' }}>
       <div style={{ marginBottom: 20 }}>
         <Link href="/overview" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none' }}>← Overview</Link>
       </div>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
-        <div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 32 }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{service.name}</h1>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-geist-mono)' }}>{service.endpoint_url}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-geist-mono)', wordBreak: 'break-all' }}>{service.endpoint_url}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: STATUS_COLOR[service.status ?? 'unknown'], fontWeight: 500 }}>
             ● {service.status ?? 'unknown'}
           </span>
@@ -106,7 +106,7 @@ export default async function ServiceDetailPage({
       )}
 
       {/* Meta */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 32 }}>
         <MetaCard label="Network" value={service.environment === 'mainnet' ? 'Base Mainnet' : 'Base Sepolia'} />
         <MetaCard label="Check interval" value={`Every ${service.check_interval_minutes}m`} />
         <MetaCard label="Last checked" value={service.last_checked_at ? formatRelative(service.last_checked_at) : 'Never'} />
@@ -135,8 +135,8 @@ export default async function ServiceDetailPage({
         </div>
       ) : (
         <>
-          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, overflow: 'hidden', marginBottom: 24 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, overflowX: 'auto', marginBottom: 24 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
                   {['Time', 'Status', 'Latency', 'Failed stage'].map(h => (
