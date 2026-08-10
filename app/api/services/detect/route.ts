@@ -63,6 +63,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     network?: string; maxAmountRequired?: string;
     payTo?: string; recipient?: string;
     asset?: string; description?: string; resource?: string;
+    outputSchema?: Record<string, unknown>;
+    extra?: { name?: string; description?: string; [k: string]: unknown };
   };
   type BodyTerms = { accepts?: PaymentOpt[]; description?: string; error?: string };
 
@@ -180,18 +182,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           missing.push('recipient');
         }
 
-        // Description
-        const desc = terms?.description ?? opt.description ?? opt.resource;
+        // Description — check all known locations across x402 versions
+        const desc = terms?.description
+          ?? opt.description
+          ?? opt.extra?.description
+          ?? opt.extra?.name
+          ?? opt.resource;
         if (desc) detected.description = desc;
         else missing.push('description');
+
+        // Output schema — use outputSchema from payment terms if available
+        if (opt.outputSchema && typeof opt.outputSchema === 'object') {
+          detected.output_schema = opt.outputSchema;
+        }
 
       } else {
         missing.push('payment_terms', 'network', 'price', 'recipient', 'description');
       }
 
-      // Schemas: for x402, default input is {} and output is inferred
+      // Schemas: defaults (may have been overridden above by outputSchema)
       detected.input_schema = { type: 'object' };
-      detected.output_schema = { type: 'object' };
+      if (!detected.output_schema) detected.output_schema = { type: 'object' };
 
     } else if (response.status === 200) {
       // Non-x402 endpoint — infer schema from response
