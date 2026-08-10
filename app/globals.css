@@ -175,4 +175,11 @@ body {
 
   /* Generic page padding */
   .page-content   { padding: 16px !important; }
+
+  /* Hide less-important table columns — used across all data tables */
+  .mobile-hide    { display: none !important; }
+
+  /* Tighter cell padding so remaining columns have more room */
+  .data-table th,
+  .data-table td  { padding-left: 10px !important; padding-right: 10px !important; }
 }

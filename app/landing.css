@@ -263,7 +263,7 @@
 /* ── CTA ── */
 .lp .cta-section{text-align:center;padding:72px 0;background:linear-gradient(180deg,var(--bg) 0%,var(--bg-white) 100%);}
 .lp .cta-sub{font-size:13.5px;color:var(--text-2);max-width:360px;margin:10px auto 24px;line-height:1.65;}
-.lp .cta-actions{display:flex;align-items:center;gap:9px;justify-content:center;margin-bottom:14px;}
+.lp .cta-actions{display:flex;align-items:center;gap:9px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;}
 .lp .cta-note{font-size:11px;color:var(--text-3);max-width:400px;margin:0 auto;line-height:1.65;}
 
 /* ── Footer ── */

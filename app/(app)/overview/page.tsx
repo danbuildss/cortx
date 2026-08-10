@@ -179,11 +179,17 @@ export default async function OverviewPage({
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Services</span>
               </div>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                      {['Service', 'Status', `Resp. (${rl})`, 'Last Check', 'Incidents'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                      {([
+                        { label: 'Service', hide: false },
+                        { label: 'Status', hide: false },
+                        { label: `Resp. (${rl})`, hide: true },
+                        { label: 'Last Check', hide: true },
+                        { label: 'Incidents', hide: true },
+                      ] as { label: string; hide: boolean }[]).map(({ label, hide }) => (
+                        <th key={label} className={hide ? 'mobile-hide' : undefined} style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</th>
                       ))}
                     </tr>
                   </thead>
@@ -205,7 +211,7 @@ export default async function OverviewPage({
                           <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
                             <StatusBadge status={svc.status ?? 'unknown'} />
                           </td>
-                          <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                          <td className="mobile-hide" style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
                             {avgMs != null ? (
                               <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)' }}>
                                 {avgMs < 1000 ? `${avgMs}ms` : `${(avgMs / 1000).toFixed(1)}s`}
@@ -214,12 +220,12 @@ export default async function OverviewPage({
                               <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>—</span>
                             )}
                           </td>
-                          <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                          <td className="mobile-hide" style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                               {svc.last_checked_at ? formatRelative(svc.last_checked_at) : '—'}
                             </span>
                           </td>
-                          <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                          <td className="mobile-hide" style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
                             {openCnt > 0 ? (
                               <Link href="/incidents" style={{ fontSize: 12, color: 'var(--status-critical)', textDecoration: 'none' }}>
                                 {openCnt} open

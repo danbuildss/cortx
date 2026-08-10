@@ -98,19 +98,16 @@ function IncidentTable({ incidents }: { incidents: IncidentRow[] }) {
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
-            {['', 'Service', 'Severity', 'Status', 'Failed stage', 'Opened', 'Duration'].map((h, idx) => (
-              <th key={idx} style={{
-                textAlign: 'left',
-                padding: h === '' ? '10px 0 10px 16px' : '10px 16px',
-                fontSize: 11, fontWeight: 500,
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase', letterSpacing: '0.05em',
-                width: h === '' ? 4 : undefined,
-              }}>{h}</th>
-            ))}
+            <th style={{ textAlign: 'left', padding: '10px 0 10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: 4 }}></th>
+            <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</th>
+            <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</th>
+            <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+            <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Failed stage</th>
+            <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Opened</th>
+            <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Duration</th>
           </tr>
         </thead>
         <tbody>
@@ -145,18 +142,18 @@ function IncidentTable({ incidents }: { incidents: IncidentRow[] }) {
                     {inc.severity}
                   </span>
                 </td>
-                <td style={{ padding: '12px 16px' }}>
+                <td className="mobile-hide" style={{ padding: '12px 16px' }}>
                   <span style={{ fontSize: 12, color: STATUS_COLOR[inc.status] ?? 'var(--text-secondary)' }}>
                     {inc.status}
                   </span>
                 </td>
-                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)' }}>
+                <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)' }}>
                   {inc.failure_stage}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
                   {new Date(inc.opened_at).toLocaleString()}
                 </td>
-                <td style={{ padding: '12px 16px', fontSize: 12 }}>
+                <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12 }}>
                   {inc.resolved_at
                     ? <span style={{ color: 'var(--text-muted)' }}>{duration}</span>
                     : <span style={{ color: 'var(--status-degraded)' }}>{duration} ongoing</span>

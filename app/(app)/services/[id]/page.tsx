@@ -136,12 +136,13 @@ export default async function ServiceDetailPage({
       ) : (
         <>
           <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, overflowX: 'auto', marginBottom: 24 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
-                  {['Time', 'Status', 'Latency', 'Failed stage'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                  ))}
+                  <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Time</th>
+                  <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                  <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Latency</th>
+                  <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Failed stage</th>
                 </tr>
               </thead>
               <tbody>
@@ -160,7 +161,7 @@ export default async function ServiceDetailPage({
                       <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)' }}>
                         {chk.latency_ms != null ? `${chk.latency_ms}ms` : '—'}
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--status-critical)', fontFamily: 'var(--font-geist-mono)' }}>
+                      <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12, color: 'var(--status-critical)', fontFamily: 'var(--font-geist-mono)' }}>
                         {chk.failure_stage ?? '—'}
                       </td>
                     </tr>
