@@ -58,6 +58,7 @@ export function OnboardWizard({ initialTelegramConnected }: { initialTelegramCon
   const [detectError, setDetectError] = useState('');
   const [detected, setDetected] = useState<Detected | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
+  const [debugStatus, setDebugStatus] = useState<number | null>(null);
 
   // Step 2 state
   const [name, setName] = useState('');
@@ -106,6 +107,7 @@ export function OnboardWizard({ initialTelegramConnected }: { initialTelegramCon
       if (!res.ok) { setDetectError(data.error ?? 'Detection failed'); setDetecting(false); return; }
       setDetected(data.detected);
       setMissing(data.missing ?? []);
+      setDebugStatus(data._debug?.status ?? null);
       // Pre-fill step 2
       setName(data.detected.name ?? '');
       setEnvironment(data.detected.environment ?? 'mainnet');
@@ -259,6 +261,7 @@ export function OnboardWizard({ initialTelegramConnected }: { initialTelegramCon
           url={url} setUrl={setUrl}
           detecting={detecting} detectError={detectError}
           detected={detected} missing={missing}
+          debugStatus={debugStatus}
           onDetect={detect} onContinue={goToConfigure}
         />
       )}
@@ -319,11 +322,12 @@ function StepPill({ step }: { step: Step }) {
 // ── Step 1: Detect ────────────────────────────────────────────────────────────
 
 function DetectStep({
-  url, setUrl, detecting, detectError, detected, missing, onDetect, onContinue,
+  url, setUrl, detecting, detectError, detected, missing, debugStatus, onDetect, onContinue,
 }: {
   url: string; setUrl: (v: string) => void;
   detecting: boolean; detectError: string;
   detected: Detected | null; missing: string[];
+  debugStatus: number | null;
   onDetect: () => void; onContinue: () => void;
 }) {
   function handleKey(e: React.KeyboardEvent) { if (e.key === 'Enter') onDetect(); }
@@ -384,6 +388,12 @@ function DetectStep({
           {missing.length > 0 && (
             <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 14 }}>
               Some values could not be detected and will use defaults — you can edit them in the next step.
+              {debugStatus !== null && debugStatus !== 402 && (
+                <span style={{ color: 'var(--status-degraded)' }}> Endpoint returned HTTP {debugStatus} instead of 402 — it may not be an x402 service.</span>
+              )}
+              {debugStatus === 402 && missing.includes('payment_terms') && (
+                <span style={{ color: 'var(--status-degraded)' }}> Endpoint returned 402 but payment terms could not be parsed — please fill in price and network manually.</span>
+              )}
             </p>
           )}
           <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
