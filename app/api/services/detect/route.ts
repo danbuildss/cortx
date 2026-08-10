@@ -102,15 +102,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
       // Try POST first; if it doesn't return 402 fall back to GET — some x402
       // endpoints (e.g. Bankr price-quote style) only gate on GET requests.
+      const baseHeaders = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
       response = await fetch(validatedUrl.toString(), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: baseHeaders,
         body: JSON.stringify({}),
         signal: controller.signal,
       });
       if (response.status !== 402) {
         const getResp = await fetch(validatedUrl.toString(), {
           method: 'GET',
+          headers: baseHeaders,
           signal: controller.signal,
         });
         if (getResp.status === 402) response = getResp;
@@ -125,9 +127,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const rawBody = await readBodyCapped(response);
       _debugBody = rawBody.slice(0, 500);
 
-      // Parse body and X-Payment-Required header; body accepts[] takes precedence.
+      // Parse body and payment headers; body accepts[] takes precedence.
+      // Check multiple header names used across x402 implementations.
       const { opt: bodyOpt, terms: bodyTerms } = parsePaymentTerms(rawBody);
-      const xPayHeader = response.headers.get('x-payment-required') ?? '';
+      const xPayHeader =
+        response.headers.get('x-payment-required') ??
+        response.headers.get('x-payment') ??
+        response.headers.get('www-authenticate') ??
+        '';
       _debugHeader = xPayHeader.slice(0, 500);
       const { opt: headerOpt, terms: headerTerms } = parsePaymentTerms(xPayHeader);
 
