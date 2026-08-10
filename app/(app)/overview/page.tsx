@@ -122,12 +122,12 @@ export default async function OverviewPage({
     <div className="overview-page" style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Header */}
-      <div className="anim-fade-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div className="anim-fade-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 19, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Overview</h1>
           <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.email}</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <Suspense fallback={null}><RangeToggle current={range} /></Suspense>
           <Link href="/services/new" className="btn-primary">+ Add service</Link>
         </div>

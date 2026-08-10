@@ -244,7 +244,7 @@ export function OnboardWizard({ initialTelegramConnected }: { initialTelegramCon
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 640, margin: '0 auto' }}>
+    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 640, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <Link href="/overview" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none' }}>← Overview</Link>
@@ -483,7 +483,7 @@ function ConfigureStep(props: {
           <input className="app-input" value={props.name} onChange={e => props.setName(e.target.value)} placeholder="My x402 API" />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Observed price</label>
             <input className="app-input" type="number" value={props.expectedPrice} onChange={e => props.setExpectedPrice(e.target.value)} placeholder="0.001000" step="any" min="0.000001" />
@@ -533,7 +533,7 @@ function ConfigureStep(props: {
       {/* Monitoring preset */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: 24 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 14 }}>Monitoring frequency</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
           {(Object.entries(PRESETS) as [Preset, typeof PRESETS[Preset]][]).map(([key, p]) => {
             const monthlyCost = (price * p.checksPerMonth).toFixed(4);
             const selected = props.preset === key;

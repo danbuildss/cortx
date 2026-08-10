@@ -13,7 +13,7 @@ export default async function AlertSettingsPage() {
     .maybeSingle();
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 640, margin: '0 auto' }}>
+    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 640, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
           Alert settings
