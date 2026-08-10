@@ -47,6 +47,7 @@ export default async function AdminPage() {
     { data: telegramConns },
     { data: todaySpendRows },
     { data: monthSpendRows },
+    { data: lastCheckRow },
     walletBalance,
   ] = await Promise.all([
     service.auth.admin.listUsers({ perPage: 100 }),
@@ -57,6 +58,7 @@ export default async function AdminPage() {
     service.from('telegram_connections').select('user_id').eq('active', true),
     service.from('checks').select('observed_price').gte('started_at', todayStart.toISOString()).in('status', ['passed', 'success']),
     service.from('checks').select('observed_price').gte('started_at', monthStart.toISOString()).in('status', ['passed', 'success']),
+    service.from('checks').select('started_at').order('started_at', { ascending: false }).limit(1),
     fetchWalletBalance(),
   ]);
 
@@ -119,6 +121,22 @@ export default async function AdminPage() {
       return { svcId, endpoint: svc?.endpoint_url ?? svcId, email: u?.email ?? '—', total, count, avg: count > 0 ? total / count : 0 };
     });
   const maxServiceCost = topCostServices[0]?.total ?? 1;
+
+  // Per-user check counts (24h)
+  const serviceUserMap = new Map<string, string>();
+  for (const svc of services) serviceUserMap.set(svc.id, svc.user_id);
+  const checksByUser = new Map<string, number>();
+  for (const c of (checks24h ?? [])) {
+    const uid = serviceUserMap.get(c.service_id);
+    if (uid) checksByUser.set(uid, (checksByUser.get(uid) ?? 0) + 1);
+  }
+
+  // Open incidents
+  const openIncidents = incidents.filter(i => i.status !== 'resolved');
+
+  // Last cron run
+  const lastCronAt = lastCheckRow?.[0]?.started_at ?? null;
+  const cronStale = lastCronAt !== null && Date.now() - new Date(lastCronAt).getTime() > 30 * 60 * 1000;
 
   // Code by email
   const codeByEmail = new Map<string, string>();
@@ -197,6 +215,7 @@ export default async function AdminPage() {
           { label: 'Degraded / Critical', value: String(issueCount),    sub: 'need attention',                     amber: issueCount > 0 },
           { label: 'Inactive Signups',  value: String(inactiveCount),   sub: 'joined, 0 services added',           amber: inactiveCount > 0 },
           { label: 'Telegram Connected', value: String(telegramCount),  sub: `of ${betaUsers.length} users` },
+          { label: 'Cron Last Fired',   value: lastCronAt ? timeAgo(lastCronAt) : '—', sub: lastCronAt ? `most recent check` : 'no checks yet', amber: cronStale },
         ].map(({ label, value, sub, green, amber }) => (
           <div key={label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>{label}</div>
@@ -321,6 +340,8 @@ export default async function AdminPage() {
                     <tr>
                       <th style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>User</th>
                       <th style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Services</th>
+                      <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Checks (24h)</th>
+                      <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Last seen</th>
                       <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Telegram</th>
                       <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Joined</th>
                       <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Code used</th>
@@ -331,15 +352,22 @@ export default async function AdminPage() {
                       const isLast = i === sortedUsers.length - 1;
                       const code = codeByEmail.get((u.email ?? '').toLowerCase());
                       const svcCount = servicesByUser.get(u.id) ?? 0;
+                      const userChecks = checksByUser.get(u.id) ?? 0;
                       const hasTelegram = telegramUserIds.has(u.id);
                       const tdStyle: React.CSSProperties = { padding: '11px 18px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)', verticalAlign: 'middle' };
                       return (
                         <tr key={u.id}>
                           <td style={tdStyle}>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{u.email}</div>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{u.email}</div>
                           </td>
                           <td style={tdStyle}>
                             <span style={{ fontSize: 13, color: svcCount === 0 ? 'var(--status-degraded)' : 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{svcCount}</span>
+                          </td>
+                          <td className="mobile-hide" style={tdStyle}>
+                            <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: userChecks === 0 ? 'var(--text-dim)' : 'var(--text-secondary)' }}>{userChecks}</span>
+                          </td>
+                          <td className="mobile-hide" style={tdStyle}>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{u.last_sign_in_at ? timeAgo(u.last_sign_in_at) : '—'}</span>
                           </td>
                           <td className="mobile-hide" style={tdStyle}>
                             <span style={{
@@ -393,6 +421,34 @@ export default async function AdminPage() {
 
         {/* Right column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Open incidents */}
+          {openIncidents.length > 0 && (
+            <div style={card}>
+              <div style={cardHeader}>
+                <span style={cardTitle}>Open Incidents</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--status-critical)' }}>{openIncidents.length} open</span>
+              </div>
+              {openIncidents.map((inc, i) => {
+                const isLast = i === openIncidents.length - 1;
+                const svc = services.find(s => s.id === inc.service_id);
+                const u = svc ? authUsers.find(a => a.id === svc.user_id) : null;
+                return (
+                  <div key={inc.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 16px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)' }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-critical)', flexShrink: 0, marginTop: 4 }} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {svc?.endpoint_url ?? 'Unknown service'}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        {u?.email ?? '—'} · opened {timeAgo(inc.created_at)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Invite codes — full list with copy */}
           <div style={card}>
