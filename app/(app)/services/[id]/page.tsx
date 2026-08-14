@@ -6,6 +6,8 @@ import { RangeToggle } from '../../_components/range-toggle';
 import { parseRange, rangeToMs, rangeLabel } from '../../_components/range-utils';
 import type { Range } from '../../_components/range-utils';
 import { Suspense } from 'react';
+import { ChecksPanel } from './_components/checks-panel';
+import type { CheckRecord } from './_components/checks-panel';
 
 export default async function ServiceDetailPage({
   params,
@@ -52,12 +54,6 @@ export default async function ServiceDetailPage({
     degraded: 'var(--status-degraded)',
     critical: 'var(--status-critical)',
     unknown: 'var(--text-muted)',
-  };
-
-  const CHECK_COLOR: Record<string, string> = {
-    passed: 'var(--status-operational)',
-    failed: 'var(--status-critical)',
-    error: 'var(--status-degraded)',
   };
 
   return (
@@ -129,102 +125,11 @@ export default async function ServiceDetailPage({
         Recent checks · {rl}
       </h2>
 
-      {!recentChecks?.length ? (
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '32px 24px', textAlign: 'center' }}>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No checks in this window. Use &ldquo;Run check&rdquo; above or wait for the next scheduled run.</p>
-        </div>
-      ) : (
-        <>
-          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, overflowX: 'auto', marginBottom: 24 }}>
-            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
-                  <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Time</th>
-                  <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                  <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Latency</th>
-                  <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Failed stage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentChecks.map((chk, i) => {
-                  const isLast = i === recentChecks.length - 1;
-                  return (
-                    <tr key={chk.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)' }}>
-                      <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
-                        {new Date(chk.started_at).toLocaleString()}
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{ fontSize: 12, color: CHECK_COLOR[chk.status] ?? 'var(--text-muted)', fontWeight: 500 }}>
-                          {chk.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)' }}>
-                        {chk.latency_ms != null ? `${chk.latency_ms}ms` : '—'}
-                      </td>
-                      <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12, color: 'var(--status-critical)', fontFamily: 'var(--font-geist-mono)' }}>
-                        {chk.failure_stage ?? '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {recentChecks[0] && (
-            <StageBreakdown check={recentChecks[0]} />
-          )}
-        </>
-      )}
+      <ChecksPanel checks={(recentChecks ?? []) as CheckRecord[]} />
     </div>
   );
 }
 
-type StageRow = {
-  stage: string;
-  passed: boolean | null;
-  duration_ms: number | null;
-  evidence: Record<string, unknown> | null;
-  error?: string;
-};
-
-function StageBreakdown({ check }: { check: { status: string; failure_stage: string | null; stages: unknown } }) {
-  const stages = (check.stages as StageRow[] | null) ?? [];
-  if (!stages.length) return null;
-
-  return (
-    <div>
-      <h2 style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        Latest check — stage detail
-      </h2>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {stages.map((s) => {
-          const color = s.passed === true ? 'var(--status-operational)' : s.passed === false ? 'var(--status-critical)' : 'var(--text-muted)';
-          const icon = s.passed === true ? '✓' : s.passed === false ? '✗' : '·';
-          return (
-            <div key={s.stage} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '12px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: s.evidence ? 8 : 0 }}>
-                <span style={{ fontSize: 13, color, fontWeight: 600, width: 16 }}>{icon}</span>
-                <span style={{ fontSize: 13, color: 'var(--text-primary)', fontFamily: 'var(--font-geist-mono)' }}>{s.stage}</span>
-                {s.error && <span style={{ fontSize: 12, color: 'var(--status-critical)', marginLeft: 8 }}>{s.error}</span>}
-                {s.duration_ms != null && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{s.duration_ms}ms</span>}
-              </div>
-              {s.evidence && (
-                <pre style={{
-                  fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)',
-                  background: 'var(--bg-elevated)', padding: '8px 10px', borderRadius: 4,
-                  overflowX: 'auto', margin: '0 0 0 26px', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-                }}>
-                  {JSON.stringify(s.evidence, null, 2)}
-                </pre>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function MetaCard({ label, value }: { label: string; value: string }) {
   return (
@@ -292,7 +197,11 @@ function LatencyChart({
         <path d={pathD} fill="none" stroke="var(--status-operational)" strokeWidth="1.5" strokeLinejoin="round" />
         {range === '24h' && points.map((p, i) => (
           <circle key={i} cx={cx(p.t)} cy={cy(p.ms)} r={3}
-            fill={p.status === 'passed' ? 'var(--status-operational)' : 'var(--status-critical)'}
+            fill={
+              p.status === 'passed' ? 'var(--status-operational)'
+              : p.status === 'error'  ? 'var(--text-muted)'
+              : 'var(--status-critical)'
+            }
             stroke="var(--bg-surface)" strokeWidth="1" />
         ))}
       </svg>
@@ -309,6 +218,20 @@ function LatencyChart({
           </span>
         </div>
       </div>
+      {range === '24h' && (
+        <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+          {[
+            { label: 'Passed', color: 'var(--status-operational)' },
+            { label: 'Failed', color: 'var(--status-critical)'    },
+            { label: 'Error',  color: 'var(--text-muted)'          },
+          ].map(({ label, color }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+              <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -159,6 +159,15 @@ body {
 .delay-3 { animation-delay: 0.15s; }
 .delay-4 { animation-delay: 0.20s; }
 
+/* ── Clickable check rows ────────────────────────────────── */
+.check-row:hover:not([aria-selected="true"]) {
+  background: var(--bg-hover);
+}
+.check-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
 /* ── Mobile / Responsive ─────────────────────────────────── */
 @media (max-width: 768px) {
   /* Show mobile nav bar, hide desktop sidebar */
