@@ -373,18 +373,23 @@ export default function LandingPage() {
               <div className="uptime-labels"><span className="uptime-label">90 days ago</span><span className="uptime-label">today</span></div>
             </div>
             <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono, monospace)' }}>Embeddable badge:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'ui-monospace,monospace' }}>Embeddable badge:</span>
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                  background: 'var(--surface-2)', border: '1px solid var(--border-1)',
+                  background: 'var(--bg-subtle)', border: '1px solid var(--border)',
                   borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%',
                 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', flexShrink: 0 }} />
                   CORTX Monitored · Operational · 99.8% delivery
                 </span>
               </div>
-              <a href="/login" className="btn-nav-ghost" style={{ fontSize: '11.5px' }}>View your status page →</a>
+              <a href="/login" style={{
+                fontSize: '11.5px', padding: '5px 13px', fontWeight: 500, color: 'var(--text-2)',
+                background: 'transparent', border: '1px solid var(--border-mid)',
+                borderRadius: 'var(--r-lg)', textDecoration: 'none', display: 'inline-block',
+              }}>View your status page →</a>
             </div>
           </div>
         </div>
