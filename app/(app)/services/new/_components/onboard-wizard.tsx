@@ -27,7 +27,7 @@ interface Detected {
 
 type Preset = 'conservative' | 'standard' | 'high';
 
-const BETA_MAX_ENDPOINT_PRICE_USDC = 0.10;
+const BETA_MAX_ENDPOINT_PRICE_USDC = 1.00;
 
 const PRESETS: Record<Preset, { label: string; desc: string; intervalMin: number; checksPerMonth: number }> = {
   conservative: { label: 'Conservative', desc: 'Every 6 hours', intervalMin: 360, checksPerMonth: 120 },

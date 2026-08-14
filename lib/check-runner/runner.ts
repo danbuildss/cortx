@@ -377,7 +377,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    const betaCap = parseFloat(process.env.BETA_MAX_ENDPOINT_PRICE_USDC ?? '0.10');
+    const betaCap = parseFloat(process.env.BETA_MAX_ENDPOINT_PRICE_USDC ?? '1.00');
     if (parsedPrice > betaCap) {
       fail(stagePriceCheck, 'BETA_PRICE_CAP_EXCEEDED', {
         observed_price,

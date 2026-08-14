@@ -70,7 +70,7 @@ const FAQ = [
   },
   {
     q: 'What are the default spend caps?',
-    a: 'Daily cap: $1.00 USDC. Monthly cap: $10.00 USDC. Checks are skipped when a cap is reached and resume after it resets (UTC midnight for daily, 1st of month for monthly). Override with CORTX_DAILY_SPEND_CAP_USDC and CORTX_MONTHLY_SPEND_CAP_USDC env vars.',
+    a: 'Daily cap: $5.00 USDC. Monthly cap: $50.00 USDC. Checks are skipped when a cap is reached and resume after it resets (UTC midnight for daily, 1st of month for monthly). Override with CORTX_DAILY_SPEND_CAP_USDC and CORTX_MONTHLY_SPEND_CAP_USDC env vars.',
   },
   {
     q: 'What private key does CORTX use?',
@@ -390,8 +390,8 @@ export default function DocsPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28 }}>
               {[
-                { label: 'Daily cap', default: '$1.00 USDC', env: 'CORTX_DAILY_SPEND_CAP_USDC', reset: 'Resets at UTC midnight.' },
-                { label: 'Monthly cap', default: '$10.00 USDC', env: 'CORTX_MONTHLY_SPEND_CAP_USDC', reset: 'Resets on the 1st of each month (UTC).' },
+                { label: 'Daily cap', default: '$5.00 USDC', env: 'CORTX_DAILY_SPEND_CAP_USDC', reset: 'Resets at UTC midnight.' },
+                { label: 'Monthly cap', default: '$50.00 USDC', env: 'CORTX_MONTHLY_SPEND_CAP_USDC', reset: 'Resets on the 1st of each month (UTC).' },
               ].map(c => (
                 <div key={c.label} style={{ padding: '16px', background: 'var(--bg-surface)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{c.label}</div>
