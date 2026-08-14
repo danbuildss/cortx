@@ -112,8 +112,8 @@ export default function CostGuidePage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 28 }}>
               {[
                 { label: 'Per-check cost', value: 'endpoint price', note: 'What the endpoint charges, paid in USDC' },
-                { label: 'Default daily cap', value: '$1.00', note: 'Checks stop when cap is reached' },
-                { label: 'Default monthly cap', value: '$10.00', note: 'Resets on the 1st of each month' },
+                { label: 'Default daily cap', value: '$5.00', note: 'Checks stop when cap is reached' },
+                { label: 'Default monthly cap', value: '$50.00', note: 'Resets on the 1st of each month' },
               ].map(c => (
                 <div key={c.label} style={{ padding: '16px', background: 'var(--bg-surface)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{c.label}</div>
@@ -205,8 +205,8 @@ export default function CostGuidePage() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 20, marginBottom: 24 }}>
               {[
-                { label: 'Daily cap', env: 'CORTX_DAILY_SPEND_CAP_USDC', default: '$1.00', reset: 'Resets at UTC midnight' },
-                { label: 'Monthly cap', env: 'CORTX_MONTHLY_SPEND_CAP_USDC', default: '$10.00', reset: 'Resets on 1st of month (UTC)' },
+                { label: 'Daily cap', env: 'CORTX_DAILY_SPEND_CAP_USDC', default: '$5.00', reset: 'Resets at UTC midnight' },
+                { label: 'Monthly cap', env: 'CORTX_MONTHLY_SPEND_CAP_USDC', default: '$50.00', reset: 'Resets on 1st of month (UTC)' },
               ].map(c => (
                 <div key={c.label} style={{ padding: 16, background: 'var(--bg-surface)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>{c.label}</div>
