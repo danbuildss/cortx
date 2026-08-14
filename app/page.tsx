@@ -108,7 +108,7 @@ export default function LandingPage() {
                     <div className="mega-ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
                     <div><div className="mega-title">End-to-end checks</div><div className="mega-desc">7-stage x402 journey, availability through schema</div></div>
                   </a>
-                  <a className="mega-item" href="#methodology" role="menuitem">
+                  <a className="mega-item" href="/methodology" role="menuitem">
                     <div className="mega-ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 13V5M5.5 13V7.5M9 13V5.5M12.5 13V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></div>
                     <div><div className="mega-title">Incident evidence</div><div className="mega-desc">Payment, schema and timing data for every check</div></div>
                   </a>
@@ -119,7 +119,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </li>
-            <li><a href="#methodology">Methodology</a></li>
+            <li><a href="/methodology">Methodology</a></li>
             <li><a href="#status">Status</a></li>
             <li><a href="/docs">Docs</a></li>
             <li><a href="https://github.com/danbuildss/cortx">GitHub</a></li>
@@ -150,7 +150,7 @@ export default function LandingPage() {
               Monitor a Service
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </a>
-            <a href="#methodology" className="btn-cta-ghost">
+            <a href="/methodology" className="btn-cta-ghost">
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="2" y="3" width="10" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><path d="M5 6h4M5 8.5h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
               View Methodology
             </a>
@@ -422,7 +422,7 @@ export default function LandingPage() {
               <div className="ft-col-label">Product</div>
               <div className="ft-col-links">
                 <a href="#product">End-to-end checks</a>
-                <a href="#methodology">Incident evidence</a>
+                <a href="/methodology">Incident evidence</a>
                 <a href="#status">Public status pages</a>
               </div>
             </div>

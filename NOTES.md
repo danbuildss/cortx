@@ -19,9 +19,10 @@ Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON 
 - [x] Beta readiness sprint — **COMPLETE**
 - [x] Private beta ready — invite codes seeded, all infra confirmed working
 - [x] Partnership Readiness Sprint — **COMPLETE** (Phase 1 + Partner Integration Sprint + audit)
+- [x] Layered Verification Sprint — **COMPLETE** (PR #54 merged, migration 007 applied)
 - [ ] Live
 
-**Beta v1 is live at usecortx.dev.** Partner Integration Sprint shipped (PR #52 merged). Partner onboarding audit complete — one CORS blocker fixed (PR #53).
+**Beta v1 is live at usecortx.dev.** Layered Verification Sprint live (PR #54 merged, migration 007 applied). Partner Integration Sprint shipped (PR #52). Partner onboarding audit complete — CORS fixed (PR #53).
 
 ### Partnership Readiness Sprint (Phase 1 — shipped)
 
@@ -188,7 +189,7 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #51 (merged): fix — mobile responsiveness for Partnership Readiness Sprint
 - PR #52 (merged): Partner Integration Sprint — public reliability API, service status page, methodology page, partner integration docs, admin partner readiness table, `lib/metrics.ts` single source of truth, `--status-ok` CSS token, badge consistency fixes
 - PR #53 (open): fix — CORS headers on Reliability API + partner onboarding audit
-- Commit 019ce35 (on branch, not yet PR'd): Layered Verification Sprint — three-tier monitoring model
+- PR #54 (merged): Layered Verification Sprint — three-tier monitoring model
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
