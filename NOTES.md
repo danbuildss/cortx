@@ -18,9 +18,18 @@ Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON 
 - [x] Building MVP
 - [x] Beta readiness sprint — **COMPLETE**
 - [x] Private beta ready — invite codes seeded, all infra confirmed working
+- [x] Partnership Readiness Sprint — **IN PROGRESS** (Phase 1 complete)
 - [ ] Live
 
-**Beta v1 is shipped and live at usecortx.dev.** All 7 check runner stages working end-to-end. All migrations run (001–006). Cron confirmed working. PRs #30–#36 shipped post-beta (docs, blog, time range toggle, favicon, about page).
+**Beta v1 is live at usecortx.dev.** 220+ checks, 0 failures across 4 endpoints. Partnership Readiness Sprint Phase 1 shipped on branch `claude/persistent-skills-sessions-727k7h`.
+
+### Partnership Readiness Sprint (Phase 1 — shipped)
+
+- **Incident polish**: open rows have red tint + border, pulsing red header dot with count, ACK pill, dedicated "Triggering check" card on detail page (queries most recent failed check within ±2h of incident opened_at), "View service →" nav — no more dead-end incident screens
+- **Public reliability page** (`/status/[userId]`): added per-service paid delivery %, schema validity %, median latency, last verified metrics; 30-day parallel query for stage-derived stats; extracted palette to `const C`
+- **CORTX Monitored badge** (`GET /api/badge/[serviceId]`): public SVG badge with status, paid delivery %, uptime %; cache-control 5min; graceful unknown badge for bad IDs
+- **Service detail share panel**: "Share & embed" section with live badge preview, copy-to-clipboard for Markdown/HTML/URL snippets, public status page link with open button
+- **Landing page**: status section updated to mention paid delivery %, schema validity %, median latency; status page mockup shows real metric labels; badge embed example in mockup
 
 ---
 
@@ -174,3 +183,5 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #34 (merged): fix — Suspense boundary for RangeToggle
 - PR #35 (merged): fix — split range utilities out of 'use client' module (root cause of server crash)
 - PR #36 (open): CORTX logo favicon (app/icon.svg), /about page, domain fixes (usecortx.dev), docs example URL updated to x402.bankr.bot
+- PRs #37–#38 (shipped): historical check inspection, per-service uptime, pass/fail chart coloring — 3-improvement sprint
+- PR #?? (pending): Partnership Readiness Sprint — incident polish, reliability page, badge, share panel, landing page update
