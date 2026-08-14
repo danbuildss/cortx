@@ -18,10 +18,10 @@ Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON 
 - [x] Building MVP
 - [x] Beta readiness sprint — **COMPLETE**
 - [x] Private beta ready — invite codes seeded, all infra confirmed working
-- [x] Partnership Readiness Sprint — **IN PROGRESS** (Phase 1 complete)
+- [x] Partnership Readiness Sprint — **COMPLETE** (Phase 1 + Partner Integration Sprint + audit)
 - [ ] Live
 
-**Beta v1 is live at usecortx.dev.** 220+ checks, 0 failures across 4 endpoints. Partnership Readiness Sprint Phase 1 shipped on branch `claude/persistent-skills-sessions-727k7h`.
+**Beta v1 is live at usecortx.dev.** Partner Integration Sprint shipped (PR #52 merged). Partner onboarding audit complete — one CORS blocker fixed (PR #53).
 
 ### Partnership Readiness Sprint (Phase 1 — shipped)
 
@@ -182,6 +182,25 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #33 (merged): 24H/7D/30D time range toggle on Overview and service detail
 - PR #34 (merged): fix — Suspense boundary for RangeToggle
 - PR #35 (merged): fix — split range utilities out of 'use client' module (root cause of server crash)
-- PR #36 (open): CORTX logo favicon (app/icon.svg), /about page, domain fixes (usecortx.dev), docs example URL updated to x402.bankr.bot
-- PRs #37–#38 (shipped): historical check inspection, per-service uptime, pass/fail chart coloring — 3-improvement sprint
-- PR #?? (pending): Partnership Readiness Sprint — incident polish, reliability page, badge, share panel, landing page update
+- PR #36 (merged): CORTX logo favicon (app/icon.svg), /about page, domain fixes (usecortx.dev), docs example URL updated to x402.bankr.bot
+- PRs #37–#49 (merged): historical check inspection, per-service uptime, pass/fail chart coloring, admin enhancements, mobile fixes
+- PR #50 (merged): Partnership Readiness Sprint — incident polish, reliability page, badge, share panel
+- PR #51 (merged): fix — mobile responsiveness for Partnership Readiness Sprint
+- PR #52 (merged): Partner Integration Sprint — public reliability API, service status page, methodology page, partner integration docs, admin partner readiness table, `lib/metrics.ts` single source of truth, `--status-ok` CSS token, badge consistency fixes
+- PR #53 (open): fix — CORS headers on Reliability API + partner onboarding audit
+
+### Partner Integration Sprint deliverables (PR #52, merged)
+
+- **`lib/metrics.ts`** — single source of truth for all reliability metrics (`computeMetrics`, `medianLatency`); infrastructure errors excluded; proper even-array median
+- **`GET /api/v1/reliability/[serviceId]`** — public JSON reliability API, no auth, 30d window, 5-min cache; returns `{ service_id, service_name, status, window, uptime_percent, paid_delivery_percent, schema_validity_percent, median_latency_ms, last_verified_at, active_incident }`
+- **`/status/service/[serviceId]`** — public per-service status page; 30d metrics grid, 90d availability bar, active incident banner, recent incident list, embed section with real URLs
+- **`/methodology`** — public page explaining 7-stage pipeline, metric formulas, measurement windows, disclaimer
+- **`/docs/partner-integration`** — partner docs with copy buttons for badge (Markdown/HTML/URL), status page URL, API curl + response examples + field table, use cases
+- **Admin partner readiness table** — shows per-service status, last verified, incident flag, and direct links to status page/badge/API
+- **Share panel** — added service status page URL (separate from account status page)
+- **Docs sidebar** — Partner group added with Partner Integration + Methodology links
+- **Badge + user status page** — both now use `computeMetrics()`, consistent 30d window
+
+### Partner onboarding audit (PR #53)
+
+Audited all integration surfaces as an external partner. One hard blocker found and fixed: missing CORS headers on `/api/v1/reliability/[serviceId]` — browser-side fetch calls were blocked. Fixed by adding `OPTIONS` preflight handler and `Access-Control-Allow-Origin: *` to all responses. No other hard blockers found.
