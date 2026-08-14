@@ -102,7 +102,7 @@ export function SharePanel({ serviceId, userId }: { serviceId: string; userId: s
           display: 'flex', alignItems: 'center', gap: 12,
         }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={badgeUrl} alt="CORTX Monitored badge" height={28} style={{ display: 'block' }} />
+          <img src={badgeUrl} alt="CORTX Monitored badge" style={{ display: 'block', height: 28, maxWidth: '100%' }} />
           <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Live — updates every 5 minutes</span>
         </div>
 
