@@ -30,7 +30,7 @@ export default async function ServiceDetailPage({
 
   const { data: service } = await supabase
     .from('services')
-    .select('id, name, endpoint_url, status, last_checked_at, check_interval_minutes, environment, expected_price, max_price')
+    .select('id, name, endpoint_url, status, last_checked_at, check_interval_minutes, environment, expected_price, max_price, lightweight_check_interval_minutes, paid_verification_mode, paid_verification_interval_minutes, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at')
     .eq('id', id)
     .is('deleted_at', null)
     .single();
@@ -39,7 +39,7 @@ export default async function ServiceDetailPage({
 
   const { data: recentChecks } = await supabase
     .from('checks')
-    .select('id, status, latency_ms, started_at, failure_stage, stages')
+    .select('id, status, latency_ms, started_at, failure_stage, stages, check_type')
     .eq('service_id', id)
     .gte('started_at', since)
     .order('started_at', { ascending: false })
@@ -105,10 +105,36 @@ export default async function ServiceDetailPage({
       )}
 
       {/* Meta */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
         <MetaCard label="Network" value={service.environment === 'mainnet' ? 'Base Mainnet' : 'Base Sepolia'} />
-        <MetaCard label="Check interval" value={`Every ${service.check_interval_minutes}m`} />
         <MetaCard label="Last checked" value={service.last_checked_at ? formatRelative(service.last_checked_at) : 'Never'} />
+      </div>
+
+      {/* Monitoring freshness */}
+      <div style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Monitoring
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+          <MonitoringCard
+            label="Lightweight ping"
+            interval={`Every ${service.lightweight_check_interval_minutes ?? 5}m`}
+            lastAt={service.last_lightweight_check_at}
+            chipLabel="free"
+            chipColor="#6b7280"
+            chipBg="rgba(107,114,128,0.12)"
+          />
+          {service.paid_verification_mode !== 'disabled' && (
+            <MonitoringCard
+              label={service.paid_verification_mode === 'canary' ? 'Canary verification' : 'Full verification'}
+              interval={`Every ${service.paid_verification_interval_minutes ?? service.check_interval_minutes}m`}
+              lastAt={service.paid_verification_mode === 'full' ? service.last_full_verification_at : service.last_paid_verification_at}
+              chipLabel={service.paid_verification_mode === 'canary' ? 'canary' : 'full'}
+              chipColor={service.paid_verification_mode === 'canary' ? '#d97706' : '#2563eb'}
+              chipBg={service.paid_verification_mode === 'canary' ? 'rgba(217,119,6,0.12)' : 'rgba(37,99,235,0.12)'}
+            />
+          )}
+        </div>
       </div>
 
       {/* Latency chart */}
@@ -145,6 +171,54 @@ export default async function ServiceDetailPage({
   );
 }
 
+
+function MonitoringCard({
+  label,
+  interval,
+  lastAt,
+  chipLabel,
+  chipColor,
+  chipBg,
+}: {
+  label: string;
+  interval: string;
+  lastAt: string | null | undefined;
+  chipLabel: string;
+  chipColor: string;
+  chipBg: string;
+}) {
+  return (
+    <div style={{
+      background: 'var(--bg-surface)',
+      border: '1px solid var(--border-mid)',
+      borderRadius: 8,
+      padding: '12px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+    }}>
+      <span style={{
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        color: chipColor,
+        background: chipBg,
+        padding: '2px 7px',
+        borderRadius: 4,
+        flexShrink: 0,
+      }}>
+        {chipLabel}
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+          {interval} · last {lastAt ? formatRelative(lastAt) : 'never'}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function MetaCard({ label, value }: { label: string; value: string }) {
   return (

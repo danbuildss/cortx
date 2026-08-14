@@ -1,3 +1,5 @@
+export type CheckType = 'lightweight' | 'canary' | 'full';
+
 export type StageName =
   | 'availability'
   | 'payment_terms'
@@ -27,6 +29,7 @@ export type CheckResult = {
   stages: StageResult[];
   observed_price: string | null;
   error_message: string | null;
+  check_type: CheckType;
 };
 
 export type ServiceConfig = {
@@ -39,6 +42,12 @@ export type ServiceConfig = {
   max_price: string;
   latency_threshold_ms: number;
   environment: 'mainnet' | 'testnet';
+};
+
+export type CanaryConfig = {
+  payload: Record<string, unknown>;
+  expected_schema: Record<string, unknown>;
+  max_price_usdc: string;
 };
 
 export type X402PaymentTerms = {
