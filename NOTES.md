@@ -188,6 +188,7 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #51 (merged): fix — mobile responsiveness for Partnership Readiness Sprint
 - PR #52 (merged): Partner Integration Sprint — public reliability API, service status page, methodology page, partner integration docs, admin partner readiness table, `lib/metrics.ts` single source of truth, `--status-ok` CSS token, badge consistency fixes
 - PR #53 (open): fix — CORS headers on Reliability API + partner onboarding audit
+- Commit 019ce35 (on branch, not yet PR'd): Layered Verification Sprint — three-tier monitoring model
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
@@ -200,6 +201,22 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - **Share panel** — added service status page URL (separate from account status page)
 - **Docs sidebar** — Partner group added with Partner Integration + Methodology links
 - **Badge + user status page** — both now use `computeMetrics()`, consistent 30d window
+
+### Layered Verification Sprint (commit 019ce35 — on branch)
+
+Three-tier monitoring model: every service now gets a free 5-min availability ping AND a paid full/canary verification on a separate configurable schedule.
+
+**Migration 007** adds to `services`: `lightweight_check_interval_minutes`, `paid_verification_mode` (`full|canary|disabled`), `paid_verification_interval_minutes`, `canary_payload/expected_schema/max_price_usdc`, `last_lightweight/paid/full_check_at`, `next_paid_verification_at`. Adds `check_type` to `checks` and `trigger_check_type` to `incidents`.
+
+**Runner**: `runLightweightCheck` (HEAD/GET ping, no payment), `runFullCheck` (renamed from `runCheck`, alias kept for compat), `runCanaryCheck` (full pipeline with canary config).
+
+**Cron dual-loop**: Loop 1 fires lightweight pings; Loop 2 fires paid verifications for services with `next_paid_verification_at ≤ now AND mode != disabled`.
+
+**Persist**: Lightweight results only advance the scheduler, no status/incident changes. Incident resolution respects tier hierarchy — canary can resolve canary, full resolves all; lightweight never resolves incidents.
+
+**UI**: Service detail shows monitoring freshness cards (ping vs. paid, last timestamps). Checks table gains a Type chip column (ping/canary/full). Onboarding wizard hint updated. Public API `/v1/reliability` gains `verification{}` object with mode and timestamps; reliability metrics computed from paid checks only.
+
+**User action required**: Run `supabase/migrations/007_layered_checks.sql` in Supabase SQL editor.
 
 ### Partner onboarding audit (PR #53)
 
