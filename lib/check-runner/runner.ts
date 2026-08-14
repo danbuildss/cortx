@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { StageError, validateAndResolveUrl } from './ssrf';
 import { executePayment, getWalletAddress, getWalletBalance } from './payment';
 import { classifyStatus } from './classify';
-import type { ServiceConfig, CheckResult, StageResult, StageName, X402PaymentTerms } from './types';
+import type { ServiceConfig, CanaryConfig, CheckResult, StageResult, StageName, X402PaymentTerms } from './types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const DELIVERY_TIMEOUT_MS = 15_000;
@@ -141,7 +141,7 @@ function notReached(stage: StageName): StageResult {
   return makeStage(stage, null, null, null);
 }
 
-export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
+export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> {
   const started_at = new Date();
   const stages: StageResult[] = [];
   let failure_stage: StageName | null = null;
@@ -589,6 +589,7 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
       stages,
       observed_price,
       error_message: null,
+      check_type: 'full',
     };
 
   } catch (err) {
@@ -602,9 +603,13 @@ export async function runCheck(config: ServiceConfig): Promise<CheckResult> {
       stages,
       observed_price,
       error_message: String(err).replaceAll(process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__', '[REDACTED]'),
+      check_type: 'full',
     };
   }
 }
+
+// Backward compat alias — existing callers continue to work unchanged
+export const runCheck = runFullCheck;
 
 function buildResult(
   service_id: string,
@@ -624,7 +629,26 @@ function buildResult(
     stages,
     observed_price,
     error_message: null,
+    check_type: 'full',
   };
+}
+
+// Canary wrapper: runs the full paid pipeline with canary-specific config.
+// Uses the canary payload, schema, and price cap instead of the service's
+// production test_input and expected values.
+export async function runCanaryCheck(
+  config: ServiceConfig,
+  canary: CanaryConfig
+): Promise<CheckResult> {
+  const canaryConfig: ServiceConfig = {
+    ...config,
+    test_input: canary.payload,
+    expected_schema: canary.expected_schema,
+    max_price: canary.max_price_usdc,
+    expected_price: canary.max_price_usdc,
+  };
+  const result = await runFullCheck(canaryConfig);
+  return { ...result, check_type: 'canary' };
 }
 
 function sleep(ms: number): Promise<void> {

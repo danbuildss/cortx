@@ -570,8 +570,13 @@ function ConfigureStep(props: {
             );
           })}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
-          Lightweight availability checks run every 5 minutes separately and do not trigger payment.
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <span>
+            <span style={{ color: '#6b7280', fontWeight: 600 }}>Ping</span> — free availability check every 5 min (no payment, no USDC spend).
+          </span>
+          <span>
+            <span style={{ color: '#2563eb', fontWeight: 600 }}>Full verification</span> — paid x402 check at the frequency above. Cost shown is per month of verifications only.
+          </span>
         </div>
       </div>
 

@@ -17,12 +17,19 @@ export type CheckRecord = {
   started_at: string;
   failure_stage: string | null;
   stages: unknown;
+  check_type: string | null;
 };
 
 const CHECK_COLOR: Record<string, string> = {
   passed: 'var(--status-operational)',
   failed: 'var(--status-critical)',
   error:  'var(--status-degraded)',
+};
+
+const TYPE_CHIP: Record<string, { label: string; color: string; bg: string }> = {
+  lightweight: { label: 'ping',   color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+  canary:      { label: 'canary', color: '#d97706', bg: 'rgba(217,119,6,0.12)'   },
+  full:        { label: 'full',   color: '#2563eb', bg: 'rgba(37,99,235,0.12)'   },
 };
 
 function SummaryCard({ label, children }: { label: string; children: ReactNode }) {
@@ -175,6 +182,7 @@ export function ChecksPanel({ checks }: { checks: CheckRecord[] }) {
             <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
               {([
                 { label: 'Time',         hide: false },
+                { label: 'Type',         hide: true  },
                 { label: 'Status',       hide: false },
                 { label: 'Latency',      hide: false },
                 { label: 'Failed stage', hide: true  },
@@ -227,6 +235,25 @@ export function ChecksPanel({ checks }: { checks: CheckRecord[] }) {
                         <span style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.04em' }}>▶</span>
                       )}
                     </span>
+                  </td>
+                  <td className="mobile-hide" style={{ padding: '12px 16px' }}>
+                    {(() => {
+                      const chip = TYPE_CHIP[chk.check_type ?? 'full'] ?? TYPE_CHIP.full;
+                      return (
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                          color: chip.color,
+                          background: chip.bg,
+                          padding: '2px 7px',
+                          borderRadius: 4,
+                        }}>
+                          {chip.label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={{

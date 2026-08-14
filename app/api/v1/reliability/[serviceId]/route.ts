@@ -34,7 +34,7 @@ export async function GET(
   ] = await Promise.all([
     supabase
       .from('services')
-      .select('id, name, status, last_checked_at')
+      .select('id, name, status, last_checked_at, paid_verification_mode, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at')
       .eq('id', serviceId)
       .is('deleted_at', null)
       .maybeSingle(),
@@ -50,7 +50,7 @@ export async function GET(
 
     supabase
       .from('checks')
-      .select('status, latency_ms, stages')
+      .select('status, latency_ms, stages, check_type')
       .eq('service_id', serviceId)
       .gte('started_at', since30)
       .order('started_at', { ascending: false })
@@ -61,7 +61,9 @@ export async function GET(
     return NextResponse.json({ error: 'Service not found' }, { status: 404, headers: CORS });
   }
 
-  const metrics = computeMetrics(checks ?? []);
+  const allChecks = checks ?? [];
+  const paidChecks = allChecks.filter(c => c.check_type === 'full' || c.check_type === 'canary');
+  const metrics = computeMetrics(paidChecks.length > 0 ? paidChecks : allChecks);
 
   return NextResponse.json(
     {
@@ -74,6 +76,12 @@ export async function GET(
       schema_validity_percent: metrics.schema_validity_percent,
       median_latency_ms:       metrics.median_latency_ms,
       last_verified_at:        service.last_checked_at ?? null,
+      verification: {
+        mode:               service.paid_verification_mode ?? 'full',
+        last_lightweight_at: service.last_lightweight_check_at ?? null,
+        last_paid_at:        service.last_paid_verification_at ?? null,
+        last_full_at:        service.last_full_verification_at ?? null,
+      },
       active_incident:         activeIncident
         ? {
             id:            activeIncident.id,
