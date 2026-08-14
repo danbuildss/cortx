@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
+import { computeMetrics, type CheckRow } from '@/lib/metrics';
 
 export const revalidate = 60;
 
@@ -44,22 +45,6 @@ const STATUS_LABEL: Record<string, string> = {
   critical:    'Outage',
   unknown:     'Checking…',
 };
-
-type StageRow = { stage: string; passed: boolean | null };
-
-function getStages(stages: unknown): StageRow[] {
-  if (!Array.isArray(stages)) return [];
-  return stages as StageRow[];
-}
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
-    : sorted[mid];
-}
 
 export default async function StatusPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
@@ -143,43 +128,15 @@ export default async function StatusPage({ params }: { params: Promise<{ userId:
   }
 
   // ── 30-day delivery / schema / latency metrics per service ──
-  type SvcMetrics = {
-    deliveryPassed: number; deliveryTotal: number;
-    schemaPassed: number;   schemaTotal: number;
-    latencies: number[];
-  };
-  const metricsMap = new Map<string, SvcMetrics>();
-
+  const checksByService = new Map<string, CheckRow[]>();
   for (const c of recentChecks ?? []) {
-    if (c.status === 'error') continue;
-    const m = metricsMap.get(c.service_id) ?? {
-      deliveryPassed: 0, deliveryTotal: 0,
-      schemaPassed: 0,   schemaTotal: 0,
-      latencies: [],
-    };
-
-    const stages = getStages(c.stages);
-    const stageMap = new Map(stages.map(s => [s.stage, s.passed]));
-
-    // Paid delivery success: payment stage AND delivery stage both passed
-    const paymentPassed  = stageMap.get('payment');
-    const deliveryPassed = stageMap.get('delivery');
-    if (paymentPassed !== undefined && deliveryPassed !== undefined) {
-      m.deliveryTotal++;
-      if (paymentPassed === true && deliveryPassed === true) m.deliveryPassed++;
-    }
-
-    // Schema validity: checks that reached schema_validation stage
-    const schemaPassed = stageMap.get('schema_validation');
-    if (schemaPassed !== undefined) {
-      m.schemaTotal++;
-      if (schemaPassed === true) m.schemaPassed++;
-    }
-
-    if (c.latency_ms != null) m.latencies.push(c.latency_ms);
-
-    metricsMap.set(c.service_id, m);
+    const arr = checksByService.get(c.service_id) ?? [];
+    arr.push(c);
+    checksByService.set(c.service_id, arr);
   }
+  const metricsCache = new Map(
+    [...checksByService.entries()].map(([id, checks]) => [id, computeMetrics(checks)])
+  );
 
   const incidentServiceIds = new Set((openIncidents ?? []).map(i => i.service_id));
   const allOk = (services ?? []).every(s => s.status === 'operational' || s.status === 'unknown');
@@ -257,14 +214,10 @@ export default async function StatusPage({ params }: { params: Promise<{ userId:
                   ? ((stat90.passed / stat90.total) * 100).toFixed(1)
                   : null;
 
-                const m = metricsMap.get(svc.id);
-                const deliveryPct = m && m.deliveryTotal > 0
-                  ? ((m.deliveryPassed / m.deliveryTotal) * 100).toFixed(1)
-                  : null;
-                const schemaPct = m && m.schemaTotal > 0
-                  ? ((m.schemaPassed / m.schemaTotal) * 100).toFixed(1)
-                  : null;
-                const medianMs = m ? median(m.latencies) : null;
+                const m = metricsCache.get(svc.id);
+                const deliveryPct = m?.paid_delivery_percent ?? null;
+                const schemaPct   = m?.schema_validity_percent ?? null;
+                const medianMs    = m?.median_latency_ms ?? null;
                 const lastVerified = svc.last_checked_at ? formatRelative(svc.last_checked_at) : null;
 
                 return (
@@ -314,14 +267,14 @@ export default async function StatusPage({ params }: { params: Promise<{ userId:
                         <Metric
                           label="Paid delivery"
                           value={`${deliveryPct}%`}
-                          color={Number(deliveryPct) >= 99 ? C.green : Number(deliveryPct) >= 95 ? C.amber : C.red}
+                          color={deliveryPct >= 99 ? C.green : deliveryPct >= 95 ? C.amber : C.red}
                         />
                       )}
                       {schemaPct !== null && (
                         <Metric
                           label="Schema valid"
                           value={`${schemaPct}%`}
-                          color={Number(schemaPct) >= 99 ? C.green : Number(schemaPct) >= 95 ? C.amber : C.red}
+                          color={schemaPct >= 99 ? C.green : schemaPct >= 95 ? C.amber : C.red}
                         />
                       )}
                       {medianMs !== null && (

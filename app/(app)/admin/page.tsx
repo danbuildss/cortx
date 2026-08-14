@@ -51,7 +51,7 @@ export default async function AdminPage() {
     walletBalance,
   ] = await Promise.all([
     service.auth.admin.listUsers({ perPage: 100 }),
-    service.from('services').select('id, user_id, name, endpoint_url, status, created_at').is('deleted_at', null).order('created_at', { ascending: false }),
+    service.from('services').select('id, user_id, name, endpoint_url, status, created_at, last_checked_at').is('deleted_at', null).order('created_at', { ascending: false }),
     service.from('checks').select('service_id, status, failure_stage, observed_price').gte('started_at', since24h),
     service.from('invite_codes').select('id, code, used_by, used_at').order('used_at', { ascending: false, nullsFirst: false }),
     service.from('incidents').select('id, service_id, status, created_at').order('created_at', { ascending: false }).limit(20),
@@ -133,6 +133,7 @@ export default async function AdminPage() {
 
   // Open incidents
   const openIncidents = incidents.filter(i => i.status !== 'resolved');
+  const openIncidentServiceIds = new Set(openIncidents.map(i => i.service_id));
 
   // Last cron run
   const lastCronAt = lastCheckRow?.[0]?.started_at ?? null;
@@ -315,6 +316,76 @@ export default async function AdminPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Partner Readiness */}
+      <div style={{ marginBottom: 24, ...card }}>
+        <div style={cardHeader}>
+          <span style={cardTitle}>Partner Readiness</span>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>public URLs per service</span>
+        </div>
+        {services.length === 0 ? (
+          <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No services yet</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {['Service', 'Status', 'Last verified', 'Incident', 'Status page', 'Badge', 'API'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '8px 14px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {services.map((svc, i) => {
+                  const isLast = i === services.length - 1;
+                  const tdStyle: React.CSSProperties = { padding: '9px 14px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)', verticalAlign: 'middle' };
+                  const siteUrl = 'https://usecortx.dev';
+                  const statusPageUrl = `${siteUrl}/status/service/${svc.id}`;
+                  const apiPageUrl    = `${siteUrl}/api/v1/reliability/${svc.id}`;
+                  const hasIncident   = openIncidentServiceIds.has(svc.id);
+                  const statusColor   = svc.status === 'operational' ? 'var(--status-operational)' : svc.status === 'degraded' ? 'var(--status-degraded)' : svc.status === 'critical' ? 'var(--status-critical)' : 'var(--text-dim)';
+                  return (
+                    <tr key={svc.id}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{svc.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-geist-mono)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{svc.endpoint_url}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: statusColor, textTransform: 'capitalize' }}>{svc.status ?? '—'}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ color: 'var(--text-muted)' }}>{svc.last_checked_at ? timeAgo(svc.last_checked_at) : '—'}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        {hasIncident ? (
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: 'var(--status-critical-bg)', color: 'var(--status-critical)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Open</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-dim)' }}>—</span>
+                        )}
+                      </td>
+                      <td style={tdStyle}>
+                        <a href={statusPageUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-geist-mono)' }}>
+                          /status/service/{svc.id.slice(0, 8)}…
+                        </a>
+                      </td>
+                      <td style={tdStyle}>
+                        <a href={`${siteUrl}/api/badge/${svc.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-geist-mono)' }}>
+                          /api/badge/{svc.id.slice(0, 8)}…
+                        </a>
+                      </td>
+                      <td style={tdStyle}>
+                        <a href={apiPageUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-geist-mono)' }}>
+                          /api/v1/reliability/{svc.id.slice(0, 8)}…
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

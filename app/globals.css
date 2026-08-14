@@ -24,6 +24,7 @@
   --sidebar-bg: #111214;
   --sidebar-border: #1e2028;
   --status-operational: #22c55e;
+  --status-ok: #22c55e;
   --status-degraded: #f59e0b;
   --status-critical: #ef4444;
   --status-unknown: #6b7280;
