@@ -9,6 +9,16 @@ function db() {
   );
 }
 
+const CORS = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Accept, Content-Type',
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ serviceId: string }> }
@@ -48,7 +58,7 @@ export async function GET(
   ]);
 
   if (!service) {
-    return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Service not found' }, { status: 404, headers: CORS });
   }
 
   const metrics = computeMetrics(checks ?? []);
@@ -75,6 +85,7 @@ export async function GET(
     },
     {
       headers: {
+        ...CORS,
         'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
       },
     }
