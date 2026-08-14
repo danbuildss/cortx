@@ -11,12 +11,6 @@ const SEVERITY_BG: Record<string, string> = {
   degraded: 'var(--status-degraded-bg)',
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  open: 'var(--status-critical)',
-  acknowledged: 'var(--status-degraded)',
-  resolved: 'var(--status-operational)',
-};
-
 export default async function IncidentsPage() {
   const supabase = await createClient();
 
@@ -58,25 +52,38 @@ export default async function IncidentsPage() {
       {/* Open incidents */}
       {open.length > 0 && (
         <section style={{ marginBottom: 40 }}>
-          <SectionHeader>Open</SectionHeader>
-          <IncidentTable incidents={open} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: 'var(--status-critical)',
+              boxShadow: '0 0 0 3px var(--status-critical-bg)',
+            }} />
+            <h2 style={{ fontSize: 12, fontWeight: 600, color: 'var(--status-critical)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Open · {open.length}
+            </h2>
+          </div>
+          <IncidentTable incidents={open} isOpen />
         </section>
       )}
 
       {open.length === 0 && (
         <div style={{
-          background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8,
-          padding: '32px 24px', textAlign: 'center', marginBottom: 40,
+          background: 'var(--bg-surface)', border: '1px solid var(--status-operational-border)',
+          borderRadius: 8, padding: '20px 24px', marginBottom: 40,
+          display: 'flex', alignItems: 'center', gap: 10,
         }}>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No open incidents — all services nominal.</p>
+          <span style={{ fontSize: 14, color: 'var(--status-operational)' }}>✓</span>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No open incidents — all services nominal.</p>
         </div>
       )}
 
       {/* Resolved incidents */}
       {resolved.length > 0 && (
         <section>
-          <SectionHeader>Resolved</SectionHeader>
-          <IncidentTable incidents={resolved} />
+          <h2 style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Resolved · {resolved.length}
+          </h2>
+          <IncidentTable incidents={resolved} isOpen={false} />
         </section>
       )}
     </div>
@@ -94,86 +101,89 @@ type IncidentRow = {
   services: { id: string; name: string; endpoint_url: string }[] | { id: string; name: string; endpoint_url: string } | null;
 };
 
-function IncidentTable({ incidents }: { incidents: IncidentRow[] }) {
+function IncidentTable({ incidents, isOpen }: { incidents: IncidentRow[]; isOpen: boolean }) {
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{
+      background: 'var(--bg-surface)',
+      border: `1px solid ${isOpen ? 'var(--status-critical-border)' : 'var(--border-mid)'}`,
+      borderRadius: 8,
+      overflow: 'hidden',
+    }}>
       <div style={{ overflowX: 'auto' }}>
-      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
-            <th style={{ textAlign: 'left', padding: '10px 0 10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: 4 }}></th>
-            <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</th>
-            <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</th>
-            <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-            <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Failed stage</th>
-            <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Opened</th>
-            <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Duration</th>
-          </tr>
-        </thead>
-        <tbody>
-          {incidents.map((inc, i) => {
-            const isLast = i === incidents.length - 1;
-            const duration = inc.resolved_at
-              ? formatDuration(inc.opened_at, inc.resolved_at)
-              : formatRelative(inc.opened_at);
-            return (
-              <tr key={inc.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)' }}>
-                {/* Severity stripe */}
-                <td style={{ padding: 0, width: 4 }}>
-                  <div style={{
-                    width: 3, height: '100%', minHeight: 48,
-                    background: SEVERITY_BG[inc.severity] ?? 'transparent',
-                    borderLeft: `3px solid ${SEVERITY_COLOR[inc.severity] ?? 'transparent'}`,
-                  }} />
-                </td>
-                <td style={{ padding: '12px 16px' }}>
-                  <Link href={`/incidents/${inc.id}`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>
-                    {(() => { const svc = Array.isArray(inc.services) ? inc.services[0] : inc.services; return svc?.name ?? '—'; })()}
-                  </Link>
-                </td>
-                <td style={{ padding: '12px 16px' }}>
-                  <span style={{
-                    fontSize: 11, fontWeight: 600,
-                    padding: '2px 7px', borderRadius: 4,
-                    background: SEVERITY_BG[inc.severity] ?? 'transparent',
-                    color: SEVERITY_COLOR[inc.severity] ?? 'var(--text-secondary)',
-                    textTransform: 'uppercase', letterSpacing: '0.05em',
-                  }}>
-                    {inc.severity}
-                  </span>
-                </td>
-                <td className="mobile-hide" style={{ padding: '12px 16px' }}>
-                  <span style={{ fontSize: 12, color: STATUS_COLOR[inc.status] ?? 'var(--text-secondary)' }}>
-                    {inc.status}
-                  </span>
-                </td>
-                <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)' }}>
-                  {inc.failure_stage}
-                </td>
-                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
-                  {new Date(inc.opened_at).toLocaleString()}
-                </td>
-                <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12 }}>
-                  {inc.resolved_at
-                    ? <span style={{ color: 'var(--text-muted)' }}>{duration}</span>
-                    : <span style={{ color: 'var(--status-degraded)' }}>{duration} ongoing</span>
-                  }
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border-mid)' }}>
+              <th style={{ textAlign: 'left', padding: '10px 0 10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: 4 }}></th>
+              <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</th>
+              <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</th>
+              <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Failed at</th>
+              <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Opened</th>
+              <th className="mobile-hide" style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {incidents.map((inc, i) => {
+              const isLast = i === incidents.length - 1;
+              const svc = Array.isArray(inc.services) ? inc.services[0] : inc.services;
+              const elapsed = inc.resolved_at
+                ? formatDuration(inc.opened_at, inc.resolved_at)
+                : formatElapsed(inc.opened_at);
+              return (
+                <tr
+                  key={inc.id}
+                  style={{
+                    borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)',
+                    background: isOpen ? 'var(--status-critical-bg)' : undefined,
+                  }}
+                >
+                  {/* Severity stripe */}
+                  <td style={{ padding: 0, width: 4 }}>
+                    <div style={{
+                      width: 3, height: '100%', minHeight: 48,
+                      borderLeft: `3px solid ${SEVERITY_COLOR[inc.severity] ?? 'transparent'}`,
+                      background: SEVERITY_BG[inc.severity] ?? 'transparent',
+                    }} />
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <Link href={`/incidents/${inc.id}`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>
+                      {svc?.name ?? '—'}
+                    </Link>
+                    {inc.status === 'acknowledged' && (
+                      <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--status-degraded)', background: 'var(--status-degraded-bg)', padding: '1px 5px', borderRadius: 3, fontWeight: 600 }}>
+                        ACK
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600,
+                      padding: '2px 7px', borderRadius: 4,
+                      background: SEVERITY_BG[inc.severity] ?? 'transparent',
+                      color: SEVERITY_COLOR[inc.severity] ?? 'var(--text-secondary)',
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
+                    }}>
+                      {inc.severity}
+                    </span>
+                  </td>
+                  <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono)' }}>
+                    {inc.failure_stage ?? '—'}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
+                    {formatRelative(inc.opened_at)}
+                  </td>
+                  <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12 }}>
+                    {inc.resolved_at
+                      ? <span style={{ color: 'var(--text-muted)' }}>{elapsed}</span>
+                      : <span style={{ color: 'var(--status-degraded)', fontWeight: 500 }}>{elapsed} ongoing</span>
+                    }
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
-  );
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-      {children}
-    </h2>
   );
 }
 
@@ -181,9 +191,18 @@ function formatRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function formatElapsed(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`;
   return `${Math.floor(hrs / 24)}d`;
 }
 

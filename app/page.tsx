@@ -348,9 +348,9 @@ export default function LandingPage() {
       <section className="section" id="status">
         <div className="container">
           <div className="reveal">
-            <div className="section-eyebrow">Public status pages</div>
-            <h2 className="section-title">Turn reliability into public proof.</h2>
-            <p className="section-sub" style={{ maxWidth: 420 }}>Share a public CORTX status page with users, agents and partners. Updated automatically after every check run.</p>
+            <div className="section-eyebrow">Public status pages &amp; badge</div>
+            <h2 className="section-title">Turn reliability into proof partners can see.</h2>
+            <p className="section-sub" style={{ maxWidth: 460 }}>Every service gets a public status page showing 90-day uptime, paid delivery success, schema validity, and median latency — updated live after every check. Embed the CORTX Monitored badge anywhere.</p>
           </div>
           <div className="status-preview reveal" style={{ '--rd': '0.08s' } as React.CSSProperties}>
             <div className="status-label-row">
@@ -363,16 +363,27 @@ export default function LandingPage() {
               <div className="status-updated">Updated 47s ago</div>
             </div>
             <div className="status-svc-row">
-              <div className="status-svc-header"><div className="status-svc-name">Wallet Research API</div><div className="status-svc-stat">Tested by CORTX · 90d</div></div>
+              <div className="status-svc-header"><div className="status-svc-name">Wallet Research API</div><div className="status-svc-stat">99.8% delivery · 100% schema · Operational</div></div>
               <div className="uptime-bars" id="ub1" />
               <div className="uptime-labels"><span className="uptime-label">90 days ago</span><span className="uptime-label">today</span></div>
             </div>
             <div className="status-svc-row">
-              <div className="status-svc-header"><div className="status-svc-name">Market Data Feed</div><div className="status-svc-stat">Tested by CORTX · 90d</div></div>
+              <div className="status-svc-header"><div className="status-svc-name">Market Data Feed</div><div className="status-svc-stat">100% delivery · 100% schema · Operational</div></div>
               <div className="uptime-bars" id="ub2" />
               <div className="uptime-labels"><span className="uptime-label">90 days ago</span><span className="uptime-label">today</span></div>
             </div>
-            <div style={{ marginTop: 13, textAlign: 'center' }}>
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono, monospace)' }}>Embeddable badge:</span>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'var(--surface-2)', border: '1px solid var(--border-1)',
+                  borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                  CORTX Monitored · Operational · 99.8% delivery
+                </span>
+              </div>
               <a href="/login" className="btn-nav-ghost" style={{ fontSize: '11.5px' }}>View your status page →</a>
             </div>
           </div>

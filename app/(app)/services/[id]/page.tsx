@@ -8,6 +8,7 @@ import type { Range } from '../../_components/range-utils';
 import { Suspense } from 'react';
 import { ChecksPanel } from './_components/checks-panel';
 import type { CheckRecord } from './_components/checks-panel';
+import { SharePanel } from './_components/share-panel';
 
 export default async function ServiceDetailPage({
   params,
@@ -24,6 +25,8 @@ export default async function ServiceDetailPage({
   const checksLimit = range === '30d' ? 200 : range === '7d' ? 100 : 20;
 
   const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data: service } = await supabase
     .from('services')
@@ -126,6 +129,18 @@ export default async function ServiceDetailPage({
       </h2>
 
       <ChecksPanel checks={(recentChecks ?? []) as CheckRecord[]} />
+
+      {/* Share / embed */}
+      {user && (
+        <div style={{ marginTop: 40 }}>
+          <h2 style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Share &amp; embed
+          </h2>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '20px 24px' }}>
+            <SharePanel serviceId={service.id} userId={user.id} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
