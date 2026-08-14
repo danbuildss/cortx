@@ -100,14 +100,25 @@ export default async function OverviewPage({
   }
   const bucketAvg = bucketSum.map((s, i) => bucketCnt[i] > 0 ? Math.round(s / bucketCnt[i]) : null);
 
-  // ── Uptime ──────────────────────────────────────────────
+  // ── Uptime (global) ─────────────────────────────────────
   let uptimePassed = 0, uptimeTotal = 0;
   for (const c of windowChecks ?? []) {
-    if (c.status === 'error') continue;
+    if (c.status === 'error') continue; // infrastructure errors excluded — consistent with check runner methodology
     uptimeTotal++;
     if (c.status === 'passed') uptimePassed++;
   }
   const uptimePct = uptimeTotal > 0 ? uptimePassed / uptimeTotal : null;
+
+  // ── Per-service uptime ──────────────────────────────────
+  const svcUptimePassed = new Map<string, number>();
+  const svcUptimeTotal  = new Map<string, number>();
+  for (const c of windowChecks ?? []) {
+    if (c.status === 'error') continue; // same exclusion as global uptime
+    svcUptimeTotal.set(c.service_id, (svcUptimeTotal.get(c.service_id) ?? 0) + 1);
+    if (c.status === 'passed') {
+      svcUptimePassed.set(c.service_id, (svcUptimePassed.get(c.service_id) ?? 0) + 1);
+    }
+  }
 
   // ── Totals ──────────────────────────────────────────────
   const total            = services?.length ?? 0;
@@ -185,6 +196,7 @@ export default async function OverviewPage({
                       {([
                         { label: 'Service', hide: false },
                         { label: 'Status', hide: false },
+                        { label: `Uptime (${rl})`, hide: true },
                         { label: `Resp. (${rl})`, hide: true },
                         { label: 'Last Check', hide: true },
                         { label: 'Incidents', hide: true },
@@ -210,6 +222,19 @@ export default async function OverviewPage({
                           </td>
                           <td style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
                             <StatusBadge status={svc.status ?? 'unknown'} />
+                          </td>
+                          <td className="mobile-hide" style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
+                            {(() => {
+                              const total  = svcUptimeTotal.get(svc.id)  ?? 0;
+                              const passed = svcUptimePassed.get(svc.id) ?? 0;
+                              if (total === 0) return <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>—</span>;
+                              const pct = (passed / total) * 100;
+                              const label = pct === 100 ? '100%' : pct.toFixed(1) + '%';
+                              const color = pct >= 99 ? 'var(--status-operational)'
+                                          : pct >= 95 ? 'var(--status-degraded)'
+                                          : 'var(--status-critical)';
+                              return <span style={{ fontSize: 13, color, fontFamily: 'var(--font-geist-mono)' }}>{label}</span>;
+                            })()}
                           </td>
                           <td className="mobile-hide" style={{ padding: '11px 18px', verticalAlign: 'middle' }}>
                             {avgMs != null ? (
