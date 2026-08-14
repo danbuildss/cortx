@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { computeMetrics } from '@/lib/metrics';
 
 function db() {
   return createClient(
@@ -113,44 +114,20 @@ export async function GET(
     );
   }
 
-  // Last 100 checks for recent stats
+  // 30-day window — up to 1000 checks
+  const since30 = new Date(Date.now() - 30 * 864e5).toISOString();
   const { data: recentChecks } = await supabase
     .from('checks')
     .select('status, latency_ms, stages')
     .eq('service_id', serviceId)
+    .gte('started_at', since30)
     .order('started_at', { ascending: false })
-    .limit(100);
+    .limit(1000);
 
-  let deliveryPassed = 0, deliveryTotal = 0;
-  let uptimePassed   = 0, uptimeTotal   = 0;
-  const latencies: number[] = [];
-
-  for (const c of recentChecks ?? []) {
-    if (c.status === 'error') continue;
-    uptimeTotal++;
-    if (c.status === 'passed') uptimePassed++;
-
-    if (c.latency_ms != null) latencies.push(c.latency_ms);
-
-    const stages = Array.isArray(c.stages) ? (c.stages as { stage: string; passed: boolean | null }[]) : [];
-    const stageMap = new Map(stages.map(s => [s.stage, s.passed]));
-    const payment  = stageMap.get('payment');
-    const delivery = stageMap.get('delivery');
-    if (payment !== undefined && delivery !== undefined) {
-      deliveryTotal++;
-      if (payment === true && delivery === true) deliveryPassed++;
-    }
-  }
-
-  const deliveryPct = deliveryTotal > 0
-    ? ((deliveryPassed / deliveryTotal) * 100).toFixed(1)
-    : null;
-  const uptimePct = uptimeTotal > 0
-    ? ((uptimePassed / uptimeTotal) * 100).toFixed(1)
-    : null;
-  const medianMs = latencies.length > 0
-    ? [...latencies].sort((a, b) => a - b)[Math.floor(latencies.length / 2)]
-    : null;
+  const metrics = computeMetrics(recentChecks ?? []);
+  const deliveryPct = metrics.paid_delivery_percent !== null ? String(metrics.paid_delivery_percent) : null;
+  const uptimePct   = metrics.uptime_percent !== null        ? String(metrics.uptime_percent)        : null;
+  const medianMs    = metrics.median_latency_ms;
 
   const svg = buildSvg({
     status: service.status ?? 'unknown',

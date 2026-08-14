@@ -33,6 +33,13 @@ const NAV: { group: string; items: { id?: string; href?: string; label: string }
       { id: 'faq',         label: 'FAQ' },
     ],
   },
+  {
+    group: 'Partner',
+    items: [
+      { href: '/docs/partner-integration', label: 'Partner Integration' },
+      { href: '/methodology',              label: 'Methodology' },
+    ],
+  },
 ];
 
 const ALL_IDS = NAV.flatMap(g => g.items.map(i => i.id).filter(Boolean)) as string[];
