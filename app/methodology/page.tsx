@@ -25,13 +25,13 @@ const STAGES = [
     key:   'availability',
     num:   '01',
     label: 'Availability',
-    desc:  'CORTX sends an HTTP GET to the endpoint URL. A 402 Payment Required response is expected — it signals the endpoint is alive and requires payment. Any other non-2xx/402 response (connection refused, 500, timeout) fails the check here.',
+    desc:  'CORTX sends an HTTP POST (with test payload) to the endpoint URL. A 402 Payment Required response is expected — it signals the endpoint is alive and requires payment. If POST does not return 402, CORTX retries with GET to support endpoints that gate on GET requests. Any other non-402 response (connection refused, 500, timeout) fails the check here.',
   },
   {
     key:   'payment_terms',
     num:   '02',
     label: 'Payment Terms',
-    desc:  'CORTX reads the X-Payment-Required response header and parses the JSON payment terms: network, asset, amount, recipient address, and EIP-712 domain info. Missing, malformed, or unsigned headers fail this stage.',
+    desc:  'CORTX parses the 402 response body for x402 payment terms (network, asset, amount, recipient address). If the body is not a valid x402 envelope, the X-Payment-Required header is tried as a fallback. Missing, malformed, or unparseable payment terms fail this stage.',
   },
   {
     key:   'price_check',
@@ -108,7 +108,7 @@ export default function MethodologyPage() {
             How CORTX measures reliability
           </h1>
           <p style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.75, maxWidth: 620 }}>
-            CORTX runs a full synthetic payment through every x402 endpoint at a configured interval — not a ping, but a real end-to-end transaction. Each check executes a 7-stage pipeline and records the outcome at each stage.
+            CORTX monitors every x402 endpoint on two tiers: a free lightweight ping every 5 minutes confirms reachability, and a full paid verification at a configured interval runs a real end-to-end transaction through the 7-stage pipeline below, recording evidence at each stage.
           </p>
         </div>
 
