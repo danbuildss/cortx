@@ -130,6 +130,10 @@ export default function LandingPage() {
               <svg className="icon-moon" viewBox="0 0 16 16" fill="none"><path d="M13.5 9.5A6 6 0 1 1 7 3.5a4.5 4.5 0 0 0 6.5 6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
               <svg className="icon-sun" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.8" stroke="currentColor" strokeWidth="1.4" /><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.2 1.2M11.4 11.4l1.2 1.2M3.4 12.6l1.2-1.2M11.4 4.6l1.2-1.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
             </button>
+            <a href="#" className="btn-token">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/><path d="M8 4v1.5m0 5V12m-1.5-5.5h2.5a1 1 0 010 2H7a1 1 0 000 2h2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+              $CORTX
+            </a>
             <a href="/login" className="btn-nav-ghost">Sign in</a>
             <a href="/signup" className="btn-nav-cta">Monitor a Service →</a>
           </div>
@@ -483,6 +487,7 @@ export default function LandingPage() {
           {/* Legal bar */}
           <div className="ft-legal">
             <div className="ft-copy">© 2026 CORTX, Inc.</div>
+            <div className="ft-copy">Built by <a href="https://somehow.so" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3 }}>SOMEHOW</a></div>
           </div>
         </div>
       </footer>

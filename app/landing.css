@@ -98,6 +98,8 @@
 .lp .btn-nav-ghost:hover{color:var(--text-1);border-color:var(--border-mid);}
 .lp .btn-nav-cta{padding:5px 15px;font-size:13px;font-weight:500;color:var(--cta-text);background:var(--cta-bg);border:none;border-radius:var(--r-lg);transition:opacity .12s;display:inline-block;}
 .lp .btn-nav-cta:hover{opacity:0.85;}
+.lp .btn-token{padding:5px 11px;font-size:12px;font-weight:600;color:#d97706;background:rgba(217,119,6,0.08);border:1px solid rgba(217,119,6,0.22);border-radius:var(--r-lg);transition:all .12s;display:inline-flex;align-items:center;gap:4px;letter-spacing:-0.01em;}
+.lp .btn-token:hover{background:rgba(217,119,6,0.14);border-color:rgba(217,119,6,0.38);}
 
 /* ── Nav dropdown ── */
 .lp .nav-drop-host{position:relative;list-style:none;}
@@ -307,6 +309,7 @@
   .lp .nav-links{display:none;}
   /* Hide "Sign in" ghost button — CTA + theme toggle is enough on mobile */
   .lp .btn-nav-ghost{display:none;}
+  .lp .btn-token{display:none;}
   .lp .btn-nav-cta{padding:5px 12px;font-size:12px;}
   .lp .btn-theme{width:28px;height:28px;}
   .lp .section{padding:48px 0;}
