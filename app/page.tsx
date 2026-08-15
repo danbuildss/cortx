@@ -116,6 +116,10 @@ export default function LandingPage() {
                     <div className="mega-ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.4" /><circle cx="8" cy="8" r="2" fill="currentColor" /></svg></div>
                     <div><div className="mega-title">Public status pages</div><div className="mega-desc">Share reliability proof with users and partners</div></div>
                   </a>
+                  <a className="mega-item" href="/registry" role="menuitem">
+                    <div className="mega-ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4"/><path d="M5 6.5h6M5 9.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg></div>
+                    <div><div className="mega-title">Service Registry</div><div className="mega-desc">Verified x402 endpoints, live status from real checks</div></div>
+                  </a>
                 </div>
               </div>
             </li>
