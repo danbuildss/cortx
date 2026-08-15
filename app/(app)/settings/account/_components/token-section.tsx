@@ -106,7 +106,7 @@ export function TokenSection({
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           Hold $CORTX on Base to unlock more monitored endpoints.{' '}
           <a
-            href="https://app.uniswap.org/swap?outputCurrency=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base"
+            href="https://bankr.bot/terminal/trade?out=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}

@@ -127,6 +127,8 @@
 .lp .btn-cta-primary:hover{opacity:0.82;}
 .lp .btn-cta-ghost{display:inline-flex;align-items:center;gap:7px;padding:9px 17px;font-size:13.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid var(--border-mid);border-radius:var(--r-lg);transition:all .12s;}
 .lp .btn-cta-ghost:hover{color:var(--text-1);border-color:#9ca3af;}
+.lp .btn-cta-token{display:inline-flex;align-items:center;gap:7px;padding:9px 17px;font-size:13.5px;font-weight:500;color:#d97706;background:rgba(217,119,6,0.08);border:1px solid rgba(217,119,6,0.28);border-radius:var(--r-lg);transition:all .12s;}
+.lp .btn-cta-token:hover{background:rgba(217,119,6,0.15);border-color:rgba(217,119,6,0.5);}
 
 /* Hero animations */
 .lp .h-eyebrow{opacity:0;transform:scale(0.96);animation:hFadeScale 0.4s ease forwards;animation-delay:0.06s;}

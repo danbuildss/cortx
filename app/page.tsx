@@ -407,8 +407,22 @@ export default function LandingPage() {
                 Monitor a Service
                 <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </a>
+              <a
+                href="https://bankr.bot/terminal/trade?out=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-cta-token"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/><path d="M8 4v1.5m0 5V12m-1.5-5.5h2.5a1 1 0 010 2H7a1 1 0 000 2h2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                Buy $CORTX
+              </a>
             </div>
-            <p className="cta-note">Currently supports Bankr-hosted x402 JSON APIs on Base mainnet.<br />Private beta. No token. No marketplace.</p>
+            <p className="cta-note">
+              Currently supports Bankr-hosted x402 JSON APIs on Base mainnet.<br />
+              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.9em', opacity: 0.65, letterSpacing: '-0.01em' }}>
+                0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3
+              </span>
+            </p>
           </div>
         </div>
       </section>
@@ -441,7 +455,7 @@ export default function LandingPage() {
                 <a href="https://x.com/usecortx">X (Twitter)</a>
                 <a href="https://t.me/usecortxdev">Telegram</a>
                 <a href="https://t.me/AskCortxBot">Cortx Bot</a>
-                <a href="https://app.uniswap.org/swap?outputCurrency=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base">Buy $CORTX</a>
+                <a href="https://bankr.bot/terminal/trade?out=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base">Buy $CORTX</a>
                 <a href="/registry">Service Registry</a>
               </div>
             </div>
