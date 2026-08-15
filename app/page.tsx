@@ -438,6 +438,7 @@ export default function LandingPage() {
                 <a href="#product">End-to-end checks</a>
                 <a href="/methodology">Incident evidence</a>
                 <a href="#status">Public status pages</a>
+                <a href="/registry">Service Registry</a>
               </div>
             </div>
             <div>
@@ -456,7 +457,6 @@ export default function LandingPage() {
                 <a href="https://t.me/usecortxdev">Telegram</a>
                 <a href="https://t.me/AskCortxBot">Cortx Bot</a>
                 <a href="https://bankr.bot/terminal/trade?out=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base">Buy $CORTX</a>
-                <a href="/registry">Service Registry</a>
               </div>
             </div>
             <div>
