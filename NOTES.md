@@ -265,6 +265,7 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #54 (merged): Layered Verification Sprint — three-tier monitoring model
 - PR #57 (merged): $CORTX token tiers, public registry, Telegram logo, nav polish (migrations 008+009)
 - PR #58 (merged): blog post — "x402 has 7 failure modes. Standard monitoring catches one."
+- PR #59 (merged): admin — multi-window platform stats table (24h/7d/30d/90d/1y/all) + registry seeds section with inline add form
 - **BankrBot/skills PR #642 (open)**: CORTX skill — x402 endpoint reliability for agents
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
