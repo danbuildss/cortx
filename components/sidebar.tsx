@@ -86,6 +86,15 @@ function ExternalIcon() {
   );
 }
 
+function RegistryIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6.5" />
+      <path d="M8 4v1.5m0 5V12m-1.5-5.5h2.5a1 1 0 010 2H7a1 1 0 000 2h2.5" />
+    </svg>
+  );
+}
+
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -160,6 +169,7 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
     { label: 'Services', href: '/services', icon: <ServicesIcon /> },
     { label: 'Incidents', href: '/incidents', icon: <IncidentsIcon /> },
     { label: 'Status Pages', href: `/status/${userId}`, icon: <StatusPagesIcon />, external: true },
+    { label: 'Registry', href: '/registry', icon: <RegistryIcon />, external: true },
   ];
 
   const settingsNav = [

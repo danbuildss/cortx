@@ -14,14 +14,24 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   }
 
   const displayName = body.display_name;
-  if (displayName !== null && typeof displayName !== 'string') {
+  if (displayName !== undefined && displayName !== null && typeof displayName !== 'string') {
     return NextResponse.json({ error: 'Invalid display_name' }, { status: 400 });
   }
 
-  await supabase
-    .from('profiles')
-    .update({ display_name: displayName ?? null })
-    .eq('id', user.id);
+  const walletAddress = body.cortx_wallet_address;
+  if (walletAddress !== undefined && walletAddress !== null) {
+    if (typeof walletAddress !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(walletAddress)) {
+      return NextResponse.json({ error: 'Invalid wallet address' }, { status: 400 });
+    }
+  }
+
+  const update: Record<string, unknown> = {};
+  if (displayName !== undefined) update.display_name = displayName ?? null;
+  if (walletAddress !== undefined) update.cortx_wallet_address = walletAddress ?? null;
+
+  if (Object.keys(update).length > 0) {
+    await supabase.from('profiles').update(update).eq('id', user.id);
+  }
 
   return NextResponse.json({ ok: true });
 }

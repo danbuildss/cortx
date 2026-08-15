@@ -442,6 +442,7 @@ export default function LandingPage() {
                 <a href="https://t.me/usecortxdev">Telegram</a>
                 <a href="https://t.me/AskCortxBot">Cortx Bot</a>
                 <a href="https://app.uniswap.org/swap?outputCurrency=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base">Buy $CORTX</a>
+                <a href="/registry">Service Registry</a>
               </div>
             </div>
             <div>
