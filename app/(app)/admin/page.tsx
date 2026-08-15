@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { CopyButton } from '@/components/copy-button';
 import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
+import { RegistrySeedForm } from './registry-seed-form';
 
 const ADMIN_USER_ID = 'e9374851-ac6f-4f1e-a131-6747fc37184a';
 
@@ -33,6 +34,7 @@ export default async function AdminPage() {
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  const now = Date.now();
 
   const fetchWalletBalance = async (): Promise<string | null> => {
     try { return await getWalletBalance(getWalletAddress()); } catch { return null; }
@@ -49,6 +51,8 @@ export default async function AdminPage() {
     { data: monthSpendRows },
     { data: lastCheckRow },
     walletBalance,
+    { data: allChecksStats },
+    { data: registrySeeds },
   ] = await Promise.all([
     service.auth.admin.listUsers({ perPage: 100 }),
     service.from('services').select('id, user_id, name, endpoint_url, status, created_at, last_checked_at').is('deleted_at', null).order('created_at', { ascending: false }),
@@ -60,6 +64,8 @@ export default async function AdminPage() {
     service.from('checks').select('observed_price').gte('started_at', monthStart.toISOString()).in('status', ['passed', 'success']),
     service.from('checks').select('started_at').order('started_at', { ascending: false }).limit(1),
     fetchWalletBalance(),
+    service.from('checks').select('status, observed_price, started_at').order('started_at', { ascending: false }).limit(10000),
+    service.from('registry_seeds').select('id, name, endpoint_url, description, status, is_verified, created_at').order('created_at', { ascending: false }),
   ]);
 
   const authUsers = authResult.data?.users ?? [];
@@ -138,6 +144,32 @@ export default async function AdminPage() {
   // Last cron run
   const lastCronAt = lastCheckRow?.[0]?.started_at ?? null;
   const cronStale = lastCronAt !== null && Date.now() - new Date(lastCronAt).getTime() > 30 * 60 * 1000;
+
+  // Multi-window stats
+  type WindowStat = { label: string; total: number; successRate: string | null; spend: number; };
+  const windowDefs: { label: string; ms: number | null }[] = [
+    { label: '24h', ms: 24 * 60 * 60 * 1000 },
+    { label: '7d',  ms: 7 * 24 * 60 * 60 * 1000 },
+    { label: '30d', ms: 30 * 24 * 60 * 60 * 1000 },
+    { label: '90d', ms: 90 * 24 * 60 * 60 * 1000 },
+    { label: '1y',  ms: 365 * 24 * 60 * 60 * 1000 },
+    { label: 'all', ms: null },
+  ];
+  const allChecksArr = allChecksStats ?? [];
+  const windowStats: WindowStat[] = windowDefs.map(({ label, ms }) => {
+    const cutoff = ms !== null ? now - ms : null;
+    const filtered = cutoff !== null
+      ? allChecksArr.filter(c => new Date(c.started_at).getTime() >= cutoff)
+      : allChecksArr;
+    const total = filtered.length;
+    const success = filtered.filter(c => c.status === 'success' || c.status === 'passed').length;
+    const successRate = total > 0 ? (success / total * 100).toFixed(1) : null;
+    const spend = filtered.reduce((s, c) => s + parseFloat(String(c.observed_price ?? '0')), 0);
+    return { label, total, successRate, spend };
+  });
+
+  // Seeds
+  const seeds = registrySeeds ?? [];
 
   // Code by email
   const codeByEmail = new Map<string, string>();
@@ -224,6 +256,53 @@ export default async function AdminPage() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* Multi-window stats */}
+      <div style={{ marginBottom: 20, ...card }}>
+        <div style={cardHeader}>
+          <span style={cardTitle}>Platform Stats</span>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>checks · success rate · spend</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 360 }}>
+            <thead>
+              <tr>
+                {['Window', 'Checks', 'Success rate', 'Spend (USDC)'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {windowStats.map(({ label, total, successRate, spend }, i) => {
+                const isLast = i === windowStats.length - 1;
+                const rateNum = successRate !== null ? parseFloat(successRate) : null;
+                const rateColor = rateNum === null ? 'var(--text-dim)' : rateNum >= 95 ? 'var(--status-ok)' : rateNum >= 80 ? 'var(--status-degraded)' : 'var(--status-critical)';
+                const tdStyle: React.CSSProperties = { padding: '10px 16px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)', verticalAlign: 'middle' };
+                return (
+                  <tr key={label}>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{label}</span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: total === 0 ? 'var(--text-dim)' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{total.toLocaleString()}</span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: rateColor, fontVariantNumeric: 'tabular-nums' }}>
+                        {successRate !== null ? `${successRate}%` : '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 12, color: spend === 0 ? 'var(--text-dim)' : 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                        {spend === 0 ? '—' : `$${spend.toFixed(4)}`}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Wallet & Spend */}
@@ -580,6 +659,78 @@ export default async function AdminPage() {
           </div>
 
         </div>
+      </div>
+
+      {/* Registry Seeds */}
+      <div style={{ marginTop: 24, ...card }}>
+        <div style={{ ...cardHeader, alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <span style={cardTitle}>Registry Seeds</span>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+              OBSERVED endpoints — outreach targets. {seeds.length} seed{seeds.length !== 1 ? 's' : ''} tracked.
+            </div>
+          </div>
+          <RegistrySeedForm />
+        </div>
+        {seeds.length === 0 ? (
+          <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            No seeds yet — add an endpoint to start tracking it.
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {['Name / Endpoint', 'Status', 'Verified', 'Added', 'Registry'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {seeds.map((seed, i) => {
+                  const isLast = i === seeds.length - 1;
+                  const tdStyle: React.CSSProperties = { padding: '10px 16px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)', verticalAlign: 'middle' };
+                  const statusColor = seed.status === 'operational' ? 'var(--status-ok)' : seed.status === 'degraded' ? 'var(--status-degraded)' : seed.status === 'critical' ? 'var(--status-critical)' : 'var(--text-dim)';
+                  return (
+                    <tr key={seed.id}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 }}>{seed.name}</div>
+                        <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-dim)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{seed.endpoint_url}</div>
+                        {seed.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{seed.description}</div>}
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: statusColor, textTransform: 'capitalize' }}>{seed.status ?? 'unknown'}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4,
+                          textTransform: 'uppercase', letterSpacing: '0.04em',
+                          background: seed.is_verified ? 'rgba(34,197,94,0.08)' : 'rgba(107,114,128,0.1)',
+                          color: seed.is_verified ? 'var(--status-ok)' : 'var(--text-muted)',
+                        }}>
+                          {seed.is_verified ? 'Verified' : 'Observed'}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ color: 'var(--text-muted)' }}>{formatDate(seed.created_at)}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <a
+                          href={`https://usecortx.dev/registry`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 11, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-geist-mono)' }}
+                        >
+                          /registry
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
