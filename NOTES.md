@@ -6,11 +6,74 @@
 
 ## Project Overview
 
-CORTX is a reliability monitoring tool for x402 endpoints. It runs a full synthetic payment through your endpoint (availability → payment terms → price check → payment → delivery → JSON parse → schema validation) every few minutes, records evidence at every stage, opens incidents on consecutive failures, and sends Telegram alerts. Built for Bankr builders who need to know if their paid API is actually working end-to-end, not just "up."
+CORTX is the reliability layer for x402. It runs a full synthetic payment through your endpoint (availability → payment terms → price check → payment → delivery → JSON parse → schema validation) every few minutes, records evidence at every stage, opens incidents on consecutive failures, and sends Telegram alerts. Most monitoring asks "is your server alive?" CORTX asks "did someone actually pay for your service and receive the expected result?" — a fundamentally different problem.
 
 Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Schema validation), Vercel (hosting), cron-job.org (scheduled checks), Telegram Bot API, x402/client npm package (EIP-3009 payment signing).
 
 **Official domain: usecortx.dev**
+
+## Company Roadmap (locked)
+
+```
+V1 — Monitor  ✅  End-to-end x402 monitoring, incidents, alerts, evidence, public status
+V2 — Verify       Ownership verification, trust labels, historical delivery reputation
+V3 — Select       Agents/platforms compare providers by health, latency, price, delivery %
+V4 — Route        CORTX automatically chooses and fails over between providers
+```
+
+**Current position:** V1 complete. V2 is next — endpoint ownership verification and trust labels are the missing piece before public launch is fully proven.
+
+## What to Stop Building (Aug 2026 decision)
+
+The product has enough. No more:
+- Dashboard redesigns / more charts / more UI polish
+- Another settings page or public page
+- AI summaries
+- More documentation
+- More token features
+
+Every build decision must move one of the Phase 1 success metrics.
+
+## Phase 1 Success Metrics (prove CORTX)
+
+Goal: become the default reliability monitor for x402 on Base.
+
+| Metric | Target |
+|---|---|
+| Builders | 10 |
+| Endpoints monitored | 30 |
+| Total checks run | 10,000 |
+| Real incidents detected | 10 |
+| Partners embedding badge/API | 1 |
+
+## CEO Focus (next 4–6 weeks, not product)
+
+- Onboard builders
+- Find real failures in the wild
+- Publish reliability reports
+- Collect testimonials
+- Secure integrations
+- Apply for Base ecosystem grants
+- Talk to Base ecosystem teams
+
+**Biggest risk:** building for six more months without proving builders leave CORTX running because it solves a problem they feel every day.
+
+## One Missing Feature Before Launch
+
+**Endpoint ownership verification.** Registry currently shows OBSERVED endpoints (admin-seeded) alongside builder-monitored ones, but no way to prove a builder owns the endpoint they're claiming.
+
+Flow:
+1. Builder pastes endpoint URL
+2. CORTX generates a token
+3. Builder returns token from their endpoint (in header or response)
+4. CORTX marks as ✅ Verified by owner
+
+Registry trust labels:
+- ✅ **Verified** — owner confirmed via token challenge
+- 👁 **Observed** — monitored by CORTX, owner unconfirmed
+- 🌐 **Community** — submitted by third party (future)
+
+This distinction is the foundation of V2 (Verify) and what makes the registry trustworthy rather than just a list.
 
 ## Current Status
 
