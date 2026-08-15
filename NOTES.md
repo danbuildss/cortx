@@ -20,9 +20,10 @@ Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON 
 - [x] Private beta ready — invite codes seeded, all infra confirmed working
 - [x] Partnership Readiness Sprint — **COMPLETE** (Phase 1 + Partner Integration Sprint + audit)
 - [x] Layered Verification Sprint — **COMPLETE** (PR #54 merged, migration 007 applied)
-- [ ] Live
+- [x] $CORTX token tiers + public registry — **COMPLETE** (PRs #57, #58 merged, migrations 008+009 applied)
+- [ ] Public launch — **next week**
 
-**Beta v1 is live at usecortx.dev.** Layered Verification Sprint live (PR #54 merged, migration 007 applied). Partner Integration Sprint shipped (PR #52). Partner onboarding audit complete — CORS fixed (PR #53).
+**Beta wrapping up.** Public launch planned for next week. Blog post live (usecortx.dev/blog/x402-failure-modes). Utility tweet posted (Aug 15). Ship thread scheduled for Monday. Bankr skill PR open (BankrBot/skills #642). Registry seeding in progress.
 
 ### Partnership Readiness Sprint (Phase 1 — shipped)
 
@@ -168,9 +169,18 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 
 ## Open Questions
 
-- Who are the 5 Bankr builders for the private beta?
 - Email alerts alongside Telegram? (not built)
 - Custom domain for status pages?
+- On-demand check API (needed for Bankr skill v2 — currently skill requires known serviceId)
+
+## GTM — Launch Week Plan (week of Aug 18)
+
+- Monday: ship update thread on X
+- Beta closes → open signups
+- BankrBot/skills PR #642 merged → announce CORTX as a Bankr skill
+- Registry/founder blog post (next weekend)
+- Registry push — outreach to x402 builders (DM templates ready)
+- Next week: registry awareness tweet
 
 ## Branch / PR History
 
@@ -188,8 +198,11 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #50 (merged): Partnership Readiness Sprint — incident polish, reliability page, badge, share panel
 - PR #51 (merged): fix — mobile responsiveness for Partnership Readiness Sprint
 - PR #52 (merged): Partner Integration Sprint — public reliability API, service status page, methodology page, partner integration docs, admin partner readiness table, `lib/metrics.ts` single source of truth, `--status-ok` CSS token, badge consistency fixes
-- PR #53 (open): fix — CORS headers on Reliability API + partner onboarding audit
+- PR #53 (merged): fix — CORS headers on Reliability API + partner onboarding audit
 - PR #54 (merged): Layered Verification Sprint — three-tier monitoring model
+- PR #57 (merged): $CORTX token tiers, public registry, Telegram logo, nav polish (migrations 008+009)
+- PR #58 (merged): blog post — "x402 has 7 failure modes. Standard monitoring catches one."
+- **BankrBot/skills PR #642 (open)**: CORTX skill — x402 endpoint reliability for agents
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
