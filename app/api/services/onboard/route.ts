@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { runCheck } from '@/lib/check-runner/runner';
 import { persistCheckResult } from '@/lib/check-runner/persist';
+import { canAddService } from '@/lib/token';
 
 export const maxDuration = 60;
 
@@ -21,6 +22,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!name || !endpoint_url || !expected_price || !max_price) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+
+  // Tier-based service limit check
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('cortx_tier, is_admin')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const { count: serviceCount } = await supabase
+    .from('services')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .is('deleted_at', null);
+
+  const tier = (profile?.cortx_tier ?? 'free') as import('@/lib/token').Tier;
+  const isAdmin = profile?.is_admin ?? false;
+
+  if (!canAddService(tier, isAdmin, serviceCount ?? 0)) {
+    return NextResponse.json(
+      { error: 'Service limit reached for your $CORTX tier', tier, count: serviceCount },
+      { status: 403 },
+    );
   }
 
   // Parse and validate

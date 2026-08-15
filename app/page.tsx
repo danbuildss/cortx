@@ -116,6 +116,10 @@ export default function LandingPage() {
                     <div className="mega-ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.4" /><circle cx="8" cy="8" r="2" fill="currentColor" /></svg></div>
                     <div><div className="mega-title">Public status pages</div><div className="mega-desc">Share reliability proof with users and partners</div></div>
                   </a>
+                  <a className="mega-item" href="/registry" role="menuitem">
+                    <div className="mega-ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4"/><path d="M5 6.5h6M5 9.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg></div>
+                    <div><div className="mega-title">Service Registry</div><div className="mega-desc">Verified x402 endpoints, live status from real checks</div></div>
+                  </a>
                 </div>
               </div>
             </li>
@@ -407,8 +411,22 @@ export default function LandingPage() {
                 Monitor a Service
                 <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </a>
+              <a
+                href="https://bankr.bot/terminal/trade?out=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-cta-token"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/><path d="M8 4v1.5m0 5V12m-1.5-5.5h2.5a1 1 0 010 2H7a1 1 0 000 2h2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                Buy $CORTX
+              </a>
             </div>
-            <p className="cta-note">Currently supports Bankr-hosted x402 JSON APIs on Base mainnet.<br />Private beta. No token. No marketplace.</p>
+            <p className="cta-note">
+              Currently supports Bankr-hosted x402 JSON APIs on Base mainnet.<br />
+              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.9em', opacity: 0.65, letterSpacing: '-0.01em' }}>
+                0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3
+              </span>
+            </p>
           </div>
         </div>
       </section>
@@ -424,6 +442,7 @@ export default function LandingPage() {
                 <a href="#product">End-to-end checks</a>
                 <a href="/methodology">Incident evidence</a>
                 <a href="#status">Public status pages</a>
+                <a href="/registry">Service Registry</a>
               </div>
             </div>
             <div>
@@ -441,6 +460,7 @@ export default function LandingPage() {
                 <a href="https://x.com/usecortx">X (Twitter)</a>
                 <a href="https://t.me/usecortxdev">Telegram</a>
                 <a href="https://t.me/AskCortxBot">Cortx Bot</a>
+                <a href="https://bankr.bot/terminal/trade?out=0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3&chain=base">Buy $CORTX</a>
               </div>
             </div>
             <div>
@@ -483,6 +503,7 @@ export default function LandingPage() {
           {/* Legal bar */}
           <div className="ft-legal">
             <div className="ft-copy">© 2026 CORTX, Inc.</div>
+            <div className="ft-copy">Built by <a href="https://somehow-internet.vercel.app" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3 }}>SOMEHOW</a></div>
           </div>
         </div>
       </footer>

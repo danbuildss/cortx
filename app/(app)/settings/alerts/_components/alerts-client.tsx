@@ -12,6 +12,22 @@ type Connection = {
   on_resolve: boolean;
 };
 
+function TelegramLogo({ size = 36 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <circle cx="20" cy="20" r="20" fill="#2AABEE" />
+      <path
+        d="M8.5 19.8L30 11L25.5 30L18.5 24.5L14 28V23.5L25 14L12 20.5Z"
+        fill="white"
+      />
+      <path
+        d="M14 23.5L18.5 24.5L16.5 30Z"
+        fill="#C8DAEA"
+      />
+    </svg>
+  );
+}
+
 export function TelegramConnect({ initialConnection }: { initialConnection: Connection | null }) {
   const [connection, setConnection] = useState<Connection | null>(initialConnection);
   const [connecting, setConnecting] = useState(false);
@@ -124,26 +140,22 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {/* Green connected indicator */}
-              <div style={{ position: 'relative', width: 36, height: 36 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: 'var(--status-operational-bg)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 18,
-                }}>
-                  ✈
-                </div>
-                <div style={{
-                  position: 'absolute', bottom: 0, right: 0,
-                  width: 11, height: 11, borderRadius: '50%',
-                  background: 'var(--status-operational)',
-                  border: '2px solid var(--bg-surface)',
-                }} />
-              </div>
+              <TelegramLogo size={36} />
               <div>
-                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
-                  Telegram connected
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Telegram
+                  </span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 500,
+                    color: 'var(--status-operational)',
+                    background: 'rgba(34,197,94,0.1)',
+                    border: '1px solid rgba(34,197,94,0.25)',
+                    borderRadius: 99, padding: '1px 8px',
+                    lineHeight: '18px',
+                  }}>
+                    Connected
+                  </span>
                 </div>
                 {connection.username && (
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -255,18 +267,27 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
         background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
         borderRadius: 8, padding: '28px 24px', textAlign: 'center',
       }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: '50%',
-          background: 'var(--bg-elevated)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, margin: '0 auto 16px',
-        }}>
-          ✈
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 16 }}>
+          <TelegramLogo size={40} />
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Telegram
+              </span>
+              <span style={{
+                fontSize: 11, fontWeight: 500,
+                color: 'var(--text-muted)',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 99, padding: '1px 8px',
+                lineHeight: '18px',
+              }}>
+                Not connected
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 6 }}>
-          Connect Telegram
-        </div>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24, maxWidth: 360, margin: '0 auto 24px' }}>
           Receive incident alerts directly in Telegram. One connection covers all your monitored services.
         </p>
