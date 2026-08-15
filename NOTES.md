@@ -6,11 +6,74 @@
 
 ## Project Overview
 
-CORTX is a reliability monitoring tool for x402 endpoints. It runs a full synthetic payment through your endpoint (availability → payment terms → price check → payment → delivery → JSON parse → schema validation) every few minutes, records evidence at every stage, opens incidents on consecutive failures, and sends Telegram alerts. Built for Bankr builders who need to know if their paid API is actually working end-to-end, not just "up."
+CORTX is the reliability layer for x402. It runs a full synthetic payment through your endpoint (availability → payment terms → price check → payment → delivery → JSON parse → schema validation) every few minutes, records evidence at every stage, opens incidents on consecutive failures, and sends Telegram alerts. Most monitoring asks "is your server alive?" CORTX asks "did someone actually pay for your service and receive the expected result?" — a fundamentally different problem.
 
 Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON Schema validation), Vercel (hosting), cron-job.org (scheduled checks), Telegram Bot API, x402/client npm package (EIP-3009 payment signing).
 
 **Official domain: usecortx.dev**
+
+## Company Roadmap (locked)
+
+```
+V1 — Monitor  ✅  End-to-end x402 monitoring, incidents, alerts, evidence, public status
+V2 — Verify       Ownership verification, trust labels, historical delivery reputation
+V3 — Select       Agents/platforms compare providers by health, latency, price, delivery %
+V4 — Route        CORTX automatically chooses and fails over between providers
+```
+
+**Current position:** V1 complete. V2 is next — endpoint ownership verification and trust labels are the missing piece before public launch is fully proven.
+
+## What to Stop Building (Aug 2026 decision)
+
+The product has enough. No more:
+- Dashboard redesigns / more charts / more UI polish
+- Another settings page or public page
+- AI summaries
+- More documentation
+- More token features
+
+Every build decision must move one of the Phase 1 success metrics.
+
+## Phase 1 Success Metrics (prove CORTX)
+
+Goal: become the default reliability monitor for x402 on Base.
+
+| Metric | Target |
+|---|---|
+| Builders | 10 |
+| Endpoints monitored | 30 |
+| Total checks run | 10,000 |
+| Real incidents detected | 10 |
+| Partners embedding badge/API | 1 |
+
+## CEO Focus (next 4–6 weeks, not product)
+
+- Onboard builders
+- Find real failures in the wild
+- Publish reliability reports
+- Collect testimonials
+- Secure integrations
+- Apply for Base ecosystem grants
+- Talk to Base ecosystem teams
+
+**Biggest risk:** building for six more months without proving builders leave CORTX running because it solves a problem they feel every day.
+
+## One Missing Feature Before Launch
+
+**Endpoint ownership verification.** Registry currently shows OBSERVED endpoints (admin-seeded) alongside builder-monitored ones, but no way to prove a builder owns the endpoint they're claiming.
+
+Flow:
+1. Builder pastes endpoint URL
+2. CORTX generates a token
+3. Builder returns token from their endpoint (in header or response)
+4. CORTX marks as ✅ Verified by owner
+
+Registry trust labels:
+- ✅ **Verified** — owner confirmed via token challenge
+- 👁 **Observed** — monitored by CORTX, owner unconfirmed
+- 🌐 **Community** — submitted by third party (future)
+
+This distinction is the foundation of V2 (Verify) and what makes the registry trustworthy rather than just a list.
 
 ## Current Status
 
@@ -20,9 +83,10 @@ Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON 
 - [x] Private beta ready — invite codes seeded, all infra confirmed working
 - [x] Partnership Readiness Sprint — **COMPLETE** (Phase 1 + Partner Integration Sprint + audit)
 - [x] Layered Verification Sprint — **COMPLETE** (PR #54 merged, migration 007 applied)
-- [ ] Live
+- [x] $CORTX token tiers + public registry — **COMPLETE** (PRs #57, #58 merged, migrations 008+009 applied)
+- [ ] Public launch — **next week**
 
-**Beta v1 is live at usecortx.dev.** Layered Verification Sprint live (PR #54 merged, migration 007 applied). Partner Integration Sprint shipped (PR #52). Partner onboarding audit complete — CORS fixed (PR #53).
+**Beta wrapping up.** Public launch planned for next week. Blog post live (usecortx.dev/blog/x402-failure-modes). Utility tweet posted (Aug 15). Ship thread scheduled for Monday. Bankr skill PR open (BankrBot/skills #642). Registry seeding in progress.
 
 ### Partnership Readiness Sprint (Phase 1 — shipped)
 
@@ -168,9 +232,18 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 
 ## Open Questions
 
-- Who are the 5 Bankr builders for the private beta?
 - Email alerts alongside Telegram? (not built)
 - Custom domain for status pages?
+- On-demand check API (needed for Bankr skill v2 — currently skill requires known serviceId)
+
+## GTM — Launch Week Plan (week of Aug 18)
+
+- Monday: ship update thread on X
+- Beta closes → open signups
+- BankrBot/skills PR #642 merged → announce CORTX as a Bankr skill
+- Registry/founder blog post (next weekend)
+- Registry push — outreach to x402 builders (DM templates ready)
+- Next week: registry awareness tweet
 
 ## Branch / PR History
 
@@ -188,8 +261,11 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #50 (merged): Partnership Readiness Sprint — incident polish, reliability page, badge, share panel
 - PR #51 (merged): fix — mobile responsiveness for Partnership Readiness Sprint
 - PR #52 (merged): Partner Integration Sprint — public reliability API, service status page, methodology page, partner integration docs, admin partner readiness table, `lib/metrics.ts` single source of truth, `--status-ok` CSS token, badge consistency fixes
-- PR #53 (open): fix — CORS headers on Reliability API + partner onboarding audit
+- PR #53 (merged): fix — CORS headers on Reliability API + partner onboarding audit
 - PR #54 (merged): Layered Verification Sprint — three-tier monitoring model
+- PR #57 (merged): $CORTX token tiers, public registry, Telegram logo, nav polish (migrations 008+009)
+- PR #58 (merged): blog post — "x402 has 7 failure modes. Standard monitoring catches one."
+- **BankrBot/skills PR #642 (open)**: CORTX skill — x402 endpoint reliability for agents
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
