@@ -84,7 +84,8 @@ This distinction is the foundation of V2 (Verify) and what makes the registry tr
 - [x] Partnership Readiness Sprint — **COMPLETE** (Phase 1 + Partner Integration Sprint + audit)
 - [x] Layered Verification Sprint — **COMPLETE** (PR #54 merged, migration 007 applied)
 - [x] $CORTX token tiers + public registry — **COMPLETE** (PRs #57, #58 merged, migrations 008+009 applied)
-- [ ] Public launch — **next week**
+- [x] Paid check every 4h + lightweight every 15min cron — **COMPLETE** (PR #61 merged, migration 011 applied ✓)
+- [ ] Public launch — **this week**
 
 **Beta wrapping up.** Public launch planned for next week. Blog post live (usecortx.dev/blog/x402-failure-modes). Utility tweet posted (Aug 15). Ship thread scheduled for Monday. Bankr skill PR open (BankrBot/skills #642). Registry seeding in progress.
 
@@ -267,6 +268,7 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #58 (merged): blog post — "x402 has 7 failure modes. Standard monitoring catches one."
 - PR #59 (merged): admin — multi-window platform stats table (24h/7d/30d/90d/1y/all) + registry seeds section with inline add form
 - PR #60 (merged): paid check once per day, lightweight on every 2h cron fire — migration 010 applied ✓
+- PR #61 (merged): paid check every 4h (migration 011), lightweight every 15min cron — migration 011 applied ✓
 - **BankrBot/skills PR #642 (open)**: CORTX skill — x402 endpoint reliability for agents
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
