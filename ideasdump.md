@@ -3,6 +3,21 @@
 
 ---
 
+## Product Ideas Parking Lot
+
+Ideas spotted while building — not for now, but worth keeping.
+
+### Provider Grouping (Registry / V3)
+Companies have multiple x402 endpoints at different prices for different services (e.g., Arkham: `/intelligence`, `/addresses`, `/transactions`). Right now they appear as separate unrelated rows in the registry.
+
+**The idea:** A `provider` entity groups multiple endpoints under one company. Registry shows "Arkham — 3 endpoints, all healthy." Provider health page shows aggregate metrics across all their endpoints.
+
+**Why it matters for V3:** When agents are selecting between data providers, they want "is this company's whole suite reliable?" — not just one endpoint in isolation.
+
+**Build when:** V3 (Select). Not needed for V1 launch. Current flat list works fine for 30 endpoints. Gets visually broken when providers with 3–5 endpoints each start appearing regularly.
+
+---
+
 ## What We've Built (V1 Complete)
 
 CORTX is the reliability layer for the x402 protocol. It runs a 7-stage synthetic payment pipeline on Base mainnet with real USDC to catch every failure mode in a live x402 endpoint.

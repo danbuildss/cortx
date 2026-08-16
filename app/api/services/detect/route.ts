@@ -117,6 +117,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         });
         if (getResp.status === 402) response = getResp;
       }
+      // OpenAI-compatible inference endpoints (e.g. Surplus Intelligence) require a
+      // valid request body to surface the 402 — empty POST and bare GET both return 400.
+      if (response.status !== 402) {
+        const llmResp = await fetch(validatedUrl.toString(), {
+          method: 'POST',
+          headers: baseHeaders,
+          body: JSON.stringify({
+            model: 'x402-detect',
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+          signal: controller.signal,
+        });
+        if (llmResp.status === 402) response = llmResp;
+      }
     } finally {
       clearTimeout(timer);
     }
