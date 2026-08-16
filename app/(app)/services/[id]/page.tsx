@@ -10,6 +10,12 @@ import { ChecksPanel } from './_components/checks-panel';
 import type { CheckRecord } from './_components/checks-panel';
 import { SharePanel } from './_components/share-panel';
 
+function fmtInterval(minutes: number): string {
+  if (minutes >= 1440 && minutes % 1440 === 0) return minutes === 1440 ? 'Daily' : `Every ${minutes / 1440}d`;
+  if (minutes >= 60 && minutes % 60 === 0) return `Every ${minutes / 60}h`;
+  return `Every ${minutes}m`;
+}
+
 export default async function ServiceDetailPage({
   params,
   searchParams,
@@ -118,7 +124,7 @@ export default async function ServiceDetailPage({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
           <MonitoringCard
             label="Lightweight ping"
-            interval={`Every ${service.lightweight_check_interval_minutes ?? 5}m`}
+            interval={fmtInterval(service.lightweight_check_interval_minutes ?? 5)}
             lastAt={service.last_lightweight_check_at}
             chipLabel="free"
             chipColor="#6b7280"
@@ -127,7 +133,7 @@ export default async function ServiceDetailPage({
           {service.paid_verification_mode !== 'disabled' && (
             <MonitoringCard
               label={service.paid_verification_mode === 'canary' ? 'Canary verification' : 'Full verification'}
-              interval={`Every ${service.paid_verification_interval_minutes ?? service.check_interval_minutes}m`}
+              interval={fmtInterval(service.paid_verification_interval_minutes ?? service.check_interval_minutes)}
               lastAt={service.paid_verification_mode === 'full' ? service.last_full_verification_at : service.last_paid_verification_at}
               chipLabel={service.paid_verification_mode === 'canary' ? 'canary' : 'full'}
               chipColor={service.paid_verification_mode === 'canary' ? '#d97706' : '#2563eb'}
