@@ -210,13 +210,26 @@ export default async function RegistryPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page, #0a0a0a)', color: 'var(--text-primary, #f5f5f5)' }}>
+      <style>{`
+        @media (max-width: 600px) {
+          .reg-nav { padding: 0 16px !important; }
+          .reg-nav-sub { display: none !important; }
+          .reg-content { padding: 28px 16px !important; }
+          .reg-h1 { font-size: 22px !important; }
+          .reg-card { padding: 12px 14px !important; }
+          .reg-card-stats { width: 100% !important; justify-content: space-between !important; margin-top: 8px !important; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px !important; }
+          .reg-url { max-width: 100% !important; }
+          .reg-cta-btn-label { display: none !important; }
+        }
+      `}</style>
+
       {/* Nav */}
-      <div style={{
+      <div className="reg-nav" style={{
         borderBottom: '1px solid var(--border-subtle, #1f1f1f)',
         padding: '0 32px',
-        display: 'flex', alignItems: 'center', height: 52, gap: 24,
+        display: 'flex', alignItems: 'center', height: 52, gap: 16,
       }}>
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit' }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit', flexShrink: 0 }}>
           <svg width="22" height="17" viewBox="0 0 80 60" fill="none">
             <circle cx="23" cy="30" r="18" stroke="currentColor" strokeWidth="3" />
             <circle cx="57" cy="30" r="18" stroke="currentColor" strokeWidth="3" />
@@ -226,18 +239,20 @@ export default async function RegistryPage() {
           </svg>
           <span style={{ fontSize: 14, fontWeight: 600 }}>CORTX</span>
         </Link>
-        <span style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>Public Registry</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 12 }}>
+        <span className="reg-nav-sub" style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>Public Registry</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, flexShrink: 0 }}>
           <a href="/login" style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)', textDecoration: 'none' }}>Sign in</a>
           <a href="/signup" style={{
             fontSize: 12, fontWeight: 500, color: '#000',
             background: '#fff', borderRadius: 5,
-            padding: '4px 12px', textDecoration: 'none',
-          }}>Monitor a Service →</a>
+            padding: '4px 12px', textDecoration: 'none', whiteSpace: 'nowrap',
+          }}>
+            Monitor →
+          </a>
         </div>
       </div>
 
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '48px 32px' }}>
+      <div className="reg-content" style={{ maxWidth: 860, margin: '0 auto', padding: '48px 32px' }}>
         {/* Header */}
         <div style={{ marginBottom: 40 }}>
           <div style={{
@@ -249,7 +264,7 @@ export default async function RegistryPage() {
           }}>
             VERIFIED x402 SERVICES
           </div>
-          <h1 style={{ fontSize: 30, fontWeight: 700, marginBottom: 10, letterSpacing: '-0.02em' }}>
+          <h1 className="reg-h1" style={{ fontSize: 30, fontWeight: 700, marginBottom: 10, letterSpacing: '-0.02em' }}>
             x402 Service Registry
           </h1>
           <p style={{ fontSize: 14, color: 'var(--text-muted, #6b7280)', maxWidth: 560, lineHeight: 1.6 }}>
@@ -314,97 +329,103 @@ export default async function RegistryPage() {
                     : '#ef4444';
 
                   return (
-                    <div key={entry.id} style={{
+                    <div key={entry.id} className="reg-card" style={{
                       background: 'var(--bg-surface, #111)',
                       border: `1px solid ${rank === 1 ? 'rgba(34,197,94,0.2)' : 'var(--border-subtle, #1f1f1f)'}`,
                       borderRadius: 8, padding: '14px 18px',
-                      display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
                     }}>
-                      {/* Rank */}
-                      <div style={{
-                        width: 28, flexShrink: 0, textAlign: 'center',
-                        fontSize: rank <= 3 ? 14 : 12,
-                        fontWeight: rank <= 3 ? 700 : 500,
-                        color: rank === 1 ? '#22c55e' : rank <= 3 ? '#f59e0b' : 'var(--text-muted, #6b7280)',
-                      }}>
-                        #{rank}
-                      </div>
+                      {/* Top row: rank + name block */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        {/* Rank */}
+                        <div style={{
+                          width: 28, flexShrink: 0, textAlign: 'center', paddingTop: 2,
+                          fontSize: rank <= 3 ? 14 : 12,
+                          fontWeight: rank <= 3 ? 700 : 500,
+                          color: rank === 1 ? '#22c55e' : rank <= 3 ? '#f59e0b' : 'var(--text-muted, #6b7280)',
+                        }}>
+                          #{rank}
+                        </div>
 
-                      {/* Name + badges + URL */}
-                      <div style={{ flex: 1, minWidth: 160 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4, flexWrap: 'wrap' }}>
-                          <div style={{
-                            width: 6, height: 6, borderRadius: '50%',
-                            background: statusColor, flexShrink: 0,
-                            boxShadow: entry.status === 'operational' ? `0 0 5px ${statusColor}` : 'none',
-                          }} />
-                          <span style={{ fontSize: 14, fontWeight: 600 }}>{entry.name}</span>
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                            color: '#22c55e', background: 'rgba(34,197,94,0.1)',
-                            border: '1px solid rgba(34,197,94,0.2)',
-                            borderRadius: 3, padding: '1px 5px',
-                          }}>
-                            MONITORED
-                          </span>
-                          {entry.tier && (
+                        {/* Name + badges + URL */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4, flexWrap: 'wrap' }}>
+                            <div style={{
+                              width: 6, height: 6, borderRadius: '50%',
+                              background: statusColor, flexShrink: 0,
+                              boxShadow: entry.status === 'operational' ? `0 0 5px ${statusColor}` : 'none',
+                            }} />
+                            <span style={{ fontSize: 14, fontWeight: 600 }}>{entry.name}</span>
                             <span style={{
-                              fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
-                              color: '#f59e0b', background: 'rgba(245,158,11,0.08)',
-                              border: '1px solid rgba(245,158,11,0.2)',
+                              fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                              color: '#22c55e', background: 'rgba(34,197,94,0.1)',
+                              border: '1px solid rgba(34,197,94,0.2)',
                               borderRadius: 3, padding: '1px 5px',
                             }}>
-                              {TIER_LABEL[entry.tier] ?? ''} $CORTX
+                              MONITORED
                             </span>
+                            {entry.tier && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                                color: '#f59e0b', background: 'rgba(245,158,11,0.08)',
+                                border: '1px solid rgba(245,158,11,0.2)',
+                                borderRadius: 3, padding: '1px 5px',
+                              }}>
+                                {TIER_LABEL[entry.tier] ?? ''} $CORTX
+                              </span>
+                            )}
+                          </div>
+                          <div className="reg-url" style={{
+                            fontSize: 11, color: 'var(--text-muted, #6b7280)',
+                            fontFamily: 'ui-monospace, monospace',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            maxWidth: 360,
+                          }}>
+                            {entry.endpoint_url}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Stats row: reliability + sparkline (left) · stage + status (right) */}
+                      <div className="reg-card-stats" style={{
+                        display: 'flex', alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginTop: 12, paddingLeft: 40,
+                      }}>
+                        {/* Reliability + sparkline */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div>
+                            <div style={{
+                              fontSize: 20, fontWeight: 700, color: reliabilityColor,
+                              letterSpacing: '-0.01em', lineHeight: 1,
+                            }}>
+                              {entry.reliability !== null ? `${entry.reliability}%` : '—'}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', marginTop: 2 }}>
+                              {entry.totalChecks > 0 ? `${entry.totalChecks} checks · 7d` : 'no data yet'}
+                            </div>
+                          </div>
+                          <div
+                            dangerouslySetInnerHTML={{ __html: entry.sparklineSvg }}
+                            title="7-day reliability (left = 6 days ago, right = today)"
+                          />
+                        </div>
+
+                        {/* Stage score + status + time */}
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          {entry.totalChecks > 0 && (
+                            <div style={{
+                              fontSize: 11, fontWeight: 600, marginBottom: 2,
+                              color: entry.stagePassed === entry.stageTotal ? '#22c55e' : '#f59e0b',
+                            }}>
+                              {entry.stagePassed}/{entry.stageTotal} stages
+                            </div>
                           )}
-                        </div>
-                        <div style={{
-                          fontSize: 11, color: 'var(--text-muted, #6b7280)',
-                          fontFamily: 'ui-monospace, monospace',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          maxWidth: 340,
-                        }}>
-                          {entry.endpoint_url}
-                        </div>
-                      </div>
-
-                      {/* Reliability + sparkline */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{
-                            fontSize: 20, fontWeight: 700, color: reliabilityColor,
-                            letterSpacing: '-0.01em', lineHeight: 1,
-                          }}>
-                            {entry.reliability !== null ? `${entry.reliability}%` : '—'}
+                          <div style={{ fontSize: 12, fontWeight: 500, color: statusColor }}>
+                            {STATUS_LABEL[entry.status] ?? 'Unknown'}
                           </div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', marginTop: 2 }}>
-                            {entry.totalChecks > 0
-                              ? `${entry.totalChecks} checks · 7d`
-                              : 'no data yet'}
+                          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', marginTop: 1 }}>
+                            {timeAgo(entry.last_checked_at)}
                           </div>
-                        </div>
-                        <div
-                          style={{ flexShrink: 0 }}
-                          dangerouslySetInnerHTML={{ __html: entry.sparklineSvg }}
-                          title="7-day reliability (left = 6 days ago, right = today)"
-                        />
-                      </div>
-
-                      {/* Stage score + status + time */}
-                      <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 76 }}>
-                        {entry.totalChecks > 0 && (
-                          <div style={{
-                            fontSize: 11, fontWeight: 600, marginBottom: 2,
-                            color: entry.stagePassed === entry.stageTotal ? '#22c55e' : '#f59e0b',
-                          }}>
-                            {entry.stagePassed}/{entry.stageTotal} stages
-                          </div>
-                        )}
-                        <div style={{ fontSize: 12, fontWeight: 500, color: statusColor }}>
-                          {STATUS_LABEL[entry.status] ?? 'Unknown'}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', marginTop: 1 }}>
-                          {timeAgo(entry.last_checked_at)}
                         </div>
                       </div>
                     </div>
