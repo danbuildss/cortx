@@ -110,8 +110,8 @@
 .lp .mega-list{display:flex;flex-direction:column;gap:2px;}
 .lp .mega-item{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:var(--r-lg);transition:background .1s;text-decoration:none;}
 .lp .mega-item:hover{background:var(--bg-subtle);}
-.lp .mega-ico{width:26px;height:26px;border-radius:var(--r-md);background:var(--indigo-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--indigo);}
-.lp .mega-ico svg{width:12px;height:12px;}
+.lp .mega-ico{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-3);}
+.lp .mega-ico svg{width:14px;height:14px;}
 .lp .mega-title{font-size:12.5px;font-weight:500;color:var(--text-1);margin-bottom:1px;line-height:1.3;}
 .lp .mega-desc{font-size:11px;color:var(--text-3);line-height:1.4;}
 
