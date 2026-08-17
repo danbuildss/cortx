@@ -274,10 +274,16 @@
 .lp .uptime-label{font-size:9.5px;font-weight:500;color:var(--text-3);}
 
 /* ── CTA ── */
-.lp .cta-section{text-align:center;padding:72px 0;background:linear-gradient(180deg,var(--bg) 0%,var(--bg-white) 100%);}
-.lp .cta-sub{font-size:13.5px;color:var(--text-2);max-width:360px;margin:10px auto 24px;line-height:1.65;}
+.lp .cta-section{text-align:center;padding:96px 0;background:#0d0d0e;}
+.lp .cta-section .eyebrow{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.12);color:rgba(255,255,255,0.5);}
+.lp .cta-section .section-title{color:#f0f1f3;}
+.lp .cta-sub{font-size:14px;line-height:1.65;color:rgba(255,255,255,0.45);max-width:360px;margin:10px auto 24px;}
 .lp .cta-actions{display:flex;align-items:center;gap:9px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;}
-.lp .cta-note{font-size:11px;color:var(--text-3);max-width:400px;margin:0 auto;line-height:1.65;}
+.lp .cta-section .btn-cta-primary{background:#f0f1f3;color:#0d0d0e;}
+.lp .cta-section .btn-cta-primary:hover{opacity:0.9;}
+.lp .cta-section .btn-cta-token{color:#fbbf24;background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.25);}
+.lp .cta-section .btn-cta-token:hover{background:rgba(251,191,36,0.18);border-color:rgba(251,191,36,0.4);}
+.lp .cta-note{font-size:11px;color:rgba(255,255,255,0.22);max-width:400px;margin:0 auto;line-height:1.65;}
 
 /* ── Footer ── */
 .lp .ft{background:var(--ft-bg);border-top:1px solid var(--ft-bd);padding:56px 24px 0;}
