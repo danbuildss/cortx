@@ -1,16 +1,23 @@
 import { createClient } from '@/lib/supabase/server';
-import { TelegramConnect } from './_components/alerts-client';
+import { TelegramConnect, DiscordConnect } from './_components/alerts-client';
 
 export default async function AlertSettingsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: connection } = await supabase
-    .from('telegram_connections')
-    .select('chat_id, username, connected_at, active, on_open, on_severity_increase, on_resolve')
-    .eq('user_id', user?.id ?? '')
-    .eq('active', true)
-    .maybeSingle();
+  const [{ data: telegramConn }, { data: discordConn }] = await Promise.all([
+    supabase
+      .from('telegram_connections')
+      .select('chat_id, username, connected_at, active, on_open, on_severity_increase, on_resolve')
+      .eq('user_id', user?.id ?? '')
+      .eq('active', true)
+      .maybeSingle(),
+    supabase
+      .from('discord_connections')
+      .select('webhook_url, connected_at, on_open, on_severity_increase, on_resolve')
+      .eq('user_id', user?.id ?? '')
+      .maybeSingle(),
+  ]);
 
   return (
     <div className="page-content" style={{ padding: '32px 40px', maxWidth: 640, margin: '0 auto' }}>
@@ -19,11 +26,14 @@ export default async function AlertSettingsPage() {
           Alert settings
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Connect Telegram to receive incident alerts across all your monitored services.
+          Connect Telegram or Discord to receive incident alerts across all your monitored services.
         </p>
       </div>
 
-      <TelegramConnect initialConnection={connection ?? null} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <TelegramConnect initialConnection={telegramConn ?? null} />
+        <DiscordConnect initialConnection={discordConn ?? null} />
+      </div>
     </div>
   );
 }

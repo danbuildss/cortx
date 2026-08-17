@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { classifyStatus } from './classify';
 import { sendTelegramAlert } from '../telegram';
+import { sendDiscordAlert } from '../discord';
 import type { CheckResult, CheckType } from './types';
 
 function serviceRoleClient() {
@@ -110,12 +111,18 @@ export async function persistCheckResult(
     consecutive_failures: newConsecutiveFailures,
   }).eq('id', svc.id);
 
-  // 5. Fetch user's Telegram connection
+  // 5. Fetch user alert connections
   const { data: telegramConn } = await db
     .from('telegram_connections')
     .select('chat_id, on_open, on_severity_increase, on_resolve')
     .eq('user_id', svc.user_id)
     .eq('active', true)
+    .maybeSingle();
+
+  const { data: discordConn } = await db
+    .from('discord_connections')
+    .select('webhook_url, on_open, on_severity_increase, on_resolve')
+    .eq('user_id', svc.user_id)
     .maybeSingle();
 
   // 6. Incident logic
@@ -151,6 +158,12 @@ export async function persistCheckResult(
           `🚨 <b>Incident opened</b> — ${svc.name}\nFailed stage: <code>${result.failure_stage}</code>\nSeverity: ${newSeverity}`
         );
       }
+      if (incident && discordConn?.on_open) {
+        await sendDiscordAlert(
+          discordConn.webhook_url,
+          `🚨 **Incident opened** — ${svc.name}\nFailed stage: \`${result.failure_stage}\`\nSeverity: ${newSeverity}`
+        );
+      }
     } else if (existing.severity === 'degraded' && newSeverity === 'critical') {
       const updatedTimeline = [
         ...existing.timeline,
@@ -170,6 +183,12 @@ export async function persistCheckResult(
         await sendTelegramAlert(
           telegramConn.chat_id,
           `⚠️ <b>Incident escalated</b> — ${svc.name}\nSeverity increased to <b>critical</b>\nFailed stage: <code>${result.failure_stage}</code>`
+        );
+      }
+      if (discordConn?.on_severity_increase) {
+        await sendDiscordAlert(
+          discordConn.webhook_url,
+          `⚠️ **Incident escalated** — ${svc.name}\nSeverity increased to **critical**\nFailed stage: \`${result.failure_stage}\``
         );
       }
     }
@@ -200,6 +219,12 @@ export async function persistCheckResult(
           await sendTelegramAlert(
             telegramConn.chat_id,
             `✅ <b>Incident resolved</b> — ${svc.name}\nService is operational again`
+          );
+        }
+        if (discordConn?.on_resolve) {
+          await sendDiscordAlert(
+            discordConn.webhook_url,
+            `✅ **Incident resolved** — ${svc.name}\nService is operational again`
           );
         }
       }
