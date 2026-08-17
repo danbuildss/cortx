@@ -133,7 +133,7 @@ export default async function RegistryPage() {
 
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '48px 32px' }}>
         {/* Header */}
-        <div style={{ marginBottom: 40 }}>
+        <div style={{ marginBottom: 36 }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
@@ -164,6 +164,36 @@ export default async function RegistryPage() {
               Operational now
             </div>
           </div>
+        </div>
+
+        {/* Tab strip */}
+        <div style={{
+          display: 'flex', gap: 2, marginBottom: 24,
+          borderBottom: '1px solid var(--border-subtle, #1f1f1f)',
+        }}>
+          <span style={{
+            fontSize: 13, fontWeight: 600, padding: '8px 16px',
+            color: 'var(--text-primary, #f5f5f5)',
+            borderBottom: '2px solid #f59e0b',
+            marginBottom: -1,
+          }}>
+            All Services
+          </span>
+          <Link href="/leaderboard" style={{
+            fontSize: 13, fontWeight: 500, padding: '8px 16px',
+            color: 'var(--text-muted, #6b7280)', textDecoration: 'none',
+            borderBottom: '2px solid transparent',
+            marginBottom: -1,
+            display: 'flex', alignItems: 'center', gap: 5,
+          }}>
+            Leaderboard
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+              color: '#22c55e', background: 'rgba(34,197,94,0.1)',
+              border: '1px solid rgba(34,197,94,0.2)',
+              borderRadius: 3, padding: '0px 4px',
+            }}>NEW</span>
+          </Link>
         </div>
 
         {/* Entries */}
