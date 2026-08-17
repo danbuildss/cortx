@@ -66,7 +66,9 @@ export default function BlogIndex() {
           <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
             Building on x402? Follow us on{' '}
             <a href="https://x.com/usecortx" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>X</a>
-            {' '}or join the{' '}
+            {', join the '}
+            <a href="https://discord.gg/TKUgsqRqTg" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Discord</a>
+            {', or the '}
             <a href="https://t.me/usecortxdev" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Telegram</a>
             {' '}for updates.
           </p>
