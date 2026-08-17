@@ -1,5 +1,22 @@
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'x402 Service Registry — CORTX',
+  description: 'x402 endpoints verified by CORTX with real USDC on Base mainnet. Ranked by verified reliability, not self-reported uptime.',
+  openGraph: {
+    title: 'x402 Service Registry — CORTX',
+    description: 'x402 endpoints verified by CORTX with real USDC on Base mainnet. Ranked by verified reliability, not self-reported uptime.',
+    url: 'https://usecortx.dev/registry',
+    siteName: 'CORTX',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'x402 Service Registry — CORTX',
+    description: 'x402 endpoints ranked by verified reliability. Real USDC checks on Base mainnet.',
+  },
+};
 
 const STATUS_COLOR: Record<string, string> = {
   operational: '#22c55e',
@@ -17,6 +34,15 @@ const TIER_LABEL: Record<string, string> = {
   tier1: '500K', tier2: '1M', tier3: '5M', tier4: '10M',
 };
 const ALL_STAGES = 7;
+
+function safeHref(url: string): string {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'https:' || protocol === 'http:' ? url : '#';
+  } catch {
+    return '#';
+  }
+}
 
 function timeAgo(ts: string | null): string {
   if (!ts) return 'never';
@@ -86,7 +112,10 @@ export default async function RegistryPage() {
   );
 
   // Fetch monitored services and seeds in parallel
-  const [{ data: monitoredRows }, { data: seedRows }] = await Promise.all([
+  const [
+    { data: monitoredRows, error: monitoredErr },
+    { data: seedRows, error: seedsErr },
+  ] = await Promise.all([
     supabase
       .from('services')
       .select(`id, name, endpoint_url, status, last_checked_at, check_interval_minutes, profiles!inner(cortx_tier)`)
@@ -97,6 +126,9 @@ export default async function RegistryPage() {
       .select('id, name, endpoint_url, status, is_verified, description, created_at')
       .order('created_at', { ascending: false }),
   ]);
+
+  if (monitoredErr) console.error('[registry] services fetch failed:', monitoredErr.message);
+  if (seedsErr) console.error('[registry] seeds fetch failed:', seedsErr.message);
 
   const serviceIds = (monitoredRows ?? []).map(r => r.id);
 
@@ -288,7 +320,10 @@ export default async function RegistryPage() {
             )}
             {avgReliability !== null && (
               <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
-                <span style={{ fontSize: 24, fontWeight: 700, color: '#22c55e', display: 'block' }}>
+                <span style={{
+                  fontSize: 24, fontWeight: 700, display: 'block',
+                  color: avgReliability >= 95 ? '#22c55e' : avgReliability >= 75 ? '#f59e0b' : '#ef4444',
+                }}>
                   {avgReliability}%
                 </span>
                 Avg reliability · 7d
@@ -377,7 +412,7 @@ export default async function RegistryPage() {
                             )}
                           </div>
                           <a
-                            href={entry.endpoint_url}
+                            href={safeHref(entry.endpoint_url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="reg-url"
@@ -489,7 +524,7 @@ export default async function RegistryPage() {
                           )}
                         </div>
                         <a
-                          href={entry.endpoint_url}
+                          href={safeHref(entry.endpoint_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
