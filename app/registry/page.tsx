@@ -16,9 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
 const TIER_LABEL: Record<string, string> = {
   tier1: '500K', tier2: '1M', tier3: '5M', tier4: '10M',
 };
-const TIER_ORDER: Record<string, number> = {
-  tier4: 0, tier3: 1, tier2: 2, tier1: 3,
-};
+const ALL_STAGES = 7;
 
 function timeAgo(ts: string | null): string {
   if (!ts) return 'never';
@@ -33,17 +31,52 @@ function timeAgo(ts: string | null): string {
 
 export const revalidate = 120;
 
-type RegistryEntry = {
+type StageResult = { stage: string; passed: boolean | null };
+
+type DailyRate = { rate: number; hasData: boolean };
+
+function buildSparklineSvg(dailyRates: DailyRate[]): string {
+  const w = 76, h = 28;
+  const barW = 8, gap = 3;
+  const maxBarH = h - 4;
+
+  const bars = dailyRates.map((d, i) => {
+    const x = i * (barW + gap);
+    if (!d.hasData) {
+      return `<rect x="${x}" y="${h - 4}" width="${barW}" height="4" fill="#1f1f1f" rx="1"/>`;
+    }
+    const barH = Math.max(4, (d.rate / 100) * maxBarH);
+    const y = (h - barH).toFixed(1);
+    const color = d.rate >= 95 ? '#22c55e' : d.rate >= 75 ? '#f59e0b' : '#ef4444';
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH.toFixed(1)}" fill="${color}" rx="1"/>`;
+  }).join('');
+
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
+}
+
+type MonitoredEntry = {
   id: string;
   name: string;
   endpoint_url: string;
   status: string;
   last_checked_at: string | null;
   check_interval_minutes: number | null;
-  source: 'monitored' | 'seed';
-  tier?: string;
-  is_verified?: boolean;
-  description?: string | null;
+  tier: string;
+  reliability: number | null;
+  totalChecks: number;
+  dailyRates: DailyRate[];
+  stagePassed: number;
+  stageTotal: number;
+  sparklineSvg: string;
+};
+
+type SeedEntry = {
+  id: string;
+  name: string;
+  endpoint_url: string;
+  status: string;
+  is_verified: boolean;
+  description: string | null;
 };
 
 export default async function RegistryPage() {
@@ -52,6 +85,7 @@ export default async function RegistryPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
+  // Fetch monitored services and seeds in parallel
   const [{ data: monitoredRows }, { data: seedRows }] = await Promise.all([
     supabase
       .from('services')
@@ -64,43 +98,115 @@ export default async function RegistryPage() {
       .order('created_at', { ascending: false }),
   ]);
 
-  const monitored: RegistryEntry[] = (monitoredRows ?? []).map((r) => ({
-    id: r.id,
-    name: r.name,
-    endpoint_url: r.endpoint_url,
-    status: r.status ?? 'unknown',
-    last_checked_at: r.last_checked_at,
-    check_interval_minutes: r.check_interval_minutes,
-    source: 'monitored',
-    tier: (r.profiles as unknown as { cortx_tier: string })?.cortx_tier,
-  }));
+  const serviceIds = (monitoredRows ?? []).map(r => r.id);
 
-  const seeds: RegistryEntry[] = (seedRows ?? []).map((r) => ({
+  // Fetch 7-day paid check history for all monitored services
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  type CheckRow = {
+    service_id: string;
+    started_at: string;
+    status: string;
+    stages: StageResult[] | null;
+    check_type: string;
+  };
+
+  let checkRows: CheckRow[] = [];
+  if (serviceIds.length > 0) {
+    const { data } = await supabase
+      .from('checks')
+      .select('service_id, started_at, status, stages, check_type')
+      .in('service_id', serviceIds)
+      .in('check_type', ['canary', 'full'])
+      .gte('started_at', sevenDaysAgo)
+      .order('started_at', { ascending: false });
+    checkRows = (data ?? []) as CheckRow[];
+  }
+
+  // Group checks by service_id
+  const checksByService = new Map<string, CheckRow[]>();
+  for (const check of checkRows) {
+    if (!checksByService.has(check.service_id)) checksByService.set(check.service_id, []);
+    checksByService.get(check.service_id)!.push(check);
+  }
+
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  // Build monitored entries with reliability stats
+  const monitored: MonitoredEntry[] = (monitoredRows ?? []).map((row) => {
+    const tier = (row.profiles as unknown as { cortx_tier: string })?.cortx_tier ?? '';
+    const checks = checksByService.get(row.id) ?? [];
+
+    const total = checks.length;
+    const passed = checks.filter(c => c.status === 'passed').length;
+    const reliability = total > 0 ? Math.round((passed / total) * 100) : null;
+
+    // Daily breakdown: index 0 = 6 days ago, index 6 = today
+    const dailyRates: DailyRate[] = Array.from({ length: 7 }, (_, i) => {
+      const dayStart = now - (6 - i) * dayMs;
+      const dayEnd = dayStart + dayMs;
+      const dayChecks = checks.filter(c => {
+        const t = new Date(c.started_at).getTime();
+        return t >= dayStart && t < dayEnd;
+      });
+      if (dayChecks.length === 0) return { rate: 0, hasData: false };
+      const dayPassed = dayChecks.filter(c => c.status === 'passed').length;
+      return { rate: Math.round((dayPassed / dayChecks.length) * 100), hasData: true };
+    });
+
+    // Stage score from most recent check
+    let stagePassed = 0;
+    let stageTotal = ALL_STAGES;
+    if (checks.length > 0 && checks[0].stages) {
+      const stages = checks[0].stages as StageResult[];
+      stagePassed = stages.filter(s => s.passed === true).length;
+      stageTotal = stages.length > 0 ? stages.length : ALL_STAGES;
+    }
+
+    return {
+      id: row.id,
+      name: row.name,
+      endpoint_url: row.endpoint_url,
+      status: row.status ?? 'unknown',
+      last_checked_at: row.last_checked_at,
+      check_interval_minutes: row.check_interval_minutes,
+      tier,
+      reliability,
+      totalChecks: total,
+      dailyRates,
+      stagePassed,
+      stageTotal,
+      sparklineSvg: buildSparklineSvg(dailyRates),
+    };
+  });
+
+  // Sort monitored by reliability desc (null last), then by status
+  monitored.sort((a, b) => {
+    if (a.reliability === null && b.reliability === null) return 0;
+    if (a.reliability === null) return 1;
+    if (b.reliability === null) return -1;
+    return b.reliability - a.reliability;
+  });
+
+  // Seeds: verified first, then unverified
+  const seeds: SeedEntry[] = (seedRows ?? []).map(r => ({
     id: r.id,
     name: r.name,
     endpoint_url: r.endpoint_url,
     status: r.status ?? 'unknown',
-    last_checked_at: null,
-    check_interval_minutes: null,
-    source: 'seed',
     is_verified: r.is_verified,
     description: r.description,
   }));
-
-  // Verified seeds first, then monitored (sorted by tier), then unverified seeds
-  const verifiedSeeds   = seeds.filter(s => s.is_verified);
+  const verifiedSeeds = seeds.filter(s => s.is_verified);
   const unverifiedSeeds = seeds.filter(s => !s.is_verified);
+  const allSeeds = [...verifiedSeeds, ...unverifiedSeeds];
 
-  const sortedMonitored = monitored.sort((a, b) => {
-    const diff = (TIER_ORDER[a.tier ?? ''] ?? 9) - (TIER_ORDER[b.tier ?? ''] ?? 9);
-    if (diff !== 0) return diff;
-    if (a.status === 'operational' && b.status !== 'operational') return -1;
-    if (b.status === 'operational' && a.status !== 'operational') return 1;
-    return 0;
-  });
-
-  const entries: RegistryEntry[] = [...verifiedSeeds, ...sortedMonitored, ...unverifiedSeeds];
-  const operationalCount = entries.filter(e => e.status === 'operational').length;
+  const totalEntries = monitored.length + seeds.length;
+  const operationalCount = [...monitored, ...seeds].filter(e => e.status === 'operational').length;
+  const withData = monitored.filter(m => m.reliability !== null);
+  const avgReliability = withData.length > 0
+    ? Math.round(withData.reduce((s, m) => s + (m.reliability ?? 0), 0) / withData.length)
+    : null;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page, #0a0a0a)', color: 'var(--text-primary, #f5f5f5)' }}>
@@ -131,9 +237,9 @@ export default async function RegistryPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 820, margin: '0 auto', padding: '48px 32px' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '48px 32px' }}>
         {/* Header */}
-        <div style={{ marginBottom: 36 }}>
+        <div style={{ marginBottom: 40 }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
@@ -146,14 +252,14 @@ export default async function RegistryPage() {
           <h1 style={{ fontSize: 30, fontWeight: 700, marginBottom: 10, letterSpacing: '-0.02em' }}>
             x402 Service Registry
           </h1>
-          <p style={{ fontSize: 14, color: 'var(--text-muted, #6b7280)', maxWidth: 540, lineHeight: 1.6 }}>
-            Verified x402 endpoints checked by CORTX with real USDC on Base mainnet.
-            Each listing shows live status from automated end-to-end checks — not self-reported uptime.
+          <p style={{ fontSize: 14, color: 'var(--text-muted, #6b7280)', maxWidth: 560, lineHeight: 1.6 }}>
+            x402 endpoints checked by CORTX with real USDC on Base mainnet.
+            Monitored services are ranked by verified reliability — not self-reported uptime.
           </p>
-          <div style={{ display: 'flex', gap: 24, marginTop: 20, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 28, marginTop: 20, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
               <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #f5f5f5)', display: 'block' }}>
-                {entries.length}
+                {totalEntries}
               </span>
               Listed services
             </div>
@@ -163,41 +269,18 @@ export default async function RegistryPage() {
               </span>
               Operational now
             </div>
+            {avgReliability !== null && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
+                <span style={{ fontSize: 24, fontWeight: 700, color: '#22c55e', display: 'block' }}>
+                  {avgReliability}%
+                </span>
+                Avg reliability · 7d
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Tab strip */}
-        <div style={{
-          display: 'flex', gap: 2, marginBottom: 24,
-          borderBottom: '1px solid var(--border-subtle, #1f1f1f)',
-        }}>
-          <span style={{
-            fontSize: 13, fontWeight: 600, padding: '8px 16px',
-            color: 'var(--text-primary, #f5f5f5)',
-            borderBottom: '2px solid #f59e0b',
-            marginBottom: -1,
-          }}>
-            All Services
-          </span>
-          <Link href="/leaderboard" style={{
-            fontSize: 13, fontWeight: 500, padding: '8px 16px',
-            color: 'var(--text-muted, #6b7280)', textDecoration: 'none',
-            borderBottom: '2px solid transparent',
-            marginBottom: -1,
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}>
-            Leaderboard
-            <span style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-              color: '#22c55e', background: 'rgba(34,197,94,0.1)',
-              border: '1px solid rgba(34,197,94,0.2)',
-              borderRadius: 3, padding: '0px 4px',
-            }}>NEW</span>
-          </Link>
-        </div>
-
-        {/* Entries */}
-        {entries.length === 0 ? (
+        {totalEntries === 0 ? (
           <div style={{ textAlign: 'center', padding: '64px 0', color: 'var(--text-muted, #6b7280)', fontSize: 14 }}>
             No services listed yet.{' '}
             <a
@@ -211,96 +294,203 @@ export default async function RegistryPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {entries.map((entry) => {
-              const statusColor = STATUS_COLOR[entry.status] ?? STATUS_COLOR.unknown;
-              const isObserved = entry.source === 'seed' && !entry.is_verified;
-              return (
-                <div key={entry.id} style={{
-                  background: 'var(--bg-surface, #111)',
-                  border: `1px solid ${isObserved ? 'var(--border-subtle, #1f1f1f)' : 'var(--border-subtle, #1f1f1f)'}`,
-                  borderRadius: 8, padding: '16px 20px',
-                  display: 'flex', alignItems: 'flex-start',
-                  justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
-                  opacity: isObserved ? 0.75 : 1,
+
+            {/* ── Monitored entries (ranked by reliability) ── */}
+            {monitored.length > 0 && (
+              <>
+                <div style={{
+                  fontSize: 11, fontWeight: 600, letterSpacing: '0.07em',
+                  color: 'var(--text-muted, #6b7280)', marginBottom: 4, marginTop: 4,
                 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
-                      <div style={{
-                        width: 7, height: 7, borderRadius: '50%',
-                        background: statusColor, flexShrink: 0,
-                        boxShadow: entry.status === 'operational' ? `0 0 5px ${statusColor}` : 'none',
-                      }} />
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{entry.name}</span>
-                      {/* Badge */}
-                      {entry.source === 'monitored' && entry.tier && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                          color: '#f59e0b', background: 'rgba(245,158,11,0.1)',
-                          border: '1px solid rgba(245,158,11,0.25)',
-                          borderRadius: 3, padding: '1px 6px',
-                        }}>
-                          {TIER_LABEL[entry.tier] ?? ''} HOLDER
-                        </span>
-                      )}
-                      {entry.source === 'seed' && entry.is_verified && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                          color: '#22c55e', background: 'rgba(34,197,94,0.1)',
-                          border: '1px solid rgba(34,197,94,0.25)',
-                          borderRadius: 3, padding: '1px 6px',
-                        }}>
-                          CORTX VERIFIED
-                        </span>
-                      )}
-                      {isObserved && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
-                          color: 'var(--text-muted, #6b7280)',
-                          border: '1px solid var(--border-subtle, #2a2a2a)',
-                          borderRadius: 3, padding: '1px 6px',
-                        }}>
-                          OBSERVED
-                        </span>
-                      )}
-                    </div>
-                    <div style={{
-                      fontSize: 12, color: 'var(--text-muted, #6b7280)',
-                      fontFamily: 'ui-monospace, monospace',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      marginBottom: entry.description ? 4 : 0,
+                  CORTX MONITORED — RANKED BY RELIABILITY
+                </div>
+                {monitored.map((entry, idx) => {
+                  const rank = idx + 1;
+                  const statusColor = STATUS_COLOR[entry.status] ?? STATUS_COLOR.unknown;
+                  const reliabilityColor = entry.reliability === null
+                    ? '#6b7280'
+                    : entry.reliability >= 95 ? '#22c55e'
+                    : entry.reliability >= 75 ? '#f59e0b'
+                    : '#ef4444';
+
+                  return (
+                    <div key={entry.id} style={{
+                      background: 'var(--bg-surface, #111)',
+                      border: `1px solid ${rank === 1 ? 'rgba(34,197,94,0.2)' : 'var(--border-subtle, #1f1f1f)'}`,
+                      borderRadius: 8, padding: '14px 18px',
+                      display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
                     }}>
-                      {entry.endpoint_url}
-                    </div>
-                    {entry.description && (
-                      <div style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)', marginTop: 2 }}>
-                        {entry.description}
+                      {/* Rank */}
+                      <div style={{
+                        width: 28, flexShrink: 0, textAlign: 'center',
+                        fontSize: rank <= 3 ? 14 : 12,
+                        fontWeight: rank <= 3 ? 700 : 500,
+                        color: rank === 1 ? '#22c55e' : rank <= 3 ? '#f59e0b' : 'var(--text-muted, #6b7280)',
+                      }}>
+                        #{rank}
                       </div>
-                    )}
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: statusColor, marginBottom: 4 }}>
-                      {STATUS_LABEL[entry.status] ?? 'Unknown'}
-                    </div>
-                    {entry.last_checked_at ? (
-                      <>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b7280)' }}>
-                          checked {timeAgo(entry.last_checked_at)}
+
+                      {/* Name + badges + URL */}
+                      <div style={{ flex: 1, minWidth: 160 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4, flexWrap: 'wrap' }}>
+                          <div style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: statusColor, flexShrink: 0,
+                            boxShadow: entry.status === 'operational' ? `0 0 5px ${statusColor}` : 'none',
+                          }} />
+                          <span style={{ fontSize: 14, fontWeight: 600 }}>{entry.name}</span>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                            color: '#22c55e', background: 'rgba(34,197,94,0.1)',
+                            border: '1px solid rgba(34,197,94,0.2)',
+                            borderRadius: 3, padding: '1px 5px',
+                          }}>
+                            MONITORED
+                          </span>
+                          {entry.tier && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                              color: '#f59e0b', background: 'rgba(245,158,11,0.08)',
+                              border: '1px solid rgba(245,158,11,0.2)',
+                              borderRadius: 3, padding: '1px 5px',
+                            }}>
+                              {TIER_LABEL[entry.tier] ?? ''} $CORTX
+                            </span>
+                          )}
                         </div>
-                        {entry.check_interval_minutes && (
-                          <div style={{ fontSize: 11, color: 'var(--text-muted, #6b7280)' }}>
-                            every {entry.check_interval_minutes}m
+                        <div style={{
+                          fontSize: 11, color: 'var(--text-muted, #6b7280)',
+                          fontFamily: 'ui-monospace, monospace',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          maxWidth: 340,
+                        }}>
+                          {entry.endpoint_url}
+                        </div>
+                      </div>
+
+                      {/* Reliability + sparkline */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{
+                            fontSize: 20, fontWeight: 700, color: reliabilityColor,
+                            letterSpacing: '-0.01em', lineHeight: 1,
+                          }}>
+                            {entry.reliability !== null ? `${entry.reliability}%` : '—'}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', marginTop: 2 }}>
+                            {entry.totalChecks > 0
+                              ? `${entry.totalChecks} checks · 7d`
+                              : 'no data yet'}
+                          </div>
+                        </div>
+                        <div
+                          style={{ flexShrink: 0 }}
+                          dangerouslySetInnerHTML={{ __html: entry.sparklineSvg }}
+                          title="7-day reliability (left = 6 days ago, right = today)"
+                        />
+                      </div>
+
+                      {/* Stage score + status + time */}
+                      <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 76 }}>
+                        {entry.totalChecks > 0 && (
+                          <div style={{
+                            fontSize: 11, fontWeight: 600, marginBottom: 2,
+                            color: entry.stagePassed === entry.stageTotal ? '#22c55e' : '#f59e0b',
+                          }}>
+                            {entry.stagePassed}/{entry.stageTotal} stages
                           </div>
                         )}
-                      </>
-                    ) : (
-                      <div style={{ fontSize: 11, color: 'var(--text-muted, #6b7280)' }}>
-                        Not yet monitored
+                        <div style={{ fontSize: 12, fontWeight: 500, color: statusColor }}>
+                          {STATUS_LABEL[entry.status] ?? 'Unknown'}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', marginTop: 1 }}>
+                          {timeAgo(entry.last_checked_at)}
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {/* ── Seeds section ── */}
+            {allSeeds.length > 0 && (
+              <>
+                <div style={{
+                  fontSize: 11, fontWeight: 600, letterSpacing: '0.07em',
+                  color: 'var(--text-muted, #6b7280)',
+                  marginTop: monitored.length > 0 ? 20 : 4, marginBottom: 4,
+                }}>
+                  COMMUNITY SUBMITTED
                 </div>
-              );
-            })}
+                {allSeeds.map((entry) => {
+                  const statusColor = STATUS_COLOR[entry.status] ?? STATUS_COLOR.unknown;
+                  const isObserved = !entry.is_verified;
+                  return (
+                    <div key={entry.id} style={{
+                      background: 'var(--bg-surface, #111)',
+                      border: '1px solid var(--border-subtle, #1f1f1f)',
+                      borderRadius: 8, padding: '14px 18px',
+                      display: 'flex', alignItems: 'flex-start',
+                      justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+                      opacity: isObserved ? 0.7 : 1,
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+                          <div style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: statusColor, flexShrink: 0,
+                            boxShadow: entry.status === 'operational' ? `0 0 5px ${statusColor}` : 'none',
+                          }} />
+                          <span style={{ fontSize: 14, fontWeight: 600 }}>{entry.name}</span>
+                          {entry.is_verified && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                              color: '#22c55e', background: 'rgba(34,197,94,0.1)',
+                              border: '1px solid rgba(34,197,94,0.25)',
+                              borderRadius: 3, padding: '1px 6px',
+                            }}>
+                              CORTX VERIFIED
+                            </span>
+                          )}
+                          {isObserved && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                              color: 'var(--text-muted, #6b7280)',
+                              border: '1px solid var(--border-subtle, #2a2a2a)',
+                              borderRadius: 3, padding: '1px 6px',
+                            }}>
+                              OBSERVED
+                            </span>
+                          )}
+                        </div>
+                        <div style={{
+                          fontSize: 12, color: 'var(--text-muted, #6b7280)',
+                          fontFamily: 'ui-monospace, monospace',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          marginBottom: entry.description ? 4 : 0,
+                        }}>
+                          {entry.endpoint_url}
+                        </div>
+                        {entry.description && (
+                          <div style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)', marginTop: 2 }}>
+                            {entry.description}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: statusColor, marginBottom: 4 }}>
+                          {STATUS_LABEL[entry.status] ?? 'Unknown'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b7280)' }}>
+                          Not monitored
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         )}
 
@@ -314,10 +504,10 @@ export default async function RegistryPage() {
           flexWrap: 'wrap', gap: 16,
         }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Get your service listed</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Get ranked on the leaderboard</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
-              Hold 500K $CORTX on Base and add your x402 endpoint to CORTX.
-              Your service gets real on-chain checks and a public uptime history.
+              Hold 500K $CORTX on Base and add your x402 endpoint. CORTX runs real paid checks
+              and ranks you by verified reliability — not self-reported uptime.
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
@@ -352,7 +542,7 @@ export default async function RegistryPage() {
           fontSize: 12, color: 'var(--text-muted, #6b7280)',
           display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
         }}>
-          <span>Refreshes every 2 minutes · Powered by CORTX · Real USDC checks on Base mainnet</span>
+          <span>Ranked by verified reliability · Real USDC checks on Base mainnet · Refreshes every 2 minutes</span>
           <Link href="/" style={{ color: 'inherit', textDecoration: 'none' }}>usecortx.dev</Link>
         </div>
       </div>
