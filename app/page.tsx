@@ -162,43 +162,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="mockup-outer h-mockup">
-          <div className="mockup-chrome">
-            <div className="chrome-dots"><span /><span /><span /></div>
-            <div className="chrome-url">usecortx.dev/services/wallet-research</div>
-            <div style={{ width: 55 }} />
-          </div>
-          <div className="mockup-body">
-            <div className="cp-header">
-              <div className="cp-name">Wallet Research API</div>
-              <div className="cp-badge-deg">Degraded</div>
-            </div>
-            <div className="cp-endpoint">x402.bankr.bot/research · checked 3m ago</div>
-            <div className="cp-rows">
-              <div className="cpr"><div className="cpr-ico pass">✓</div><div className="cpr-stage">Availability</div><div className="cpr-val pass">200 OK</div></div>
-              <div className="cpr"><div className="cpr-ico pass">✓</div><div className="cpr-stage">Payment terms</div><div className="cpr-val pass">valid</div></div>
-              <div className="cpr"><div className="cpr-ico pass">✓</div><div className="cpr-stage">Price</div><div className="cpr-val mid">0.001 USDC</div></div>
-              <div className="cpr"><div className="cpr-ico pass">✓</div><div className="cpr-stage">Payment</div><div className="cpr-val pass">settled</div></div>
-              <div className="cpr"><div className="cpr-ico pass">✓</div><div className="cpr-stage">Delivery</div><div className="cpr-val pass">received</div></div>
-              <div className="cpr"><div className="cpr-ico pass">✓</div><div className="cpr-stage">JSON parse</div><div className="cpr-val pass">valid</div></div>
-              <div className="cpr"><div className="cpr-ico fail">✕</div><div className="cpr-stage fail">Schema</div><div className="cpr-val fail">missing: result.summary</div></div>
-            </div>
-            <div className="cp-incident">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" /><path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-              Incident #3 opened
-              <span className="cp-inc-sep">·</span>
-              <span className="cp-inc-platform">
-                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 2L1.5 6.8l4.2 1.5 1.6 4.7 2.2-2.7 3.2 2.3L13.5 2zm-7.8 5.9l5.5-3.4-3.4 4-.1.1L5.7 7.9z"/></svg>
-                Alert sent
-              </span>
-              <span className="cp-inc-sep">·</span>
-              <span className="cp-inc-platform">
-                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2.5l4.1 5.5-4.1 4.5h1.3l3.6-3.9 2.8 3.9H13L8.7 7.7l3.8-4.2h-1.3L8.1 7 5.6 2.5H2.5z"/></svg>
-                Posted
-              </span>
-            </div>
-          </div>
-        </div>
         </div>
       </section>
 
