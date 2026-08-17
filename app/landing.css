@@ -243,9 +243,10 @@
 .lp .jk{color:#7dd3fc;}.lp .js{color:#86efac;}.lp .jn{color:#fdba74;}.lp .jt{color:#4ade80;}.lp .jf{color:#f87171;}.lp .jb{color:#6b7280;}
 
 /* ── Safe by design ── */
-.lp .safe-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:24px;}
-.lp .safe-item{background:var(--bg-white);border:1px solid var(--border);border-radius:var(--r-2xl);padding:14px;box-shadow:var(--shadow-sm);transition:border-color .15s,box-shadow .15s;}
-.lp .safe-item:hover{border-color:var(--border-mid);box-shadow:var(--shadow-md);}
+.lp .safe-grid{display:grid;grid-template-columns:repeat(5,1fr);margin-top:24px;border:1px solid var(--border);border-radius:var(--r-2xl);overflow:hidden;background:var(--bg-white);}
+.lp .safe-item{padding:18px 16px;border-right:1px solid var(--border);transition:background .15s;}
+.lp .safe-item:last-child{border-right:none;}
+.lp .safe-item:hover{background:var(--bg-subtle);}
 .lp .safe-ico{color:var(--text-3);margin-bottom:9px;}
 .lp .safe-ico svg{width:16px;height:16px;}
 .lp .safe-title{font-size:12px;font-weight:600;color:var(--text-1);letter-spacing:-0.01em;margin-bottom:3px;}
@@ -314,6 +315,8 @@
   .lp .step-card:nth-child(2n){border-right:none;}
   .lp .step-card:nth-child(n+3){border-top:1px solid var(--border);}
   .lp .safe-grid{grid-template-columns:1fr 1fr;}
+  .lp .safe-item:nth-child(2n){border-right:none;}
+  .lp .safe-item:nth-child(n+3){border-top:1px solid var(--border);}
   .lp .proof-inner{grid-template-columns:1fr 1fr;}
   .lp .proof-item:nth-child(2){border-right:none;}
   .lp .proof-item:nth-child(3){border-top:1px solid var(--border);}
@@ -324,6 +327,8 @@
   .lp .steps-grid,.lp .safe-grid{grid-template-columns:1fr;}
   .lp .step-card{border-right:none;border-top:none;border-bottom:1px solid var(--border);}
   .lp .step-card:last-child{border-bottom:none;}
+  .lp .safe-item{border-right:none;border-top:none;border-bottom:1px solid var(--border);}
+  .lp .safe-item:last-child{border-bottom:none;}
   .lp .nav-links{display:none;}
   /* Hide "Sign in" ghost button — CTA + theme toggle is enough on mobile */
   .lp .btn-nav-ghost{display:none;}
