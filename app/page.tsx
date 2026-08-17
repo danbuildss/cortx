@@ -142,6 +142,7 @@ export default function LandingPage() {
 
       {/* HERO */}
       <section className="hero">
+        <div className="hero-inner">
         <div className="hero-container">
           <div className="eyebrow h-eyebrow">x402 reliability infrastructure</div>
           <h1 className="hero-headline">
@@ -197,6 +198,7 @@ export default function LandingPage() {
               </span>
             </div>
           </div>
+        </div>
         </div>
       </section>
 
