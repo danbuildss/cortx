@@ -188,8 +188,8 @@
 .lp .container{max-width:1120px;margin:0 auto;padding:0 24px;}
 .lp .section+.section{border-top:1px solid var(--border);}
 .lp .section-eyebrow{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:var(--r-pill);font-size:10.5px;font-weight:600;color:var(--text-3);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:11px;}
-.lp .section-title{font-size:clamp(19px,2.2vw,26px);font-weight:600;line-height:1.25;letter-spacing:-0.02em;color:var(--text-1);text-wrap:balance;}
-.lp .section-sub{font-size:12.5px;color:var(--text-2);line-height:1.65;margin-top:6px;}
+.lp .section-title{font-size:clamp(21px,2.5vw,30px);font-weight:600;line-height:1.25;letter-spacing:-0.02em;color:var(--text-1);text-wrap:balance;}
+.lp .section-sub{font-size:15px;color:var(--text-2);line-height:1.65;margin-top:8px;}
 
 /* ── Scroll reveal ── */
 .lp .reveal{opacity:0;transform:translateY(16px);transition:opacity 0.42s ease var(--rd,0s),transform 0.42s ease var(--rd,0s);}
