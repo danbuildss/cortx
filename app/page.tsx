@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import './landing.css';
-import Scanner from './Scanner';
 
 export default function LandingPage() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -200,36 +199,6 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-        </div>
-        <div className="hero-scanner-wrap">
-          <Scanner
-            color1="#5227FF"
-            color2="#FF9FFC"
-            color3="#FFFFFF"
-            speed={0.5}
-            sweepSpeed={0.25}
-            sweepWidth={1.6}
-            sweepFalloff={6}
-            scale={1.5}
-            frequency={2}
-            ripple={0.22}
-            bandDensity={11}
-            lineSharpness={5.5}
-            glow={0.22}
-            scanDirection="vertical"
-            colorSpread={0.7}
-            brightness={1}
-            contrast={1.15}
-            softness={1.4}
-            vignette={0.45}
-            scanline
-            grain
-            grainIntensity={0.05}
-            opacity={1}
-            mouseInteraction
-            mouseRadius={0.5}
-            mouseStrength={0.5}
-          />
         </div>
       </section>
 
@@ -434,36 +403,6 @@ export default function LandingPage() {
 
       {/* FINAL CTA */}
       <section className="cta-section">
-        <div className="cta-scanner-bg" aria-hidden="true">
-          <Scanner
-            color1="#5227FF"
-            color2="#FF9FFC"
-            color3="#FFFFFF"
-            speed={0.5}
-            sweepSpeed={0.25}
-            sweepWidth={1.6}
-            sweepFalloff={6}
-            scale={1.5}
-            frequency={2}
-            ripple={0.22}
-            bandDensity={11}
-            lineSharpness={5.5}
-            glow={0.22}
-            scanDirection="vertical"
-            colorSpread={0.7}
-            brightness={1}
-            contrast={1.15}
-            softness={1.4}
-            vignette={0.45}
-            scanline
-            grain
-            grainIntensity={0.05}
-            opacity={1}
-            mouseInteraction
-            mouseRadius={0.5}
-            mouseStrength={0.5}
-          />
-        </div>
         <div className="container">
           <div className="reveal">
             <div className="eyebrow" style={{ marginBottom: 14 }}>Private beta · Bankr x402 on Base</div>

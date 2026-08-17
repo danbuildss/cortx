@@ -354,27 +354,3 @@
   .lp *{animation:none!important;transition:none!important;}
   .lp .hline,.lp .h-eyebrow,.lp .h-sub,.lp .h-actions,.lp .h-mockup,.lp .reveal{opacity:1!important;transform:none!important;}
 }
-
-/* ── Scanner placements ── */
-.lp .hero-scanner-wrap{
-  width:100%;
-  height:600px;
-  position:relative;
-  overflow:hidden;
-}
-
-.lp .cta-section{
-  position:relative;
-  overflow:hidden;
-}
-.lp .cta-scanner-bg{
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  mix-blend-mode:screen;
-  opacity:0.55;
-}
-.lp .cta-section .container{
-  position:relative;
-  z-index:1;
-}
