@@ -219,7 +219,8 @@
 
 /* ── Steps ── */
 .lp .steps-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:24px;}
-.lp .step-card{background:var(--bg-white);border:1px solid var(--border);border-radius:var(--r-2xl);padding:15px;box-shadow:var(--shadow-sm);}
+.lp .step-card{background:var(--bg-white);border:1px solid var(--border);border-radius:var(--r-2xl);padding:15px;box-shadow:var(--shadow-sm);transition:border-color .15s,box-shadow .15s;}
+.lp .step-card:hover{border-color:var(--border-mid);box-shadow:var(--shadow-md);}
 .lp .step-num{font-family:ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:0.04em;margin-bottom:10px;}
 .lp .step-title{font-size:12.5px;font-weight:600;color:var(--text-1);letter-spacing:-0.01em;margin-bottom:4px;}
 .lp .step-body{font-size:11.5px;line-height:1.6;color:var(--text-2);}
@@ -236,7 +237,8 @@
 
 /* ── Safe by design ── */
 .lp .safe-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:24px;}
-.lp .safe-item{background:var(--bg-white);border:1px solid var(--border);border-radius:var(--r-2xl);padding:14px;box-shadow:var(--shadow-sm);}
+.lp .safe-item{background:var(--bg-white);border:1px solid var(--border);border-radius:var(--r-2xl);padding:14px;box-shadow:var(--shadow-sm);transition:border-color .15s,box-shadow .15s;}
+.lp .safe-item:hover{border-color:var(--border-mid);box-shadow:var(--shadow-md);}
 .lp .safe-ico{color:var(--text-3);margin-bottom:9px;}
 .lp .safe-ico svg{width:16px;height:16px;}
 .lp .safe-title{font-size:12px;font-weight:600;color:var(--text-1);letter-spacing:-0.01em;margin-bottom:3px;}
