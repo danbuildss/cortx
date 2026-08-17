@@ -142,6 +142,7 @@ export default function LandingPage() {
 
       {/* HERO */}
       <section className="hero">
+        <div className="hero-inner">
         <div className="hero-container">
           <div className="eyebrow h-eyebrow">x402 reliability infrastructure</div>
           <h1 className="hero-headline">
@@ -197,6 +198,7 @@ export default function LandingPage() {
               </span>
             </div>
           </div>
+        </div>
         </div>
       </section>
 
@@ -289,11 +291,11 @@ export default function LandingPage() {
             <p className="section-sub" style={{ maxWidth: 440 }}>See the exact payment terms, response body, schema errors and stage timings behind every incident. Evidence stored for every check run.</p>
           </div>
           <div className="evidence-card reveal" style={{ '--rd': '0.08s' } as React.CSSProperties}>
-            <div className="evidence-tabs">
-              <div className="evidence-tab active">Summary</div>
-              <div className="evidence-tab">Payment</div>
-              <div className="evidence-tab">Response</div>
-              <div className="evidence-tab">Schema Diff</div>
+            <div className="evidence-tabs" role="tablist" aria-label="Evidence views">
+              <div className="evidence-tab active" role="tab" aria-selected="true" tabIndex={0}>Summary</div>
+              <div className="evidence-tab" role="tab" aria-selected="false" tabIndex={-1}>Payment</div>
+              <div className="evidence-tab" role="tab" aria-selected="false" tabIndex={-1}>Response</div>
+              <div className="evidence-tab" role="tab" aria-selected="false" tabIndex={-1}>Schema Diff</div>
             </div>
             <div className="evidence-body">
               <div className="json-line"><span className="jb">{'{'}</span></div>
@@ -385,7 +387,7 @@ export default function LandingPage() {
                   borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
                   whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%',
                 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', flexShrink: 0 }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', flexShrink: 0 }} />
                   CORTX Monitored · Operational · 99.8% delivery
                 </span>
               </div>
