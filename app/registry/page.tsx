@@ -218,7 +218,7 @@ export default async function RegistryPage() {
           .reg-h1 { font-size: 22px !important; }
           .reg-card { padding: 12px 14px !important; }
           .reg-card-stats { width: 100% !important; justify-content: space-between !important; margin-top: 8px !important; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px !important; }
-          .reg-url { max-width: 100% !important; }
+          .reg-url { max-width: 100% !important; word-break: break-all !important; }
           .reg-cta-btn-label { display: none !important; }
         }
       `}</style>
@@ -376,14 +376,21 @@ export default async function RegistryPage() {
                               </span>
                             )}
                           </div>
-                          <div className="reg-url" style={{
-                            fontSize: 11, color: 'var(--text-muted, #6b7280)',
-                            fontFamily: 'ui-monospace, monospace',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            maxWidth: 360,
-                          }}>
+                          <a
+                            href={entry.endpoint_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="reg-url"
+                            style={{
+                              fontSize: 11, color: 'var(--text-muted, #6b7280)',
+                              fontFamily: 'ui-monospace, monospace',
+                              wordBreak: 'break-all',
+                              display: 'block', textDecoration: 'none',
+                              maxWidth: 360,
+                            }}
+                          >
                             {entry.endpoint_url}
-                          </div>
+                          </a>
                         </div>
                       </div>
 
@@ -481,14 +488,20 @@ export default async function RegistryPage() {
                             </span>
                           )}
                         </div>
-                        <div style={{
-                          fontSize: 12, color: 'var(--text-muted, #6b7280)',
-                          fontFamily: 'ui-monospace, monospace',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          marginBottom: entry.description ? 4 : 0,
-                        }}>
+                        <a
+                          href={entry.endpoint_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: 12, color: 'var(--text-muted, #6b7280)',
+                            fontFamily: 'ui-monospace, monospace',
+                            wordBreak: 'break-all',
+                            display: 'block', textDecoration: 'none',
+                            marginBottom: entry.description ? 4 : 0,
+                          }}
+                        >
                           {entry.endpoint_url}
-                        </div>
+                        </a>
                         {entry.description && (
                           <div style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)', marginTop: 2 }}>
                             {entry.description}
