@@ -1,0 +1,668 @@
+<title>CORTX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #08090a;
+  --surface: #111214;
+  --raised:  #16181d;
+  --muted:   #1e2028;
+  --border:  #2a2d35;
+  --t1:      #f0f1f3;
+  --t2:      #9ca3af;
+  --t3:      #6b7280;
+  --t4:      #4b5563;
+  --blue:    #5e6ad2;
+  --blue10:  rgba(94,106,210,0.09);
+  --green:   #22c55e;
+  --green10: rgba(34,197,94,0.08);
+  --red:     #ef4444;
+  --red10:   rgba(239,68,68,0.08);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg:      #f7f8f8;
+    --surface: #ffffff;
+    --raised:  #f3f4f6;
+    --muted:   #e5e7eb;
+    --border:  #d1d5db;
+    --t1:      #0d0d0e;
+    --t2:      #4b5563;
+    --t3:      #9ca3af;
+    --t4:      #d1d5db;
+    --blue10:  rgba(94,106,210,0.07);
+    --green10: rgba(34,197,94,0.07);
+    --red10:   rgba(239,68,68,0.07);
+  }
+}
+:root[data-theme="dark"] {
+  --bg:      #08090a;  --surface: #111214;  --raised:  #16181d;
+  --muted:   #1e2028;  --border:  #2a2d35;  --t1:      #f0f1f3;
+  --t2:      #9ca3af;  --t3:      #6b7280;  --t4:      #4b5563;
+  --blue10:  rgba(94,106,210,0.09);
+  --green10: rgba(34,197,94,0.08);
+  --red10:   rgba(239,68,68,0.08);
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--t1);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ── DECK ── */
+.deck { position: relative; width: 100%; height: 100vh; }
+
+.slides {
+  height: 100vh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.slides::-webkit-scrollbar { display: none; }
+
+.slide {
+  min-height: 100vh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 48px 56px;
+  position: relative;
+}
+
+.inner {
+  max-width: 860px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ── HEADER ── */
+.hdr {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  z-index: 100;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--bg) 55%, transparent);
+}
+.logo { display: flex; align-items: center; gap: 9px; pointer-events: auto; }
+.logo-mark { width: 20px; height: 20px; }
+.logo-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: 0.07em; color: var(--t1);
+}
+#slide-counter {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--t4); letter-spacing: 0.1em;
+}
+
+/* ── DOT NAV ── */
+.dots {
+  position: fixed; right: 20px; top: 50%;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 7px; z-index: 100;
+}
+.dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--muted); cursor: pointer;
+  border: none; padding: 0;
+  transition: background 0.2s, transform 0.2s; outline: none;
+}
+.dot:hover { background: var(--t3); }
+.dot.active { background: var(--t2); transform: scale(1.6); }
+
+/* ── TYPE ── */
+.slide-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--t4);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 10px;
+}
+.slide-tag::before {
+  content: ''; display: block;
+  width: 18px; height: 1px;
+  background: var(--border); flex-shrink: 0;
+}
+
+h1 {
+  font-size: clamp(28px, 4.2vw, 58px);
+  font-weight: 800; line-height: 1.08;
+  letter-spacing: -0.025em; color: var(--t1);
+  text-wrap: balance;
+}
+h1 .g { color: var(--green); }
+h1 .r { color: var(--red); }
+h1 .b { color: var(--blue); }
+
+.sub {
+  font-size: clamp(13px, 1.3vw, 16px);
+  color: var(--t2); line-height: 1.65; max-width: 560px;
+}
+
+/* ── ERROR TAGS ── */
+.error-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+.etag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--red);
+  border: 1px solid rgba(239,68,68,0.28);
+  background: var(--red10);
+  padding: 4px 11px; border-radius: 2px; letter-spacing: 0.04em;
+}
+
+/* ── PIPELINE (S3) ── */
+.pipeline { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.p-stage  { display: flex; align-items: center; gap: 4px; }
+.p-lbl {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--green); padding: 6px 12px;
+  border: 1px solid rgba(34,197,94,0.28);
+  background: var(--green10); border-radius: 2px; white-space: nowrap;
+}
+.p-sep { color: var(--border); font-size: 14px; }
+
+.proof-row { display: flex; flex-wrap: wrap; gap: 20px; }
+.proof-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--t3);
+  font-family: 'JetBrains Mono', monospace;
+}
+.proof-item::before { content: '✓'; color: var(--green); }
+
+/* ── TERMINAL (S2) ── */
+.terminal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px; padding: 24px 28px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.t-prompt { font-size: 11px; color: var(--t4); margin-bottom: 18px; letter-spacing: 0.05em; }
+.t-div    { height: 1px; background: var(--muted); margin: 12px 0; }
+.t-row    { display: flex; align-items: baseline; gap: 20px; padding: 3px 0; }
+.t-k      { font-size: 11px; color: var(--t3); min-width: 128px; }
+.t-v      { font-size: clamp(18px, 2.8vw, 32px); font-weight: 600; color: var(--t1); line-height: 1.2; }
+.t-v.blue  { color: var(--blue); }
+.t-v.green { color: var(--green); }
+.t-note   { font-size: 10px; color: var(--t4); margin-left: 6px; }
+.t-meta   {
+  display: flex; align-items: center; gap: 10px; margin-top: 4px;
+  font-size: 10px; font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── ROADMAP (S5) ── */
+.roadmap {
+  display: flex; gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border); border-radius: 3px; overflow: hidden;
+}
+.rm-step { flex: 1; background: var(--surface); padding: 20px 16px; display: flex; flex-direction: column; gap: 6px; }
+.rm-step.live { background: rgba(94,106,210,0.06); }
+.rm-v    { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--t4); letter-spacing: 0.12em; text-transform: uppercase; }
+.rm-step.live .rm-v { color: var(--blue); }
+.rm-name { font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--t3); }
+.rm-step.live .rm-name { color: var(--t1); }
+.rm-desc { font-size: 11px; color: var(--t4); line-height: 1.45; }
+.rm-live { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--green); letter-spacing: 0.06em; margin-top: 4px; }
+
+/* ── BIZ MODEL (S6) — simplified ── */
+.biz-simple {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 3px; overflow: hidden;
+}
+.biz-line {
+  display: flex; align-items: center;
+  padding: 18px 24px; gap: 0;
+  border-bottom: 1px solid var(--muted);
+}
+.biz-line:last-child { border-bottom: none; }
+.biz-who {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--blue); min-width: 200px;
+}
+.biz-arr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px; color: var(--border);
+  margin-right: 16px;
+}
+.biz-model {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; color: var(--t2);
+  letter-spacing: 0.03em;
+}
+
+/* ── CLOSING ── */
+.close-line { font-size: clamp(16px, 1.9vw, 22px); font-weight: 600; color: var(--t2); line-height: 1.4; }
+.close-links { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+.close-links a { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--blue); text-decoration: none; letter-spacing: 0.02em; }
+.base-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--t3);
+  border: 1px solid var(--border); padding: 5px 11px; border-radius: 2px; letter-spacing: 0.07em;
+}
+
+/* ── TEAM ── */
+.team-card {
+  border: 1px solid var(--border); border-radius: 3px;
+  padding: 26px; display: flex; flex-direction: column; gap: 20px;
+  background: var(--surface);
+}
+.team-name  { font-size: 18px; font-weight: 700; color: var(--t1); }
+.team-title { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--blue); letter-spacing: 0.09em; text-transform: uppercase; margin-top: 3px; }
+.team-facts { display: flex; flex-direction: column; gap: 12px; }
+.tfact { display: flex; align-items: flex-start; gap: 12px; font-size: 13px; color: var(--t2); line-height: 1.5; }
+.tfact::before { content: '→'; color: var(--blue); font-family: 'JetBrains Mono', monospace; flex-shrink: 0; margin-top: 1px; }
+
+/* ── CORI ── */
+.cori { position: absolute; bottom: 36px; right: 52px; opacity: 0.65; }
+
+/* ── FLOW ANIMATION ── */
+@keyframes flow {
+  from { stroke-dashoffset: 60; }
+  to   { stroke-dashoffset: 0; }
+}
+.fa    { stroke-dasharray: 3 11; animation: flow 1.8s linear infinite; }
+.fa.d1 { animation-delay: 0.0s; } .fa.d2 { animation-delay: 0.4s; }
+.fa.d3 { animation-delay: 0.8s; } .fa.d4 { animation-delay: 1.2s; }
+.fa.d5 { animation-delay: 0.2s; } .fa.d6 { animation-delay: 1.0s; }
+@media (prefers-reduced-motion: reduce) { .fa { animation: none; } }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 680px) {
+  .slide { padding: 52px 24px 48px; }
+  .roadmap { flex-direction: column; }
+  .biz-line { flex-direction: column; gap: 4px; }
+  .biz-arr { display: none; }
+}
+</style>
+
+<div class="deck">
+
+  <header class="hdr">
+    <div class="logo">
+      <svg class="logo-mark" viewBox="0 0 100 100" fill="none">
+        <circle cx="37" cy="50" r="27" stroke="#5e6ad2" stroke-width="5" fill="none"/>
+        <circle cx="63" cy="50" r="27" stroke="#5e6ad2" stroke-width="5" fill="none"/>
+        <line x1="12" y1="50" x2="44" y2="50" stroke="#5e6ad2" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M50 41 A9 9 0 0 0 50 59" stroke="#5e6ad2" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+        <circle cx="50" cy="50" r="7" fill="#5e6ad2"/>
+      </svg>
+      <span class="logo-name">CORTX</span>
+    </div>
+    <span id="slide-counter">01 / 08</span>
+  </header>
+
+  <nav class="dots" id="dot-nav" aria-label="Slide navigation"></nav>
+
+  <div class="slides" id="slides">
+
+    <!-- ═══ S1: HOOK + PROBLEM (combined) ═══ -->
+    <section class="slide" data-slide="0">
+      <div class="inner">
+        <div class="slide-tag">01 · the problem</div>
+
+        <h1>Agents are making real payments on the internet. Nobody's checking if the services actually work.</h1>
+
+        <!-- Hero: problem flow, larger and more central -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+          <svg viewBox="0 0 480 80" width="480" style="max-width:100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- AGENT -->
+            <rect x="0" y="16" width="100" height="44" rx="2" fill="rgba(94,106,210,0.09)" stroke="#5e6ad2" stroke-width="1.5"/>
+            <text x="50" y="43" text-anchor="middle" fill="#5e6ad2" font-size="13" font-family="monospace" font-weight="600">AGENT</text>
+            <!-- $0.01 arrow -->
+            <line x1="100" y1="38" x2="178" y2="38" stroke="#2a2d35" stroke-width="1.5"/>
+            <polygon points="175,32 185,38 175,44" fill="#2a2d35"/>
+            <text x="142" y="28" text-anchor="middle" fill="#6b7280" font-size="10" font-family="monospace">$0.01</text>
+            <!-- API -->
+            <rect x="185" y="16" width="80" height="44" rx="2" fill="#111214" stroke="#2a2d35" stroke-width="1.5"/>
+            <text x="225" y="43" text-anchor="middle" fill="#9ca3af" font-size="13" font-family="monospace">API</text>
+            <!-- → ? -->
+            <line x1="265" y1="38" x2="326" y2="38" stroke="#2a2d35" stroke-width="1.5"/>
+            <polygon points="323,32 333,38 323,44" fill="#2a2d35"/>
+            <!-- ? box — big, red, dominant -->
+            <rect x="333" y="2" width="72" height="72" rx="2" fill="rgba(239,68,68,0.09)" stroke="#ef4444" stroke-width="1.5"/>
+            <text x="369" y="50" text-anchor="middle" fill="#ef4444" font-size="36" font-family="monospace" font-weight="700">?</text>
+          </svg>
+
+          <div class="error-cloud">
+            <span class="etag">timeout</span>
+            <span class="etag">wrong price</span>
+            <span class="etag">payment failure</span>
+            <span class="etag">broken JSON</span>
+            <span class="etag">schema drift</span>
+            <span class="etag">failed delivery</span>
+          </div>
+        </div>
+
+        <div class="sub">75M+ x402 transactions in the last 30 days. The economy is real — and completely unverified.</div>
+      </div>
+
+      <!-- Cori 1/3 -->
+      <div class="cori">
+        <svg width="26" height="26" viewBox="0 0 100 100" fill="none">
+          <circle cx="37" cy="50" r="27" stroke="#5e6ad2" stroke-width="5" fill="none"/>
+          <circle cx="63" cy="50" r="27" stroke="#5e6ad2" stroke-width="5" fill="none"/>
+          <line x1="12" y1="50" x2="44" y2="50" stroke="#5e6ad2" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M50 41 A9 9 0 0 0 50 59" stroke="#5e6ad2" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+          <circle cx="50" cy="50" r="7" fill="#5e6ad2"/>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ═══ S2: TRACTION (moved up) ═══ -->
+    <section class="slide" data-slide="1">
+      <div class="inner">
+        <div class="slide-tag">02 · traction</div>
+
+        <h1>Already running on Base mainnet.</h1>
+
+        <div class="terminal">
+          <div class="t-prompt">$ cortx status --live</div>
+          <div class="t-div"></div>
+          <div class="t-row">
+            <span class="t-k">endpoints</span>
+            <span class="t-v blue">4</span>
+          </div>
+          <div class="t-row">
+            <span class="t-k">checks run</span>
+            <span class="t-v">364</span>
+          </div>
+          <div class="t-row">
+            <span class="t-k">incidents</span>
+            <span class="t-v green">1<span class="t-note">caught + resolved before users noticed</span></span>
+          </div>
+          <div class="t-row">
+            <span class="t-k">prs shipped</span>
+            <span class="t-v">55+</span>
+          </div>
+          <div class="t-row">
+            <span class="t-k">settlement</span>
+            <span class="t-v blue">USDC on Base<span class="t-note">real money, every check</span></span>
+          </div>
+          <div class="t-div"></div>
+          <div class="t-meta">
+            <span style="color:var(--t4);letter-spacing:0.07em;">PRIVATE BETA</span>
+            <span style="color:var(--t4)">·</span>
+            <span style="color:var(--blue)">usecortx.dev</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ S3: SOLUTION ═══ -->
+    <section class="slide" data-slide="2">
+      <div class="inner">
+        <div class="slide-tag">03 · the solution</div>
+
+        <h1>CORTX verifies the entire paid call — <span class="g">before</span> your users discover it broke.</h1>
+
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="pipeline">
+            <div class="p-stage"><span class="p-lbl">Reach</span>    <span class="p-sep">&thinsp;→&thinsp;</span></div>
+            <div class="p-stage"><span class="p-lbl">Terms</span>    <span class="p-sep">&thinsp;→&thinsp;</span></div>
+            <div class="p-stage"><span class="p-lbl">Price</span>    <span class="p-sep">&thinsp;→&thinsp;</span></div>
+            <div class="p-stage"><span class="p-lbl">Pay</span>      <span class="p-sep">&thinsp;→&thinsp;</span></div>
+            <div class="p-stage"><span class="p-lbl">Deliver</span>  <span class="p-sep">&thinsp;→&thinsp;</span></div>
+            <div class="p-stage"><span class="p-lbl">Parse</span>    <span class="p-sep">&thinsp;→&thinsp;</span></div>
+            <div class="p-stage"><span class="p-lbl">Validate</span></div>
+          </div>
+          <div class="proof-row">
+            <span class="proof-item">Real endpoint</span>
+            <span class="proof-item">Real payment</span>
+            <span class="proof-item">Real response</span>
+            <span class="proof-item">Real proof</span>
+          </div>
+        </div>
+
+        <div class="sub">Not a ping. Not a simulation. Every CORTX check is a live, end-to-end transaction with USDC on Base.</div>
+      </div>
+    </section>
+
+    <!-- ═══ S4: FLYWHEEL ═══ -->
+    <section class="slide" data-slide="3">
+      <div class="inner">
+        <div class="slide-tag">04 · the moat</div>
+
+        <h1>Every verification makes CORTX more useful to the next agent.</h1>
+
+        <div style="display:flex;justify-content:center;">
+          <svg viewBox="0 0 540 292" width="100%" style="max-width:520px" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="fw" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                <path d="M0 0 L7 3.5 L0 7" fill="none" stroke="#2a2d35" stroke-width="1"/>
+              </marker>
+            </defs>
+            <circle cx="270" cy="146" r="104" stroke="#1e2028" stroke-width="1" stroke-dasharray="3 7"/>
+            <path d="M284 47 Q332 44 358 77"    stroke="#2a2d35" stroke-width="1.5" stroke-linecap="round" marker-end="url(#fw)"/>
+            <path d="M374 93 Q400 122 398 168"  stroke="#2a2d35" stroke-width="1.5" stroke-linecap="round" marker-end="url(#fw)"/>
+            <path d="M388 183 Q370 229 348 253" stroke="#2a2d35" stroke-width="1.5" stroke-linecap="round" marker-end="url(#fw)"/>
+            <path d="M330 261 Q270 280 210 261" stroke="#2a2d35" stroke-width="1.5" stroke-linecap="round" marker-end="url(#fw)"/>
+            <path d="M194 253 Q150 229 144 183" stroke="#2a2d35" stroke-width="1.5" stroke-linecap="round" marker-end="url(#fw)"/>
+            <path d="M148 168 Q148 100 258 49"  stroke="#2a2d35" stroke-width="1.5" stroke-linecap="round" marker-end="url(#fw)"/>
+            <circle cx="270" cy="146" r="17" fill="rgba(94,106,210,0.12)"/>
+            <circle cx="270" cy="146" r="5"  fill="#5e6ad2"/>
+            <rect x="192" y="23"  width="156" height="26" rx="2" fill="#111214" stroke="#2a2d35" stroke-width="1"/>
+            <text x="270" y="40"  text-anchor="middle" fill="#9ca3af" font-size="11" font-family="'Inter',sans-serif" font-weight="500">More endpoints</text>
+            <rect x="360" y="63"  width="118" height="26" rx="2" fill="#111214" stroke="#2a2d35" stroke-width="1"/>
+            <text x="419" y="80"  text-anchor="middle" fill="#9ca3af" font-size="11" font-family="'Inter',sans-serif" font-weight="500">More checks</text>
+            <rect x="398" y="154" width="126" height="38" rx="2" fill="#111214" stroke="#2a2d35" stroke-width="1"/>
+            <text x="461" y="169" text-anchor="middle" fill="#9ca3af" font-size="10" font-family="'Inter',sans-serif" font-weight="500">More reliability</text>
+            <text x="461" y="184" text-anchor="middle" fill="#9ca3af" font-size="10" font-family="'Inter',sans-serif" font-weight="500">history</text>
+            <rect x="322" y="255" width="142" height="38" rx="2" fill="#111214" stroke="#2a2d35" stroke-width="1"/>
+            <text x="393" y="270" text-anchor="middle" fill="#9ca3af" font-size="10" font-family="'Inter',sans-serif" font-weight="500">Better provider</text>
+            <text x="393" y="285" text-anchor="middle" fill="#9ca3af" font-size="10" font-family="'Inter',sans-serif" font-weight="500">intelligence</text>
+            <rect x="76"  y="255" width="142" height="38" rx="2" fill="#111214" stroke="#2a2d35" stroke-width="1"/>
+            <text x="147" y="270" text-anchor="middle" fill="#9ca3af" font-size="10" font-family="'Inter',sans-serif" font-weight="500">Better agent</text>
+            <text x="147" y="285" text-anchor="middle" fill="#9ca3af" font-size="10" font-family="'Inter',sans-serif" font-weight="500">decisions</text>
+            <rect x="16"  y="154" width="114" height="26" rx="2" fill="#111214" stroke="#2a2d35" stroke-width="1"/>
+            <text x="73"  y="171" text-anchor="middle" fill="#9ca3af" font-size="11" font-family="'Inter',sans-serif" font-weight="500">More traffic</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Cori 2/3 -->
+      <div class="cori">
+        <svg width="26" height="26" viewBox="0 0 100 100" fill="none">
+          <circle cx="37" cy="50" r="27" stroke="#5e6ad2" stroke-width="5" fill="none"/>
+          <circle cx="63" cy="50" r="27" stroke="#5e6ad2" stroke-width="5" fill="none"/>
+          <line x1="12" y1="50" x2="44" y2="50" stroke="#5e6ad2" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M50 41 A9 9 0 0 0 50 59" stroke="#5e6ad2" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+          <circle cx="50" cy="50" r="7" fill="#5e6ad2"/>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ═══ S5: VISION / ROADMAP ═══ -->
+    <section class="slide" data-slide="4">
+      <div class="inner">
+        <div class="slide-tag">05 · the vision</div>
+
+        <h1>Monitoring is only the beginning.</h1>
+
+        <div class="roadmap">
+          <div class="rm-step live">
+            <div class="rm-v">V1</div>
+            <div class="rm-name">Monitor</div>
+            <div class="rm-desc">Track endpoint health, detect incidents, alert builders in real time</div>
+            <div class="rm-live">● live now</div>
+          </div>
+          <div class="rm-step">
+            <div class="rm-v">V2</div>
+            <div class="rm-name">Verify</div>
+            <div class="rm-desc">Full 7-stage paid-call verification with cryptographic proof</div>
+          </div>
+          <div class="rm-step">
+            <div class="rm-v">V3</div>
+            <div class="rm-name">Select</div>
+            <div class="rm-desc">Surface the most reliable provider for each request type</div>
+          </div>
+          <div class="rm-step">
+            <div class="rm-v">V4</div>
+            <div class="rm-name">Route</div>
+            <div class="rm-desc">Automatically route agent traffic to the healthiest endpoint</div>
+          </div>
+        </div>
+
+        <div class="sub">CORTX becomes the reliability intelligence layer between agents and paid services.</div>
+      </div>
+    </section>
+
+    <!-- ═══ S6: BUSINESS MODEL (radically simplified) ═══ -->
+    <section class="slide" data-slide="5">
+      <div class="inner">
+        <div class="slide-tag">06 · the business</div>
+
+        <h1>Builders pay. Platforms pay. Marketplaces pay.</h1>
+
+        <div class="biz-simple">
+          <div class="biz-line">
+            <span class="biz-who">Builders</span>
+            <span class="biz-arr">→</span>
+            <span class="biz-model">monitoring subscriptions</span>
+          </div>
+          <div class="biz-line">
+            <span class="biz-who">Platforms</span>
+            <span class="biz-arr">→</span>
+            <span class="biz-model">reliability API</span>
+          </div>
+          <div class="biz-line">
+            <span class="biz-who">Marketplaces</span>
+            <span class="biz-arr">→</span>
+            <span class="biz-model">reliability intelligence</span>
+          </div>
+        </div>
+
+        <div class="sub">The infrastructure running x402 services needs to know they work. CORTX is what they pay for.</div>
+      </div>
+    </section>
+
+    <!-- ═══ S7: CLOSING THESIS ═══ -->
+    <section class="slide" data-slide="6">
+      <div class="inner">
+        <div class="slide-tag">07 · the thesis</div>
+
+        <h1>Every agent will need to know what it can trust before it pays.</h1>
+
+        <div style="display:flex;flex-direction:column;gap:20px;">
+          <div class="close-line">CORTX intends to answer that question.</div>
+
+          <div class="close-links">
+            <a href="https://usecortx.dev">usecortx.dev</a>
+            <div class="base-badge">
+              <svg width="10" height="10" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="12" fill="#5e6ad2"/>
+                <circle cx="12" cy="12" r="5"  fill="#08090a"/>
+              </svg>
+              Built on Base
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cori 3/3 -->
+      <div class="cori">
+        <svg width="26" height="26" viewBox="0 0 100 100" fill="none">
+          <circle cx="37" cy="50" r="27" stroke="#5e6ad2" stroke-width="5" fill="none"/>
+          <circle cx="63" cy="50" r="27" stroke="#5e6ad2" stroke-width="5" fill="none"/>
+          <line x1="12" y1="50" x2="44" y2="50" stroke="#5e6ad2" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M50 41 A9 9 0 0 0 50 59" stroke="#5e6ad2" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+          <circle cx="50" cy="50" r="7" fill="#5e6ad2"/>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ═══ S8: TEAM ═══ -->
+    <section class="slide" data-slide="7">
+      <div class="inner">
+        <div class="slide-tag">08 · the team</div>
+
+        <h1>Why Dan.</h1>
+
+        <div class="team-card">
+          <div>
+            <div class="team-name">Dan</div>
+            <div class="team-title">Founder · CORTX</div>
+          </div>
+          <div class="team-facts">
+            <div class="tfact">Built CORTX V1 solo — from zero to live on Base mainnet with real USDC, in weeks. Not months.</div>
+            <div class="tfact">55+ PRs shipped: monitoring infrastructure, real-time alerting, 7-stage check pipeline, dashboard — all live at usecortx.dev</div>
+            <div class="tfact">Caught and resolved a real production incident before any user noticed. The system works. It already paid off.</div>
+            <div class="tfact">First mover in x402 reliability — the only dedicated monitoring layer purpose-built for the x402 protocol. Nobody else is here yet.</div>
+          </div>
+        </div>
+
+        <div class="sub">One builder. Shipping fast. Already in production. The infrastructure is running.</div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+document.documentElement.setAttribute('data-theme', 'dark');
+
+const slidesEl = document.getElementById('slides');
+const dotNav   = document.getElementById('dot-nav');
+const counter  = document.getElementById('slide-counter');
+const slides   = Array.from(document.querySelectorAll('.slide'));
+const total    = slides.length;
+let cur = 0;
+
+slides.forEach((_, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot' + (i === 0 ? ' active' : '');
+  b.setAttribute('aria-label', 'Slide ' + (i + 1));
+  b.addEventListener('click', () => goTo(i));
+  dotNav.appendChild(b);
+});
+const dots = Array.from(dotNav.querySelectorAll('.dot'));
+
+function goTo(i) {
+  i = Math.max(0, Math.min(total - 1, i));
+  slides[i].scrollIntoView({ behavior: 'smooth' });
+}
+
+function sync(i) {
+  cur = i;
+  dots.forEach((d, j) => d.classList.toggle('active', j === i));
+  counter.textContent = String(i + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+}
+
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting && e.intersectionRatio >= 0.5) {
+      const i = parseInt(e.target.dataset.slide, 10);
+      if (!isNaN(i)) sync(i);
+    }
+  });
+}, { root: slidesEl, threshold: 0.5 });
+slides.forEach(s => io.observe(s));
+
+document.addEventListener('keydown', e => {
+  const fwd = ['ArrowDown','ArrowRight','PageDown',' '];
+  const bwd = ['ArrowUp','ArrowLeft','PageUp'];
+  if (fwd.includes(e.key))      { e.preventDefault(); goTo(cur + 1); }
+  else if (bwd.includes(e.key)) { e.preventDefault(); goTo(cur - 1); }
+  else if (e.key === 'Home')    { e.preventDefault(); goTo(0); }
+  else if (e.key === 'End')     { e.preventDefault(); goTo(total - 1); }
+});
+</script>
