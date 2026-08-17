@@ -220,12 +220,13 @@
 .lp .problem-outcome.good{background:var(--red-bg);border:1px solid rgba(220,38,38,0.14);color:var(--red);}
 
 /* ── Steps ── */
-.lp .steps-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:24px;}
-.lp .step-card{background:var(--bg-white);border:1px solid var(--border);border-radius:var(--r-2xl);padding:15px;box-shadow:var(--shadow-sm);transition:border-color .15s,box-shadow .15s;}
-.lp .step-card:hover{border-color:var(--border-mid);box-shadow:var(--shadow-md);}
+.lp .steps-grid{display:grid;grid-template-columns:repeat(4,1fr);margin-top:24px;border:1px solid var(--border);border-radius:var(--r-2xl);overflow:hidden;background:var(--bg-white);}
+.lp .step-card{padding:20px 18px;border-right:1px solid var(--border);transition:background .15s;}
+.lp .step-card:last-child{border-right:none;}
+.lp .step-card:hover{background:var(--bg-subtle);}
 .lp .step-num{font-family:ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:0.04em;margin-bottom:10px;}
-.lp .step-title{font-size:12.5px;font-weight:600;color:var(--text-1);letter-spacing:-0.01em;margin-bottom:4px;}
-.lp .step-body{font-size:11.5px;line-height:1.6;color:var(--text-2);}
+.lp .step-title{font-size:13px;font-weight:600;color:var(--text-1);letter-spacing:-0.01em;margin-bottom:4px;}
+.lp .step-body{font-size:12px;line-height:1.6;color:var(--text-2);}
 
 /* ── Evidence ── */
 .lp{--evidence-bg:#0f1117;}
@@ -310,6 +311,8 @@
   .lp .hero-actions{justify-content:center;}
   .lp .problem-grid{grid-template-columns:1fr;}
   .lp .steps-grid{grid-template-columns:1fr 1fr;}
+  .lp .step-card:nth-child(2n){border-right:none;}
+  .lp .step-card:nth-child(n+3){border-top:1px solid var(--border);}
   .lp .safe-grid{grid-template-columns:1fr 1fr;}
   .lp .proof-inner{grid-template-columns:1fr 1fr;}
   .lp .proof-item:nth-child(2){border-right:none;}
@@ -319,6 +322,8 @@
 }
 @media(max-width:640px){
   .lp .steps-grid,.lp .safe-grid{grid-template-columns:1fr;}
+  .lp .step-card{border-right:none;border-top:none;border-bottom:1px solid var(--border);}
+  .lp .step-card:last-child{border-bottom:none;}
   .lp .nav-links{display:none;}
   /* Hide "Sign in" ghost button — CTA + theme toggle is enough on mobile */
   .lp .btn-nav-ghost{display:none;}
