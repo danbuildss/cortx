@@ -143,6 +143,9 @@
 @keyframes hLineUp{to{opacity:1;transform:translateY(0);}}
 @keyframes hFadeScale{to{opacity:1;transform:scale(1);}}
 
+/* ── Hero particle network ── */
+.lp .hero-network{position:relative;min-height:380px;border-radius:var(--r-2xl);border:1px solid var(--border);overflow:hidden;background:var(--bg-white);align-self:center;width:100%;}
+
 /* ── Hero check-panel mockup ── */
 .lp .mockup-outer{max-width:100%;margin:0;position:relative;align-self:center;}
 .lp .mockup-outer::after{display:none;}
