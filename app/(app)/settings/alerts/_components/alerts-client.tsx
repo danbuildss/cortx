@@ -92,11 +92,11 @@ export function DiscordConnect({ initialConnection }: { initialConnection: Disco
           background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
           borderRadius: 8, padding: '20px 24px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <DiscordLogo size={36} />
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Discord</span>
                   <span style={{
                     fontSize: 11, fontWeight: 500,
@@ -106,12 +106,12 @@ export function DiscordConnect({ initialConnection }: { initialConnection: Disco
                     borderRadius: 99, padding: '1px 8px', lineHeight: '18px',
                   }}>Connected</span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-geist-mono)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-geist-mono)', wordBreak: 'break-all' }}>
                   {connection.webhook_url.replace(/\/[^/]+$/, '/••••••••')}
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 onClick={sendTest}
                 disabled={testing}
@@ -125,7 +125,7 @@ export function DiscordConnect({ initialConnection }: { initialConnection: Disco
                 {testing ? 'Sending…' : 'Test alert'}
               </button>
               {confirmDisconnect ? (
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Disconnect?</span>
                   <button onClick={disconnect} style={{ padding: '5px 12px', background: 'var(--status-critical)', border: 'none', borderRadius: 6, fontSize: 12, color: '#fff', cursor: 'pointer', fontWeight: 500 }}>Yes</button>
                   <button onClick={() => setConfirmDisconnect(false)} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 6, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>No</button>
@@ -181,14 +181,15 @@ export function DiscordConnect({ initialConnection }: { initialConnection: Disco
           Paste a Discord webhook URL to receive incident alerts in any channel.
         </p>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <input
             type="url"
             value={webhookUrl}
             onChange={e => setWebhookUrl(e.target.value)}
             placeholder="https://discord.com/api/webhooks/…"
             style={{
-              flex: 1, padding: '8px 12px',
+              width: '100%', boxSizing: 'border-box',
+              padding: '9px 12px',
               background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
               borderRadius: 6, fontSize: 13, color: 'var(--text-primary)',
               outline: 'none', fontFamily: 'var(--font-geist-mono)',
@@ -198,11 +199,12 @@ export function DiscordConnect({ initialConnection }: { initialConnection: Disco
             onClick={save}
             disabled={saving || !webhookUrl}
             style={{
-              padding: '8px 18px',
+              padding: '9px 18px',
               background: saving || !webhookUrl ? 'var(--border-default)' : 'var(--text-primary)',
               color: 'var(--bg-page)', border: 'none', borderRadius: 6,
               fontSize: 13, fontWeight: 500,
               cursor: saving || !webhookUrl ? 'not-allowed' : 'pointer',
+              width: '100%',
             }}
           >
             {saving ? 'Saving…' : 'Save'}
