@@ -68,7 +68,9 @@ export default function AboutPage() {
           <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
             Find us on{' '}
             <a href="https://x.com/usecortx" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>X @usecortx</a>
-            {' '}or in the{' '}
+            {', join the '}
+            <a href="https://discord.gg/TKUgsqRqTg" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Discord</a>
+            {', or in the '}
             <a href="https://t.me/usecortxdev" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Telegram developer channel</a>.
           </p>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
