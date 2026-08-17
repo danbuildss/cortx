@@ -202,7 +202,7 @@ export default async function RegistryPage() {
   const allSeeds = [...verifiedSeeds, ...unverifiedSeeds];
 
   const totalEntries = monitored.length + seeds.length;
-  const operationalCount = [...monitored, ...seeds].filter(e => e.status === 'operational').length;
+  const operationalCount = monitored.filter(e => e.status === 'operational').length;
   const withData = monitored.filter(m => m.reliability !== null);
   const avgReliability = withData.length > 0
     ? Math.round(withData.reduce((s, m) => s + (m.reliability ?? 0), 0) / withData.length)
@@ -278,12 +278,14 @@ export default async function RegistryPage() {
               </span>
               Listed services
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
-              <span style={{ fontSize: 24, fontWeight: 700, color: '#22c55e', display: 'block' }}>
-                {operationalCount}
-              </span>
-              Operational now
-            </div>
+            {monitored.length > 0 && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
+                <span style={{ fontSize: 24, fontWeight: 700, color: operationalCount > 0 ? '#22c55e' : 'var(--text-muted, #6b7280)', display: 'block' }}>
+                  {operationalCount}
+                </span>
+                Operational now
+              </div>
+            )}
             {avgReliability !== null && (
               <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
                 <span style={{ fontSize: 24, fontWeight: 700, color: '#22c55e', display: 'block' }}>
@@ -442,10 +444,9 @@ export default async function RegistryPage() {
                   color: 'var(--text-muted, #6b7280)',
                   marginTop: monitored.length > 0 ? 20 : 4, marginBottom: 4,
                 }}>
-                  COMMUNITY SUBMITTED
+                  VERIFIED DIRECTORY
                 </div>
                 {allSeeds.map((entry) => {
-                  const statusColor = STATUS_COLOR[entry.status] ?? STATUS_COLOR.unknown;
                   const isObserved = !entry.is_verified;
                   return (
                     <div key={entry.id} style={{
@@ -458,11 +459,6 @@ export default async function RegistryPage() {
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
-                          <div style={{
-                            width: 6, height: 6, borderRadius: '50%',
-                            background: statusColor, flexShrink: 0,
-                            boxShadow: entry.status === 'operational' ? `0 0 5px ${statusColor}` : 'none',
-                          }} />
                           <span style={{ fontSize: 14, fontWeight: 600 }}>{entry.name}</span>
                           {entry.is_verified && (
                             <span style={{
@@ -500,11 +496,15 @@ export default async function RegistryPage() {
                         )}
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: statusColor, marginBottom: 4 }}>
-                          {STATUS_LABEL[entry.status] ?? 'Unknown'}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b7280)' }}>
-                          Not monitored
+                        <a href="/signup" style={{
+                          fontSize: 11, fontWeight: 600,
+                          color: '#f59e0b', textDecoration: 'none',
+                          display: 'inline-block', marginBottom: 4,
+                        }}>
+                          Get monitored →
+                        </a>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)' }}>
+                          Listed · not yet ranked
                         </div>
                       </div>
                     </div>
