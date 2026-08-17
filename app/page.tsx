@@ -387,7 +387,7 @@ export default function LandingPage() {
                   borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
                   whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%',
                 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', flexShrink: 0 }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', flexShrink: 0 }} />
                   CORTX Monitored · Operational · 99.8% delivery
                 </span>
               </div>
