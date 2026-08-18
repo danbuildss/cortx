@@ -201,7 +201,7 @@ export default function DocsPage() {
               From sign-up to your first live check in under 5 minutes.
             </p>
             {[
-              { n: 1, title: 'Sign up', body: 'Go to your CORTX invite link and create an account with your email.' },
+              { n: 1, title: 'Sign up', body: 'Go to usecortx.dev/signup and create a free account with your email.' },
               { n: 2, title: 'Add a service', body: 'Click "Add Service" from the Overview page and paste your x402 endpoint URL.' },
               { n: 3, title: 'Auto-detect', body: 'CORTX probes the endpoint, reads the X-Payment-Required header, and pre-fills expected price, max price, and network.' },
               { n: 4, title: 'Review & configure', body: 'Confirm the detected values, set your check interval, and optionally paste an expected JSON Schema.' },

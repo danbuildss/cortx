@@ -405,9 +405,9 @@ export default function LandingPage() {
       <section className="cta-section">
         <div className="container">
           <div className="reveal">
-            <div className="eyebrow" style={{ marginBottom: 14 }}>Private beta · Bankr x402 on Base</div>
+            <div className="eyebrow" style={{ marginBottom: 14 }}>x402 reliability monitoring · Base mainnet</div>
             <h2 className="section-title" style={{ fontSize: 'clamp(22px,3.2vw,36px)', marginBottom: 0 }}>Catch failures before your users do.</h2>
-            <p className="cta-sub">Monitor one Bankr x402 service in the CORTX private beta.</p>
+            <p className="cta-sub">Monitor your x402 endpoints with real USDC checks on Base. Free to start.</p>
             <div className="cta-actions">
               <a href="/signup" className="btn-cta-primary">
                 Monitor a Service
@@ -424,10 +424,8 @@ export default function LandingPage() {
               </a>
             </div>
             <p className="cta-note">
-              Currently supports Bankr-hosted x402 JSON APIs on Base mainnet.<br />
-              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.9em', opacity: 0.65, letterSpacing: '-0.01em' }}>
-                0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3
-              </span>
+              2 endpoints free · hold $CORTX on Base to unlock more.<br />
+              Currently supports x402 JSON APIs on Base mainnet.
             </p>
           </div>
         </div>

@@ -10,6 +10,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,8 +32,14 @@ export default function SignupPage() {
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong — try again.');
       } else {
-        router.push('/overview');
-        router.refresh();
+        // If Supabase email confirmation is enabled the session won't be
+        // active yet — show a check-your-email screen. If confirmation is
+        // disabled the redirect to /overview works immediately.
+        setDone(true);
+        setTimeout(() => {
+          router.push('/overview');
+          router.refresh();
+        }, 1500);
       }
     } catch {
       setError('Network error — try again.');
@@ -55,6 +62,17 @@ export default function SignupPage() {
           <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.06em' }}>CORTX</span>
         </div>
 
+        {done ? (
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: 32, textAlign: 'center' }}>
+            <div style={{ fontSize: 28, marginBottom: 12 }}>✓</div>
+            <h1 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Account created</h1>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              Taking you to the dashboard…<br />
+              If nothing happens,{' '}
+              <Link href="/overview" style={{ color: 'var(--text-primary)', textDecoration: 'underline' }}>click here</Link>.
+            </p>
+          </div>
+        ) : (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: 24 }}>
           <h1 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Create your account</h1>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>Start monitoring your x402 endpoints.</p>
@@ -110,6 +128,7 @@ export default function SignupPage() {
             <Link href="/login" style={{ color: 'var(--text-primary)', textDecoration: 'none' }}>Sign in</Link>
           </p>
         </div>
+        )}
       </div>
     </div>
   );

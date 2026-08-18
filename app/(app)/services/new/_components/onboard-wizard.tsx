@@ -48,7 +48,7 @@ const STAGE_ORDER = Object.keys(STAGE_LABELS);
 
 // ── Main Wizard ───────────────────────────────────────────────────────────────
 
-export function OnboardWizard({ initialTelegramConnected }: { initialTelegramConnected: boolean }) {
+export function OnboardWizard({ initialTelegramConnected, hasWallet }: { initialTelegramConnected: boolean; hasWallet: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>('detect');
 
@@ -293,6 +293,7 @@ export function OnboardWizard({ initialTelegramConnected }: { initialTelegramCon
           preset={preset} stageProgress={stageProgress}
           checkResult={checkResult} running={running} runError={runError}
           onRetry={() => { setStep('configure'); setCheckResult(null); }}
+          hasWallet={hasWallet}
         />
       )}
     </div>
@@ -679,7 +680,7 @@ function ConfigureStep(props: {
 
 function RunStep({
   detected, url, name, expectedPrice, maxPrice, preset,
-  stageProgress, checkResult, running, runError, onRetry,
+  stageProgress, checkResult, running, runError, onRetry, hasWallet,
 }: {
   detected: Detected | null; url: string;
   name: string; expectedPrice: string; maxPrice: string;
@@ -688,6 +689,7 @@ function RunStep({
   checkResult: { status: string; stages: StageResult[]; failure_stage: string | null; serviceId: string } | null;
   running: boolean; runError: string;
   onRetry: () => void;
+  hasWallet: boolean;
 }) {
   const endpoint = detected?.endpoint_url ?? url;
   const passed = checkResult?.status === 'passed';
@@ -766,6 +768,25 @@ function RunStep({
               }}>
                 Edit & retry
               </button>
+            </div>
+          )}
+
+          {passed && !hasWallet && (
+            <div style={{
+              marginTop: 16,
+              padding: '10px 14px',
+              background: 'rgba(245,158,11,0.06)',
+              border: '1px solid rgba(245,158,11,0.2)',
+              borderRadius: 6,
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              textAlign: 'left',
+            }}>
+              <span style={{ color: '#f59e0b', fontWeight: 600 }}>Tip:</span> You&apos;re on the free tier (2 endpoints).{' '}
+              <Link href="/settings/account" style={{ color: 'var(--text-primary)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                Connect your wallet
+              </Link>
+              {' '}in Account Settings to unlock more with $CORTX.
             </div>
           )}
         </div>

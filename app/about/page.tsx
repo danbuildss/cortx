@@ -55,8 +55,8 @@ export default function AboutPage() {
           <div>
             <h2 style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-primary)', marginBottom: 10 }}>Where we are</h2>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.8, margin: 0 }}>
-              CORTX is in private beta. We currently support Bankr-hosted x402 JSON APIs on Base mainnet. If you&apos;re building on x402 and want early access,{' '}
-              <Link href="/signup" style={{ color: 'var(--text-primary)', textDecoration: 'underline', textUnderlineOffset: 3 }}>request access</Link>
+              CORTX is live and open to anyone building on x402. We currently support x402 JSON APIs on Base mainnet. Sign up in under a minute — no invite required.{' '}
+              <Link href="/signup" style={{ color: 'var(--text-primary)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Get started free</Link>
               {' '}— onboarding takes under five minutes.
             </p>
           </div>
