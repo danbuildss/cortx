@@ -8,7 +8,6 @@ export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -20,17 +19,13 @@ export default function SignupPage() {
       setError('Password must be at least 8 characters.');
       return;
     }
-    if (!inviteCode.trim()) {
-      setError('An invite code is required to join the beta.');
-      return;
-    }
 
     setLoading(true);
     try {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, inviteCode }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -61,24 +56,10 @@ export default function SignupPage() {
         </div>
 
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: 24 }}>
-          <h1 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Join the beta</h1>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>You need an invite code to get access.</p>
+          <h1 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Create your account</h1>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>Start monitoring your x402 endpoints.</p>
 
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6 }}>Invite code</label>
-              <input
-                type="text"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                required
-                autoComplete="off"
-                placeholder="CORTX-XXXXXX"
-                className="app-input"
-                style={{ fontSize: 14, fontFamily: 'var(--font-geist-mono)', letterSpacing: '0.05em' }}
-              />
-            </div>
-
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6 }}>Email</label>
               <input
@@ -120,7 +101,7 @@ export default function SignupPage() {
                 fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer',
               }}
             >
-              {loading ? 'Creating account…' : 'Get access'}
+              {loading ? 'Creating account…' : 'Get started'}
             </button>
           </form>
 
@@ -129,13 +110,6 @@ export default function SignupPage() {
             <Link href="/login" style={{ color: 'var(--text-primary)', textDecoration: 'none' }}>Sign in</Link>
           </p>
         </div>
-
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', marginTop: 16 }}>
-          No invite code?{' '}
-          <a href="https://x.com/danbuildss" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-            Request early access →
-          </a>
-        </p>
       </div>
     </div>
   );
