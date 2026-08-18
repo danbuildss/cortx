@@ -424,10 +424,8 @@ export default function LandingPage() {
               </a>
             </div>
             <p className="cta-note">
-              Currently supports Bankr-hosted x402 JSON APIs on Base mainnet.<br />
-              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.9em', opacity: 0.65, letterSpacing: '-0.01em' }}>
-                0x23ec691cf7f9a3166fa663c73f6f5a0c26a5aba3
-              </span>
+              2 endpoints free · hold $CORTX on Base to unlock more.<br />
+              Currently supports x402 JSON APIs on Base mainnet.
             </p>
           </div>
         </div>
