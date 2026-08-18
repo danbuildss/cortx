@@ -405,9 +405,9 @@ export default function LandingPage() {
       <section className="cta-section">
         <div className="container">
           <div className="reveal">
-            <div className="eyebrow" style={{ marginBottom: 14 }}>Private beta · Bankr x402 on Base</div>
+            <div className="eyebrow" style={{ marginBottom: 14 }}>x402 reliability monitoring · Base mainnet</div>
             <h2 className="section-title" style={{ fontSize: 'clamp(22px,3.2vw,36px)', marginBottom: 0 }}>Catch failures before your users do.</h2>
-            <p className="cta-sub">Monitor one Bankr x402 service in the CORTX private beta.</p>
+            <p className="cta-sub">Monitor your x402 endpoints with real USDC checks on Base. Free to start.</p>
             <div className="cta-actions">
               <a href="/signup" className="btn-cta-primary">
                 Monitor a Service
