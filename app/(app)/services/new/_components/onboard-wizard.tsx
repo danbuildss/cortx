@@ -162,7 +162,7 @@ export function OnboardWizard({ initialTelegramConnected, hasWallet }: { initial
     if (!expectedPrice || isNaN(parseFloat(expectedPrice))) errors.push('Expected price required');
     if (!maxPrice || isNaN(parseFloat(maxPrice))) errors.push('Max price required');
     if (parseFloat(expectedPrice) > BETA_MAX_ENDPOINT_PRICE_USDC || parseFloat(maxPrice) > BETA_MAX_ENDPOINT_PRICE_USDC) {
-      errors.push(`Beta endpoints are capped at $${BETA_MAX_ENDPOINT_PRICE_USDC.toFixed(2)} USDC per call. Lower your expected and max price to continue.`);
+      errors.push(`Endpoints are capped at $${BETA_MAX_ENDPOINT_PRICE_USDC.toFixed(2)} USDC per call. Lower your expected and max price to continue.`);
     }
     try { JSON.parse(testPayload); } catch { errors.push('Test payload must be valid JSON'); }
     try { JSON.parse(expectedSchema); } catch { errors.push('Expected schema must be valid JSON'); }

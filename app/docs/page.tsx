@@ -173,7 +173,7 @@ export default function DocsPage() {
               CORTX runs a full synthetic payment through your x402 endpoint every few minutes — not just a ping, but a real end-to-end payment flow. It records evidence at every stage, opens incidents on consecutive failures, and sends Telegram alerts.
             </p>
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.75, marginBottom: 32 }}>
-              Built for Bankr builders who need to know if their paid API is actually working end-to-end, not just &ldquo;up.&rdquo;
+              Built for x402 builders who need to know if their paid API is actually working end-to-end, not just &ldquo;up.&rdquo;
             </p>
 
             <h2 style={h2Style}>The 7-Stage Pipeline</h2>

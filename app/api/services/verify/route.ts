@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   // Fetch the service and confirm ownership
   const { data: service, error: fetchError } = await supabase
     .from('services')
-    .select('id, url, verification_token, verification_status')
+    .select('id, endpoint_url, verification_token, verification_status')
     .eq('id', serviceId)
     .eq('user_id', user.id)
     .is('deleted_at', null)
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
-      const res = await fetch(service.url, {
+      const res = await fetch(service.endpoint_url, {
         method: 'GET',
         signal: controller.signal,
         headers: { 'User-Agent': 'CORTX-Verify/1.0' },

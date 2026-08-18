@@ -182,7 +182,7 @@ export default async function AdminPage() {
   const feed: FeedItem[] = [];
 
   for (const code of codes.filter(c => c.used_at && c.used_by)) {
-    feed.push({ label: 'joined the beta', sub: code.used_by!, ts: code.used_at!, color: '#22c55e' });
+    feed.push({ label: 'signed up', sub: code.used_by!, ts: code.used_at!, color: '#22c55e' });
   }
   for (const svc of services) {
     const u = authUsers.find(a => a.id === svc.user_id);
@@ -228,7 +228,7 @@ export default async function AdminPage() {
       {/* Metric row 1 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 10 }}>
         {[
-          { label: 'Beta Users',          value: String(betaUsers.length),          sub: `${usedCodes.length} of ${codes.length} codes used` },
+          { label: 'Users',                value: String(betaUsers.length),          sub: 'registered accounts' },
           { label: 'Endpoints Monitored', value: String(services.length),           sub: 'across all users' },
           { label: 'Checks (24h)',        value: totalChecks.toLocaleString(),       sub: totalChecks > 0 ? `~${Math.round(totalChecks / 24)}/hr` : 'no data yet' },
           { label: 'Avg Uptime',          value: avgUptime ? `${avgUptime}%` : '—', sub: 'across all services', green: avgUptime !== null && parseFloat(avgUptime) >= 95 },
@@ -475,14 +475,14 @@ export default async function AdminPage() {
         {/* Left */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          {/* Beta users table */}
+          {/* Users table */}
           <div style={card}>
             <div style={cardHeader}>
-              <span style={cardTitle}>Beta Users</span>
+              <span style={cardTitle}>Users</span>
               <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{betaUsers.length} user{betaUsers.length !== 1 ? 's' : ''}</span>
             </div>
             {sortedUsers.length === 0 ? (
-              <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No beta users yet</div>
+              <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No users yet</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 0 }}>
@@ -600,10 +600,10 @@ export default async function AdminPage() {
             </div>
           )}
 
-          {/* Invite codes — full list with copy */}
+          {/* Invite codes — historical record from beta */}
           <div style={card}>
             <div style={cardHeader}>
-              <span style={cardTitle}>Invite Codes</span>
+              <span style={cardTitle}>Invite Codes (beta era)</span>
               <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{usedCodes.length} used · {freeCodes.length} left</span>
             </div>
             <div style={{ maxHeight: 300, overflowY: 'auto' }}>
