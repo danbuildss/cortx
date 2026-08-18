@@ -94,6 +94,7 @@ type MonitoredEntry = {
   stagePassed: number;
   stageTotal: number;
   sparklineSvg: string;
+  verification_status: string;
 };
 
 type SeedEntry = {
@@ -118,7 +119,7 @@ export default async function RegistryPage() {
   ] = await Promise.all([
     supabase
       .from('services')
-      .select(`id, name, endpoint_url, status, last_checked_at, check_interval_minutes, profiles!inner(cortx_tier)`)
+      .select(`id, name, endpoint_url, status, last_checked_at, check_interval_minutes, verification_status, profiles!inner(cortx_tier)`)
       .is('deleted_at', null)
       .in('profiles.cortx_tier', ['tier1', 'tier2', 'tier3', 'tier4']),
     supabase
@@ -209,6 +210,7 @@ export default async function RegistryPage() {
       stagePassed,
       stageTotal,
       sparklineSvg: buildSparklineSvg(dailyRates),
+      verification_status: row.verification_status ?? 'unverified',
     };
   });
 
@@ -408,6 +410,16 @@ export default async function RegistryPage() {
                                 borderRadius: 3, padding: '1px 5px',
                               }}>
                                 {TIER_LABEL[entry.tier] ?? ''} $CORTX
+                              </span>
+                            )}
+                            {entry.verification_status === 'verified' && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                                color: '#22c55e', background: 'rgba(34,197,94,0.08)',
+                                border: '1px solid rgba(34,197,94,0.25)',
+                                borderRadius: 3, padding: '1px 5px',
+                              }}>
+                                ✓ VERIFIED
                               </span>
                             )}
                           </div>

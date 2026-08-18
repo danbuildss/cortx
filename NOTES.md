@@ -237,6 +237,56 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - Custom domain for status pages?
 - On-demand check API (needed for Bankr skill v2 — currently skill requires known serviceId)
 
+## Open Source Strategy — "Open Tools. Paid Network." (Aug 18, 2026)
+
+Decision locked: CORTX's OSS philosophy is Open Tools, Paid Network. Open the standard and client tooling; close the monitoring network, accumulated reliability data, and V2–V4 features.
+
+### What's been shipped
+
+**`danbuildss/x402-reliability-spec`** — public GitHub repo, live at https://github.com/danbuildss/x402-reliability-spec
+
+The open specification for x402 service reliability. Defines the 7-stage verification pipeline as a machine-readable standard — not CORTX-specific, anyone can implement.
+
+| File | What it is |
+|------|-----------|
+| `SPEC.md` | Full 7-stage definition with pass/fail conditions, evidence fields, and rationale notes |
+| `schema/evidence-record.json` | JSON Schema for a complete check result |
+| `schema/check-result.json` | JSON Schema for a single stage result |
+| `examples/` | 3 example records (passing, failing stage 5, failing stage 2) |
+| `CONTRIBUTING.md` | Contribution workflow — issues first for substantive changes |
+| `CODE_OF_CONDUCT.md` | Required for GitHub community health checklist |
+| `.github/workflows/validate-examples.yml` | CI: validates all examples against schema on every PR |
+| `.github/ISSUE_TEMPLATE/` | Ambiguity report + edge case discussion templates |
+
+**Current spec version:** v0.1.1 (working draft)
+
+**CORTX is the reference implementation.** The spec is open; the monitoring network (historical data, scheduled infra, alerts, cross-service intelligence) is closed and commercial.
+
+### Four plays (in order)
+
+1. **x402-reliability-spec** ✅ DONE — publish open spec on GitHub
+2. **@cortx/check npm package** — after public launch — open source the check runner (`lib/check-runner/`)
+3. **Open Registry read API** — after 50+ endpoints verified — public read access to reliability scores
+4. **Open Core / full dashboard** — SKIP for now, revisit at V3
+
+### Distribution done
+
+- Tweet posted (Aug 18): https://x.com/danbuildss/status/2089682066593972377 — quoted @base/Jesse Pollak "open standard" tweet while x402 was trending
+- Methodology page on usecortx.dev now links to the spec (PR #71, pending merge)
+- GitHub Discussion post drafted for coinbase/x402 — post manually
+
+### Key naming decision
+
+`x402-reliability-spec` chosen over `x402-health-spec` — reliability covers the full 7-stage picture (payment delivery, schema validity, latency, uptime). "Health check" only implies server availability.
+
+### Open items
+
+- Post GitHub Discussion on coinbase/x402 Discussions
+- DM individual x402 contributors (template ready — see reach-out skill output)
+- Merge PR #71 (methodology page → main)
+
+---
+
 ## GTM — Launch Week Plan (week of Aug 18)
 
 - Monday: ship update thread on X
@@ -269,6 +319,7 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - PR #59 (merged): admin — multi-window platform stats table (24h/7d/30d/90d/1y/all) + registry seeds section with inline add form
 - PR #60 (merged): paid check once per day, lightweight on every 2h cron fire — migration 010 applied ✓
 - PR #61 (merged): paid check every 4h (migration 011), lightweight every 15min cron — migration 011 applied ✓
+- PR #71 (open): methodology page — "Open Standard" section linking to x402-reliability-spec repo
 - **BankrBot/skills PR #642 (open)**: CORTX skill — x402 endpoint reliability for agents
 
 ### Partner Integration Sprint deliverables (PR #52, merged)

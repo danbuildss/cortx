@@ -9,6 +9,7 @@ import { Suspense } from 'react';
 import { ChecksPanel } from './_components/checks-panel';
 import type { CheckRecord } from './_components/checks-panel';
 import { SharePanel } from './_components/share-panel';
+import { VerifyPanel } from './_components/verify-panel';
 
 function fmtInterval(minutes: number): string {
   if (minutes >= 1440 && minutes % 1440 === 0) return minutes === 1440 ? 'Daily' : `Every ${minutes / 1440}d`;
@@ -36,7 +37,7 @@ export default async function ServiceDetailPage({
 
   const { data: service } = await supabase
     .from('services')
-    .select('id, name, endpoint_url, status, last_checked_at, check_interval_minutes, environment, expected_price, max_price, lightweight_check_interval_minutes, paid_verification_mode, paid_verification_interval_minutes, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at')
+    .select('id, name, endpoint_url, status, last_checked_at, check_interval_minutes, environment, expected_price, max_price, lightweight_check_interval_minutes, paid_verification_mode, paid_verification_interval_minutes, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at, verification_status, verification_token, verified_at')
     .eq('id', id)
     .is('deleted_at', null)
     .single();
@@ -162,9 +163,26 @@ export default async function ServiceDetailPage({
 
       <ChecksPanel checks={(recentChecks ?? []) as CheckRecord[]} />
 
-      {/* Share / embed */}
+      {/* Ownership verification */}
       {user && (
         <div style={{ marginTop: 40 }}>
+          <h2 style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Ownership verification
+          </h2>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '20px 24px' }}>
+            <VerifyPanel
+              serviceId={service.id}
+              initialStatus={service.verification_status ?? 'unverified'}
+              initialToken={service.verification_token ?? null}
+              verifiedAt={service.verified_at ?? null}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Share / embed */}
+      {user && (
+        <div style={{ marginTop: 24 }}>
           <h2 style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Share &amp; embed
           </h2>
