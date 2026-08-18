@@ -20,7 +20,7 @@ export default async function AlertSettingsPage() {
   ]);
 
   return (
-    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 640, margin: '0 auto' }}>
+    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 900, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
           Alert settings
@@ -30,7 +30,12 @@ export default async function AlertSettingsPage() {
         </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gap: 20,
+        alignItems: 'start',
+      }}>
         <TelegramConnect initialConnection={telegramConn ?? null} />
         <DiscordConnect initialConnection={discordConn ?? null} />
       </div>
