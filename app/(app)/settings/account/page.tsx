@@ -25,7 +25,7 @@ export default async function AccountSettingsPage() {
   const limit = isAdmin ? null : TIER_LIMITS[tier];
 
   return (
-    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 520, margin: '0 auto' }}>
+    <div className="page-content" style={{ padding: '32px 40px', maxWidth: 900, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
           Account
@@ -36,29 +36,36 @@ export default async function AccountSettingsPage() {
       </div>
 
       <div style={{
-        background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
-        borderRadius: 8, padding: '24px', marginBottom: 20,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gap: 20,
+        alignItems: 'start',
       }}>
-        <AccountForm
-          initialDisplayName={profile?.display_name ?? null}
-          email={user?.email ?? ''}
-        />
-      </div>
+        <div style={{
+          background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
+          borderRadius: 8, padding: '24px',
+        }}>
+          <AccountForm
+            initialDisplayName={profile?.display_name ?? null}
+            email={user?.email ?? ''}
+          />
+        </div>
 
-      <div style={{
-        background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
-        borderRadius: 8, padding: '24px',
-      }}>
-        <TokenSection
-          initialWallet={profile?.cortx_wallet_address ?? null}
-          balance={profile?.cortx_token_balance ?? 0}
-          tier={tier}
-          tierLabel={isAdmin ? 'Admin' : TIER_LABELS[tier]}
-          isAdmin={isAdmin}
-          serviceCount={serviceCount ?? 0}
-          serviceLimit={limit}
-          syncedAt={profile?.cortx_balance_synced_at ?? null}
-        />
+        <div style={{
+          background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
+          borderRadius: 8, padding: '24px',
+        }}>
+          <TokenSection
+            initialWallet={profile?.cortx_wallet_address ?? null}
+            balance={profile?.cortx_token_balance ?? 0}
+            tier={tier}
+            tierLabel={isAdmin ? 'Admin' : TIER_LABELS[tier]}
+            isAdmin={isAdmin}
+            serviceCount={serviceCount ?? 0}
+            serviceLimit={limit}
+            syncedAt={profile?.cortx_balance_synced_at ?? null}
+          />
+        </div>
       </div>
     </div>
   );
