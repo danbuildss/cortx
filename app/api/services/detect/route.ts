@@ -177,6 +177,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // Check multiple header names used across x402 implementations.
       const { opt: bodyOpt, terms: bodyTerms } = parsePaymentTerms(rawBody);
       const xPayHeader =
+        response.headers.get('payment-required') ??    // x402 V2 spec (base64 JSON)
         response.headers.get('x-payment-required') ??
         response.headers.get('x-payment') ??
         response.headers.get('www-authenticate') ??
