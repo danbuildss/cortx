@@ -106,7 +106,7 @@ export function DiscordConnect({ initialConnection }: { initialConnection: Disco
                     borderRadius: 99, padding: '1px 8px', lineHeight: '18px',
                   }}>Connected</span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-geist-mono)', wordBreak: 'break-all' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-geist-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
                   {connection.webhook_url.replace(/\/[^/]+$/, '/••••••••')}
                 </div>
               </div>
@@ -366,8 +366,8 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
           background: 'var(--bg-surface)', border: '1px solid var(--border-mid)',
           borderRadius: 8, padding: '20px 24px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <TelegramLogo size={36} />
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -392,8 +392,7 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
                 )}
               </div>
             </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 onClick={sendTest}
                 disabled={testing}
@@ -407,7 +406,7 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
                 {testing ? 'Sending…' : 'Test alert'}
               </button>
               {confirmDisconnect ? (
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Disconnect?</span>
                   <button
                     onClick={disconnect}
