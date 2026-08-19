@@ -23,6 +23,18 @@ V4 — Route        CORTX automatically chooses and fails over between providers
 
 **Current position:** V1 complete. V2 is next — endpoint ownership verification and trust labels are the missing piece before public launch is fully proven.
 
+## Inbound Feature Requests (from builders)
+
+Track asks from real users — these validate roadmap priority and are proof points for grant applications.
+
+| Date | From | Request | Roadmap fit |
+|---|---|---|---|
+| Aug 2026 | @aaronjmars (aeon.fun) | Link x402 endpoint to his CORTX account (`aaron@aeon.fun`) — wants ownership of `x402.miroshark.xyz/run` tied to his profile | V2 Verify — endpoint ownership verification |
+
+**Notes on the aeon.fun request:** Aaron hit the detection bug (network/price/recipient/description not detected for his endpoint). Fix shipped in PR #78. He also wants claimed-endpoint-to-account linking, which is exactly the V2 Verify ownership flow. He's the first external builder to explicitly request it — cite him when prioritising V2.
+
+---
+
 ## What to Stop Building (Aug 2026 decision)
 
 The product has enough. No more:
