@@ -473,3 +473,70 @@ Three-tier monitoring model: every service now gets a free 5-min availability pi
 ### Partner onboarding audit (PR #53)
 
 Audited all integration surfaces as an external partner. One hard blocker found and fixed: missing CORS headers on `/api/v1/reliability/[serviceId]` — browser-side fetch calls were blocked. Fixed by adding `OPTIONS` preflight handler and `Access-Control-Allow-Origin: *` to all responses. No other hard blockers found.
+
+---
+
+## Base Builder Grant Program — Application (Aug 2026)
+
+Up to $5,000 seed capital + GTM & Product support. Fits: Agents / Agentic Commerce (x402).
+
+### Drafted answers
+
+| Field | Answer |
+|---|---|
+| **Full name** | [YOUR FULL NAME] |
+| **Email** | danewurum01@gmail.com |
+| **X handle** | @danbuildss |
+| **Telegram username** | [YOUR TELEGRAM @USERNAME] |
+| **Project name + one-liner** | CORTX — End-to-end reliability monitoring for x402 payment endpoints on Base. |
+| **Live product link** | https://usecortx.dev |
+| **Demo (Loom)** | [RECORD — see below] |
+| **Contract address on Base** | [BASE USDC CONTRACT or test wallet address — see below] |
+| **Track** | Agents / Agentic Commerce |
+| **GTM plan** | See below |
+| **Base Builder Code** | [DO YOU HAVE ONE?] |
+| **Primary challenge** | User acquisition |
+| **Credits** | AWS, Privy |
+
+### Founding team answer
+
+Solo founder. Building the reliability infrastructure layer for x402 on Base. Shipped CORTX from zero to live product — end-to-end synthetic payment monitoring, incident detection, Telegram alerts, public status pages, and an open x402 reliability spec (github.com/danbuildss/x402-reliability-spec). Live on mainnet with real USDC payments.
+
+### GTM plan (next 3 months)
+
+- **Month 1**: Public launch — open signups, onboard first 10 builders, push CORTX into x402 ecosystem (coinbase/x402 GitHub, Bankr skill live)
+- **Month 2**: Registry awareness — outreach to x402 endpoint operators, publish reliability reports, first integration partner embedding CORTX badge
+- **Month 3**: V2 (Verify) — endpoint ownership verification + trust labels; target 30 monitored endpoints, 10,000 checks run
+
+### Key usage numbers answer (fill in your real numbers)
+
+- All-time users onboarded: [X]
+- Current DAU: [X]
+- Current WAU: [X]
+- All-time volume processed: Real USDC payments on Base mainnet — every check runs a synthetic x402 payment
+- Last-30-day volume: [X checks × avg payment value]
+
+### How does CORTX make money
+
+Currently free during beta. Monetization via $CORTX token tiers — higher token holdings unlock more monitored endpoints, faster check intervals, and advanced alerting. Premium tier planned at launch.
+
+### Contract address note
+
+CORTX does not deploy its own contract — it interacts with USDC on Base via the x402 protocol (EIP-3009 payment signing). Use the Base USDC contract address: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` or your test wallet address if they want a specific address tied to the project.
+
+### Open items before submitting
+
+- [ ] Record Loom demo (see below)
+- [ ] Fill in full name
+- [ ] Fill in Telegram @username
+- [ ] Fill in real usage numbers (users, DAU, WAU, volume)
+- [ ] Confirm Base Builder Code (did Base give you one?)
+
+### Demo recording — use Loom
+
+They explicitly ask for a Loom link. Go to loom.com, create a free account, hit "New Recording" → Screen + Camera. Record:
+1. usecortx.dev landing page (30s)
+2. Add a service → wizard → first check runs (60s)
+3. Alert fires → Telegram notification (30s)
+4. Public status page (15s)
+Keep it under 3 minutes. Loom gives you a shareable link instantly.
