@@ -63,28 +63,59 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let _debugHeader = '';
 
   type PaymentOpt = {
-    network?: string; maxAmountRequired?: string;
-    payTo?: string; recipient?: string;
+    network?: string; chainId?: string | number;
+    maxAmountRequired?: string | number; amount?: string | number;
+    maxAmount?: string | number; price?: string | number;
+    payTo?: string; recipient?: string; to?: string;
+    address?: string; paymentAddress?: string;
     asset?: string; description?: string; resource?: string;
     outputSchema?: Record<string, unknown>;
     extra?: { name?: string; description?: string; [k: string]: unknown };
   };
-  type BodyTerms = { accepts?: PaymentOpt[]; description?: string; error?: string };
+  type BodyTerms = {
+    accepts?: PaymentOpt[]; paymentOptions?: PaymentOpt[];
+    requirements?: PaymentOpt[]; options?: PaymentOpt[];
+    description?: string; error?: string;
+  };
 
   // Parse a raw string (body or header value) into a PaymentOpt + BodyTerms pair.
-  // Handles both the x402v1 accepts[] envelope and the flat Bankr header format.
+  // Handles x402v1 accepts[] envelope, flat Bankr header format, alternative key
+  // names used by Python/custom x402 servers, and header scheme prefixes.
   function parsePaymentTerms(raw: string): { opt: PaymentOpt | null; terms: BodyTerms | null } {
     if (!raw?.trim()) return { opt: null, terms: null };
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        if (Array.isArray(parsed.accepts) && parsed.accepts.length > 0) {
-          return { opt: parsed.accepts[0] as PaymentOpt, terms: parsed as BodyTerms };
+
+    // Build candidates: original, with scheme prefix stripped (e.g. "x402 {...}"),
+    // and a base64-decoded attempt if it looks like base64.
+    const stripped = raw.replace(/^[A-Za-z0-9_-]+\s+/, '');
+    const candidates = [raw, stripped];
+    if (/^[A-Za-z0-9+/=]{20,}$/.test(stripped.trim())) {
+      try { candidates.push(atob(stripped.trim())); } catch { /* ignore */ }
+    }
+
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate);
+        if (!parsed || typeof parsed !== 'object') continue;
+
+        if (Array.isArray(parsed)) {
+          // Direct array of payment options
+          if (parsed.length > 0) return { opt: parsed[0] as PaymentOpt, terms: null };
+          continue;
         }
+
+        // Envelope formats — check all known array key names
+        for (const key of ['accepts', 'paymentOptions', 'requirements', 'options'] as const) {
+          const arr = (parsed as Record<string, unknown>)[key];
+          if (Array.isArray(arr) && arr.length > 0) {
+            return { opt: arr[0] as PaymentOpt, terms: parsed as BodyTerms };
+          }
+        }
+
         // Flat format — the object itself is the payment option
         return { opt: parsed as PaymentOpt, terms: null };
-      }
-    } catch { /* ignore */ }
+      } catch { /* ignore */ }
+    }
+
     return { opt: null, terms: null };
   }
 
@@ -157,26 +188,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const terms = bodyTerms ?? headerTerms;
 
       if (opt) {
-        // Network
-        const net = opt.network ?? '';
-        if (net === 'eip155:8453' || net === 'base') {
+        // Network — check opt.network and opt.chainId; normalise to lowercase
+        const rawNet = String(opt.network ?? opt.chainId ?? '').toLowerCase().trim();
+        if (rawNet === 'eip155:8453' || rawNet === 'base' || rawNet === 'base-mainnet' || rawNet === '8453') {
           detected.environment = 'mainnet';
           detected.network_display = 'Base Mainnet';
-        } else if (net === 'eip155:84532' || net === 'base-sepolia') {
+        } else if (rawNet === 'eip155:84532' || rawNet === 'base-sepolia' || rawNet === 'basesepolia' || rawNet === '84532') {
           detected.environment = 'testnet';
           detected.network_display = 'Base Sepolia (Testnet)';
-        } else if (net) {
+        } else if (rawNet) {
           detected.environment = 'mainnet';
-          detected.network_display = net;
+          detected.network_display = String(opt.network ?? opt.chainId ?? rawNet);
         } else {
           missing.push('network');
         }
 
         detected.asset = 'USDC';
 
-        // Price
-        if (opt.maxAmountRequired) {
-          const price = parsePriceToUsdc(opt.maxAmountRequired);
+        // Price — accept maxAmountRequired (x402 standard), amount, maxAmount, price
+        const rawPrice = opt.maxAmountRequired ?? opt.amount ?? opt.maxAmount ?? opt.price;
+        if (rawPrice != null) {
+          const price = parsePriceToUsdc(String(rawPrice));
           if (price > 0) {
             detected.expected_price = price.toFixed(6);
             detected.max_price = (price * 1.1).toFixed(6);
@@ -187,8 +219,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           missing.push('price');
         }
 
-        // Recipient — accept both payTo (x402v1) and recipient (Bankr flat format)
-        const recipientAddr = opt.payTo ?? opt.recipient;
+        // Recipient — accept payTo (x402v1), recipient (Bankr), to, address, paymentAddress
+        const recipientAddr = opt.payTo ?? opt.recipient ?? opt.to ?? opt.address ?? opt.paymentAddress;
         if (recipientAddr) {
           detected.recipient_display = `${recipientAddr.slice(0, 6)}…${recipientAddr.slice(-4)}`;
           detected.recipient_full = recipientAddr;
