@@ -237,6 +237,126 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - Custom domain for status pages?
 - On-demand check API (needed for Bankr skill v2 — currently skill requires known serviceId)
 
+---
+
+## Cori — Sibyl Memory Hackathon (Sep 1–10, 2026)
+
+### What it is
+
+**Cori** is CORTX's AI incident-response agent. Named after the raven mascot. Ravens = Huginn and Muninn ("thought" and "memory" in Norse mythology) — fits perfectly with Sibyl Memory's "forgetting is a bug" framing.
+
+- Repo: `danbuildss/cori` (separate from CORTX)
+- GitHub description: "AI incident-response agent for CORTX. She remembers every outage so you don't have to."
+- License: MIT
+- Stack: Python, FastAPI, Sibyl Memory (SQLite/FTS5), Claude API, x402
+
+### Hackathon: Sibyl Memory Hackathon
+
+- Registration: Aug 16–31, 2026
+- Build window: Sep 1–10, 2026
+- Prizes: $10,000 USDC pool (1st: $4k + Network School residency)
+- Judging: Sep 11–12 · Winners: Sep 13–15
+
+**Scoring formula:** `(rubric + PMF bonus) × partner multiplier`
+- Rubric: 100 pts (memory 40 + innovation 25 + execution 20 + pitch 15)
+- PMF bonus: up to +10
+- Partner multiplier: Base +15%, Virtuals +10%, cap x1.25
+
+### Why CORTX + Cori wins this
+
+- **Gate**: delete Sibyl Memory → Cori loses all runbooks and history → core value gone. Load-bearing confirmed.
+- **Base multiplier (x1.15)**: x402 is already on Base mainnet. Wire the deep-pattern analysis behind an x402 payment gate → Base stack verified in the demo.
+- **PMF bonus (+7–10)**: CORTX launches this week → real users by Sep 1 = publicly verifiable evidence.
+- **Score projection**: ~95 rubric+PMF × 1.15 = **~109 Builder Score** → top-3 realistic.
+
+### Memory architecture (scores at top of the 40pt band)
+
+Uses Sibyl's tier system deliberately (coordination + dynamic storage = not just recall):
+
+| Tier | What Cori stores |
+|------|-----------------|
+| HOT | Current incident working context |
+| WARM | Service entities — known failure modes, tech stack, owner, alert count |
+| COLD | Incident journal — every alert with timestamp, error signature, duration, resolution |
+| REFERENCE | Runbooks — proven fixes captured after user confirms resolution |
+
+**Coordination pattern**: on alert, agent queries WARM entity + COLD journal for this service + cross-queries COLD for correlated services that failed in the same window. Synthesizes a diagnosis that changes its recommended action.
+
+**Dynamic storage**: agent decides what to store — structured incident entity on alert, prompted runbook capture after resolution, deduplication for repeat patterns.
+
+### The fresh-session recall beat (gate requirement)
+
+1. Session 1: alert fires for `api-service`. User resolves — DB pool exhausted. Agent writes runbook. Timestamp shown on screen.
+2. Close everything. New terminal. Timestamp shown.
+3. Session 2: same service alerts. Agent recalls runbook from session 1. Recommended action changes — goes straight to DB pool fix.
+
+### Demo video script (2–3 min)
+
+- 0:00–0:30: Problem — 3am page, 45 min wasted because nobody remembered last month's fix
+- 0:30–1:00: Session 1 — alert fires, Cori learns, user resolves, runbook written (timestamp)
+- 1:00–1:10: Close everything, new session, timestamp shown
+- 1:10–1:50: Session 2 — same alert, Cori recalls runbook instantly, resolved in 90 seconds
+- 1:50–2:30: x402 payment for deep-pattern analysis (Base multiplier), cross-service correlation, PMF evidence
+
+### 10-day build plan
+
+| Day | Work |
+|-----|------|
+| 1 | Sibyl Memory setup + CORTX webhook listener |
+| 2 | Write incident to COLD journal on alert |
+| 3 | Write WARM service entity, update on repeat |
+| 4 | Agent reads memory on new alert → changes response |
+| 5 | Cross-service correlation query (coordination pattern) |
+| 6 | x402 payment gate for deep-pattern analysis |
+| 7 | Runbook capture flow (post-resolution → REFERENCE write) |
+| 8 | Fresh-session recall test + polish |
+| 9 | Demo video — cold-start recall beat with on-screen timestamp |
+| 10 | README + two X posts + submit |
+
+### Repo status — SCAFFOLDED ✅ (Aug 19, 2026)
+
+Initial commit pushed to `danbuildss/cori` main. All files live:
+
+```
+cori/
+  README.md                  ← submission-ready overview
+  LICENSE                    ← MIT
+  requirements.txt           ← fastapi, anthropic, sibyl-memory-cli[mcp], httpx
+  .env.example               ← all required env vars documented
+  agent/
+    main.py                  ← FastAPI app entry point
+    routes/
+      webhook.py             ← /webhook/alert + /webhook/resolve (HMAC auth)
+      analyze.py             ← /analyze (x402 payment gated)
+      health.py              ← /health + /memory/stats
+    memory/client.py         ← Sibyl HOT/WARM/COLD/REFERENCE tier wrappers
+    llm/analyze.py           ← Claude Haiku (fast alerts) + Sonnet (deep)
+    telegram/send.py         ← memory-enriched Telegram delivery
+```
+
+**Spec doc (Artifact):** https://claude.ai/code/artifact/e58b342c-0345-4282-a7fb-31a748e297f1
+
+To run: `pip install -r requirements.txt && sibyl init && cp .env.example .env && uvicorn agent.main:app --reload`
+
+### How CORTX and Cori connect
+
+```
+CORTX → fires webhook on incident
+  → Cori receives it
+    → queries Sibyl Memory
+      → returns AI response with history
+        → sends via CORTX's existing Telegram/Discord channels
+```
+
+### Key decisions
+
+| Decision | Reasoning |
+|----------|-----------|
+| Named `cori` not `cortx-agent` | Raven mascot = thought + memory mythology. A name beats a label on the leaderboard. |
+| Separate repo | Clean MIT license, commit history starts Sep 1, judges read focused code |
+| Base only (not Virtuals) | x1.15 guaranteed via existing x402. Virtuals adds complexity for +0.10. Solo builder. |
+| Python not TypeScript | Sibyl Memory CLI is Python-native. Faster to wire. |
+
 ## Open Source Strategy — "Open Tools. Paid Network." (Aug 18, 2026)
 
 Decision locked: CORTX's OSS philosophy is Open Tools, Paid Network. Open the standard and client tooling; close the monitoring network, accumulated reliability data, and V2–V4 features.
@@ -353,3 +473,70 @@ Three-tier monitoring model: every service now gets a free 5-min availability pi
 ### Partner onboarding audit (PR #53)
 
 Audited all integration surfaces as an external partner. One hard blocker found and fixed: missing CORS headers on `/api/v1/reliability/[serviceId]` — browser-side fetch calls were blocked. Fixed by adding `OPTIONS` preflight handler and `Access-Control-Allow-Origin: *` to all responses. No other hard blockers found.
+
+---
+
+## Base Builder Grant Program — Application (Aug 2026)
+
+Up to $5,000 seed capital + GTM & Product support. Fits: Agents / Agentic Commerce (x402).
+
+### Drafted answers
+
+| Field | Answer |
+|---|---|
+| **Full name** | [YOUR FULL NAME] |
+| **Email** | danewurum01@gmail.com |
+| **X handle** | @danbuildss |
+| **Telegram username** | [YOUR TELEGRAM @USERNAME] |
+| **Project name + one-liner** | CORTX — End-to-end reliability monitoring for x402 payment endpoints on Base. |
+| **Live product link** | https://usecortx.dev |
+| **Demo (Loom)** | [RECORD — see below] |
+| **Contract address on Base** | [BASE USDC CONTRACT or test wallet address — see below] |
+| **Track** | Agents / Agentic Commerce |
+| **GTM plan** | See below |
+| **Base Builder Code** | [DO YOU HAVE ONE?] |
+| **Primary challenge** | User acquisition |
+| **Credits** | AWS, Privy |
+
+### Founding team answer
+
+Solo founder. Building the reliability infrastructure layer for x402 on Base. Shipped CORTX from zero to live product — end-to-end synthetic payment monitoring, incident detection, Telegram alerts, public status pages, and an open x402 reliability spec (github.com/danbuildss/x402-reliability-spec). Live on mainnet with real USDC payments.
+
+### GTM plan (next 3 months)
+
+- **Month 1**: Public launch — open signups, onboard first 10 builders, push CORTX into x402 ecosystem (coinbase/x402 GitHub, Bankr skill live)
+- **Month 2**: Registry awareness — outreach to x402 endpoint operators, publish reliability reports, first integration partner embedding CORTX badge
+- **Month 3**: V2 (Verify) — endpoint ownership verification + trust labels; target 30 monitored endpoints, 10,000 checks run
+
+### Key usage numbers answer (fill in your real numbers)
+
+- All-time users onboarded: [X]
+- Current DAU: [X]
+- Current WAU: [X]
+- All-time volume processed: Real USDC payments on Base mainnet — every check runs a synthetic x402 payment
+- Last-30-day volume: [X checks × avg payment value]
+
+### How does CORTX make money
+
+Currently free during beta. Monetization via $CORTX token tiers — higher token holdings unlock more monitored endpoints, faster check intervals, and advanced alerting. Premium tier planned at launch.
+
+### Contract address note
+
+CORTX does not deploy its own contract — it interacts with USDC on Base via the x402 protocol (EIP-3009 payment signing). Use the Base USDC contract address: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` or your test wallet address if they want a specific address tied to the project.
+
+### Open items before submitting
+
+- [ ] Record Loom demo (see below)
+- [ ] Fill in full name
+- [ ] Fill in Telegram @username
+- [ ] Fill in real usage numbers (users, DAU, WAU, volume)
+- [ ] Confirm Base Builder Code (did Base give you one?)
+
+### Demo recording — use Loom
+
+They explicitly ask for a Loom link. Go to loom.com, create a free account, hit "New Recording" → Screen + Camera. Record:
+1. usecortx.dev landing page (30s)
+2. Add a service → wizard → first check runs (60s)
+3. Alert fires → Telegram notification (30s)
+4. Public status page (15s)
+Keep it under 3 minutes. Loom gives you a shareable link instantly.
