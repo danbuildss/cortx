@@ -313,23 +313,30 @@ Uses Sibyl's tier system deliberately (coordination + dynamic storage = not just
 | 9 | Demo video — cold-start recall beat with on-screen timestamp |
 | 10 | README + two X posts + submit |
 
-### Repo structure
+### Repo status — SCAFFOLDED ✅ (Aug 19, 2026)
+
+Initial commit pushed to `danbuildss/cori` main. All files live:
 
 ```
 cori/
-  README.md          ← submission requirements
-  LICENSE            ← MIT
-  requirements.txt   ← sibyl-memory-cli[mcp], anthropic, fastapi
+  README.md                  ← submission-ready overview
+  LICENSE                    ← MIT
+  requirements.txt           ← fastapi, anthropic, sibyl-memory-cli[mcp], httpx
+  .env.example               ← all required env vars documented
   agent/
-    main.py          ← webhook listener (FastAPI)
-    memory.py        ← Sibyl Memory read/write helpers
-    agent.py         ← Claude API agent loop
-    handlers/
-      alert.py       ← on alert: query memory → generate response
-      resolve.py     ← on resolve: capture fix → write runbook
-      analysis.py    ← deep analysis behind x402 gate
-  .env.example
+    main.py                  ← FastAPI app entry point
+    routes/
+      webhook.py             ← /webhook/alert + /webhook/resolve (HMAC auth)
+      analyze.py             ← /analyze (x402 payment gated)
+      health.py              ← /health + /memory/stats
+    memory/client.py         ← Sibyl HOT/WARM/COLD/REFERENCE tier wrappers
+    llm/analyze.py           ← Claude Haiku (fast alerts) + Sonnet (deep)
+    telegram/send.py         ← memory-enriched Telegram delivery
 ```
+
+**Spec doc (Artifact):** https://claude.ai/code/artifact/e58b342c-0345-4282-a7fb-31a748e297f1
+
+To run: `pip install -r requirements.txt && sibyl init && cp .env.example .env && uvicorn agent.main:app --reload`
 
 ### How CORTX and Cori connect
 
