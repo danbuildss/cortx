@@ -9,6 +9,9 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 export const metadata: Metadata = {
   title: 'CORTX — x402 Reliability Monitor',
   description: 'Synthetic payment monitoring for x402 endpoints.',
+  other: {
+    'base:app_id': '6948820ed77c069a945be4a6',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
