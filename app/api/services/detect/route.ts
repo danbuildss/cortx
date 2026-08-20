@@ -85,11 +85,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!raw?.trim()) return { opt: null, terms: null };
 
     // Build candidates: original, with scheme prefix stripped (e.g. "x402 {...}"),
-    // and a base64-decoded attempt if it looks like base64.
+    // and a base64-decoded attempt (handles standard base64 and base64url).
     const stripped = raw.replace(/^[A-Za-z0-9_-]+\s+/, '');
     const candidates = [raw, stripped];
-    if (/^[A-Za-z0-9+/=]{20,}$/.test(stripped.trim())) {
-      try { candidates.push(atob(stripped.trim())); } catch { /* ignore */ }
+    // Always try base64 decode — convert base64url (-/_) to standard (+//) first,
+    // then add padding if needed. x402 V2 uses base64url in the PAYMENT-REQUIRED header.
+    if (stripped.trim().length >= 20) {
+      try {
+        const b64 = stripped.trim().replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+        candidates.push(atob(padded));
+      } catch { /* ignore */ }
     }
 
     for (const candidate of candidates) {
