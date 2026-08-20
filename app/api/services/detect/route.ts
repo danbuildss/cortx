@@ -94,7 +94,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       try {
         const b64 = stripped.trim().replace(/-/g, '+').replace(/_/g, '/');
         const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
-        candidates.push(atob(padded));
+        candidates.push(Buffer.from(padded, 'base64').toString('utf8'));
       } catch { /* ignore */ }
     }
 
