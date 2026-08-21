@@ -120,8 +120,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           }
         }
 
-        // Flat format — the object itself is the payment option
-        return { opt: parsed as PaymentOpt, terms: null };
+        // Flat format — the object itself is the payment option.
+        // Only accept if it has at least one recognized payment field; an empty
+        // body like {} would otherwise shadow a valid header opt.
+        const paymentFields = ['network','chainId','maxAmountRequired','amount','maxAmount','price','payTo','recipient','to','address','paymentAddress','asset'];
+        if (paymentFields.some(k => (parsed as Record<string,unknown>)[k] != null)) {
+          return { opt: parsed as PaymentOpt, terms: null };
+        }
       } catch { /* ignore */ }
     }
 
