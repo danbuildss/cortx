@@ -61,6 +61,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let _debugStatus = 0;
   let _debugBody = '';
   let _debugHeader = '';
+  let _debugOpt: unknown = null;
+  let _debugHeaderLen = 0;
 
   type PaymentOpt = {
     network?: string; chainId?: string | number;
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     accepts?: PaymentOpt[]; paymentOptions?: PaymentOpt[];
     requirements?: PaymentOpt[]; options?: PaymentOpt[];
     description?: string; error?: string;
+    resource?: { description?: string; url?: string; mimeType?: string };
   };
 
   // Parse a raw string (body or header value) into a PaymentOpt + BodyTerms pair.
@@ -117,8 +120,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           }
         }
 
-        // Flat format — the object itself is the payment option
-        return { opt: parsed as PaymentOpt, terms: null };
+        // Flat format — the object itself is the payment option.
+        // Only accept if it has at least one recognized payment field; an empty
+        // body like {} would otherwise shadow a valid header opt.
+        const paymentFields = ['network','chainId','maxAmountRequired','amount','maxAmount','price','payTo','recipient','to','address','paymentAddress','asset'];
+        if (paymentFields.some(k => (parsed as Record<string,unknown>)[k] != null)) {
+          return { opt: parsed as PaymentOpt, terms: null };
+        }
       } catch { /* ignore */ }
     }
 
@@ -188,11 +196,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         response.headers.get('x-payment') ??
         response.headers.get('www-authenticate') ??
         '';
-      _debugHeader = xPayHeader.slice(0, 500);
+      _debugHeader = xPayHeader.slice(0, 2000);
+      _debugHeaderLen = xPayHeader.length;
       const { opt: headerOpt, terms: headerTerms } = parsePaymentTerms(xPayHeader);
 
       const opt  = bodyOpt  ?? headerOpt;
       const terms = bodyTerms ?? headerTerms;
+      _debugOpt = opt;
 
       if (opt) {
         // Network — check opt.network and opt.chainId; normalise to lowercase
@@ -236,7 +246,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
 
         // Description — check all known locations across x402 versions
+        // x402 V2 puts description in terms.resource.description (not terms.description)
         const desc = terms?.description
+          ?? terms?.resource?.description
           ?? opt.description
           ?? opt.extra?.description
           ?? opt.extra?.name
@@ -282,5 +294,5 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     detected.output_schema = { type: 'object' };
   }
 
-  return NextResponse.json({ detected, missing, _debug: { status: _debugStatus, body: _debugBody, header: _debugHeader } });
+  return NextResponse.json({ detected, missing, _debug: { status: _debugStatus, body: _debugBody, header: _debugHeader, headerLen: _debugHeaderLen, opt: _debugOpt } });
 }
