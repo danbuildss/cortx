@@ -294,5 +294,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     detected.output_schema = { type: 'object' };
   }
 
-  return NextResponse.json({ detected, missing, _debug: { status: _debugStatus, body: _debugBody, header: _debugHeader, headerLen: _debugHeaderLen, opt: _debugOpt } });
+  const debug = process.env.NODE_ENV !== 'production'
+    ? { _debug: { status: _debugStatus, body: _debugBody, header: _debugHeader, headerLen: _debugHeaderLen, opt: _debugOpt } }
+    : {};
+  return NextResponse.json({ detected, missing, ...debug });
 }
