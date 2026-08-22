@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { validateAndResolveUrl } from '@/lib/check-runner/ssrf';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const maxDuration = 20;
 
@@ -38,6 +39,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // 20 detections per user per hour
+  const allowed = await checkRateLimit(`detect:${user.id}`, 20, 3600);
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many detect requests. Try again in an hour.' }, { status: 429 });
+  }
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }

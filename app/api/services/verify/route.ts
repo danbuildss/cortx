@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { randomBytes } from 'crypto';
 import { validateAndResolveUrl } from '@/lib/check-runner/ssrf';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // POST /api/services/verify
 // body: { serviceId: string, action: 'init' | 'confirm' }
@@ -41,6 +42,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'confirm') {
+    // 5 confirm attempts per service per hour
+    const allowed = await checkRateLimit(`verify:${user.id}:${serviceId}`, 5, 3600);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many verification attempts. Try again in an hour.' }, { status: 429 });
+    }
+
     if (!service.verification_token) {
       return NextResponse.json({ error: 'No token generated yet. Call init first.' }, { status: 400 });
     }

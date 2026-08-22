@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { runCheck } from '@/lib/check-runner/runner';
 import { persistCheckResult } from '@/lib/check-runner/persist';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
@@ -25,6 +26,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const userClient = await createClient();
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // 3 manual checks per service per 10 minutes
+  const allowed = await checkRateLimit(`run:${user.id}:${body.service_id}`, 3, 600);
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many manual checks. Wait a few minutes before trying again.' }, { status: 429 });
+  }
 
   // Fetch service (enforces ownership via RLS)
   const { data: svc, error } = await userClient
