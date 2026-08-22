@@ -47,7 +47,7 @@ Minimum per endpoint before score is shown: enough paid observations to be stati
 
 **On wallet architecture:** One controlled CORTX monitoring wallet with atomic budget accounting: global budget + per-service budget + per-check cap + concurrency-safe reservation + monitoring-credit ledger + low-balance alert + automatic pause. Per-service wallet isolation would add operational complexity with no benefit at current scale. Enterprise isolation is a later option.
 
-**Current position:** V1 complete. V1.1 is the immediate engineering priority — fix the gaps identified in the Aug 2026 audit before expanding the public registry.
+**Current position:** V1 complete. V1.1 P0 shipped (PR #83, migration 014 applied). V1.1 P1 is the next engineering step.
 
 ## Inbound Feature Requests (from builders)
 
@@ -231,6 +231,7 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - Response bodies: capped at 1MB via streaming reader
 - Spend cap: cumulative daily + monthly (not just single-payment check)
 - Telegram tokens: expired tokens deleted on each `/api/telegram/connect` call
+- **V1.1 P0 (PR #83, Aug 2026):** Atomic spend reservation via `reserve_spend()` Postgres RPC with `pg_advisory_xact_lock` — eliminates concurrent spend cap race. SSRF protection added to verify confirm endpoint. `monitoring_paused_reason` column on services — paused banner in UI, Telegram alert on cap hit, auto-unpause on cron tick. SECURITY.md §6 corrected (cron-job.org, not Vercel Cron). Migration 014 applied.
 
 ---
 
@@ -479,6 +480,7 @@ The open specification for x402 service reliability. Defines the 7-stage verific
 - PR #61 (merged): paid check every 4h (migration 011), lightweight every 15min cron — migration 011 applied ✓
 - PR #71 (open): methodology page — "Open Standard" section linking to x402-reliability-spec repo
 - **BankrBot/skills PR #642 (open)**: CORTX skill — x402 endpoint reliability for agents
+- **PR #83 (merged)**: V1.1 P0 — atomic spend reservation, SSRF fix in verify, monitoring paused state, migration 014 applied ✓
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
