@@ -1,6 +1,7 @@
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { SubmitEndpointModal } from '@/components/submit-endpoint-modal';
 
 export const metadata: Metadata = {
   title: 'x402 Service Registry — CORTX',
@@ -104,6 +105,9 @@ type SeedEntry = {
   status: string;
   is_verified: boolean;
   description: string | null;
+  x_handle: string | null;
+  website_url: string | null;
+  category: string | null;
 };
 
 export default async function RegistryPage() {
@@ -124,7 +128,7 @@ export default async function RegistryPage() {
       .in('profiles.cortx_tier', ['tier1', 'tier2', 'tier3', 'tier4']),
     supabase
       .from('registry_seeds')
-      .select('id, name, endpoint_url, status, is_verified, description, created_at')
+      .select('id, name, endpoint_url, status, is_verified, description, x_handle, website_url, category, created_at')
       .order('created_at', { ascending: false }),
   ]);
 
@@ -230,6 +234,9 @@ export default async function RegistryPage() {
     status: r.status ?? 'unknown',
     is_verified: r.is_verified,
     description: r.description,
+    x_handle: r.x_handle ?? null,
+    website_url: r.website_url ?? null,
+    category: r.category ?? null,
   }));
   const verifiedSeeds = seeds.filter(s => s.is_verified);
   const unverifiedSeeds = seeds.filter(s => !s.is_verified);
@@ -305,7 +312,8 @@ export default async function RegistryPage() {
             x402 endpoints checked by CORTX with real USDC on Base mainnet.
             Monitored services are ranked by verified reliability — not self-reported uptime.
           </p>
-          <div style={{ display: 'flex', gap: 28, marginTop: 20, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginTop: 20 }}>
+          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
               <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #f5f5f5)', display: 'block' }}>
                 {totalEntries}
@@ -331,6 +339,8 @@ export default async function RegistryPage() {
                 Avg reliability · 7d
               </div>
             )}
+          </div>
+          <SubmitEndpointModal />
           </div>
         </div>
 
@@ -550,10 +560,32 @@ export default async function RegistryPage() {
                           {entry.endpoint_url}
                         </a>
                         {entry.description && (
-                          <div style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)', marginTop: 2 }}>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)', marginTop: 4 }}>
                             {entry.description}
                           </div>
                         )}
+                        {/* Category + links */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                          {entry.category && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                              color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)',
+                              borderRadius: 3, padding: '1px 6px',
+                            }}>{entry.category}</span>
+                          )}
+                          {entry.website_url && (
+                            <a href={safeHref(entry.website_url)} target="_blank" rel="noopener noreferrer"
+                              style={{ fontSize: 11, color: '#6b7280', textDecoration: 'none' }}>
+                              docs ↗
+                            </a>
+                          )}
+                          {entry.x_handle && (
+                            <a href={`https://x.com/${entry.x_handle.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
+                              style={{ fontSize: 11, color: '#6b7280', textDecoration: 'none' }}>
+                              {entry.x_handle.startsWith('@') ? entry.x_handle : `@${entry.x_handle}`}
+                            </a>
+                          )}
+                        </div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <a href="/signup" style={{
