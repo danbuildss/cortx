@@ -47,7 +47,7 @@ Minimum per endpoint before score is shown: enough paid observations to be stati
 
 **On wallet architecture:** One controlled CORTX monitoring wallet with atomic budget accounting: global budget + per-service budget + per-check cap + concurrency-safe reservation + monitoring-credit ledger + low-balance alert + automatic pause. Per-service wallet isolation would add operational complexity with no benefit at current scale. Enterprise isolation is a later option.
 
-**Current position:** V1.1 complete. All five SECURITY.md gaps closed (PRs #83, #84, migrations 014+015 applied). Next: V1.5 Reliability Data Foundation.
+**Current position:** V1.5 Reliability Data Foundation complete (no migration needed — additive JSONB only). Next: V2 Verify + Reliability Network.
 
 ## Inbound Feature Requests (from builders)
 
@@ -232,6 +232,8 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 - Spend cap: cumulative daily + monthly (not just single-payment check)
 - Telegram tokens: expired tokens deleted on each `/api/telegram/connect` call
 - **V1.1 P0 (PR #83, Aug 2026):** Atomic spend reservation via `reserve_spend()` Postgres RPC with `pg_advisory_xact_lock` — eliminates concurrent spend cap race. SSRF protection added to verify confirm endpoint. `monitoring_paused_reason` column on services — paused banner in UI, Telegram alert on cap hit, auto-unpause on cron tick. SECURITY.md §6 corrected (cron-job.org, not Vercel Cron). Migration 014 applied.
+- **V1.1 P1 (PR #84, Aug 2026):** `_debug` object gated behind `NODE_ENV !== 'production'`. Hardcoded admin UUID replaced with `CORTX_ADMIN_USER_ID` env var. Rate limiting (Postgres sliding window) on checks/run (3/10min), detect (20/hr), verify (5/hr). Migration 015 applied.
+- **V1.5 (Aug 2026):** Richer stage evidence in `checks.stages` JSONB — no migration, purely additive. payment_terms: `x402_protocol_version` (v1/v1_compat/v2 from headers), `payment_scheme`. price_check: `atomic_units_detected`, `price_drift_usdc`. payment: `verification_cost_usdc`, `recipient_fingerprint` (SHA-256 prefix — no raw wallet address logged). Runner now also parses `payment-required` (x402 V2 spec) in addition to `x-payment-required`.
 
 ---
 
@@ -482,6 +484,7 @@ The open specification for x402 service reliability. Defines the 7-stage verific
 - **BankrBot/skills PR #642 (open)**: CORTX skill — x402 endpoint reliability for agents
 - **PR #83 (merged)**: V1.1 P0 — atomic spend reservation, SSRF fix in verify, monitoring paused state, migration 014 applied ✓
 - **PR #84 (merged)**: V1.1 P1 — _debug removed from production, admin UUID → env var, rate limiting on checks/run + detect + verify, migration 015 applied ✓
+- **V1.5 (no PR — direct commit 5889996)**: Reliability Data Foundation — richer stage evidence in runner.ts (x402_protocol_version, payment_scheme, atomic_units_detected, price_drift_usdc, verification_cost_usdc, recipient_fingerprint). No migration, additive JSONB only.
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
