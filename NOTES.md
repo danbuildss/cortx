@@ -47,7 +47,7 @@ Minimum per endpoint before score is shown: enough paid observations to be stati
 
 **On wallet architecture:** One controlled CORTX monitoring wallet with atomic budget accounting: global budget + per-service budget + per-check cap + concurrency-safe reservation + monitoring-credit ledger + low-balance alert + automatic pause. Per-service wallet isolation would add operational complexity with no benefit at current scale. Enterprise isolation is a later option.
 
-**Current position:** V1 complete. V1.1 P0 shipped (PR #83, migration 014 applied). V1.1 P1 is the next engineering step.
+**Current position:** V1.1 complete. All five SECURITY.md gaps closed (PRs #83, #84, migrations 014+015 applied). Next: V1.5 Reliability Data Foundation.
 
 ## Inbound Feature Requests (from builders)
 
@@ -481,6 +481,7 @@ The open specification for x402 service reliability. Defines the 7-stage verific
 - PR #71 (open): methodology page — "Open Standard" section linking to x402-reliability-spec repo
 - **BankrBot/skills PR #642 (open)**: CORTX skill — x402 endpoint reliability for agents
 - **PR #83 (merged)**: V1.1 P0 — atomic spend reservation, SSRF fix in verify, monitoring paused state, migration 014 applied ✓
+- **PR #84 (merged)**: V1.1 P1 — _debug removed from production, admin UUID → env var, rate limiting on checks/run + detect + verify, migration 015 applied ✓
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
