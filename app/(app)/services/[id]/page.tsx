@@ -37,7 +37,7 @@ export default async function ServiceDetailPage({
 
   const { data: service } = await supabase
     .from('services')
-    .select('id, name, endpoint_url, status, last_checked_at, check_interval_minutes, environment, expected_price, max_price, lightweight_check_interval_minutes, paid_verification_mode, paid_verification_interval_minutes, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at, verification_status, verification_token, verified_at')
+    .select('id, name, endpoint_url, status, last_checked_at, check_interval_minutes, environment, expected_price, max_price, lightweight_check_interval_minutes, paid_verification_mode, paid_verification_interval_minutes, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at, verification_status, verification_token, verified_at, monitoring_paused_reason')
     .eq('id', id)
     .is('deleted_at', null)
     .single();
@@ -91,6 +91,28 @@ export default async function ServiceDetailPage({
           <RunCheckButton serviceId={service.id} />
         </div>
       </div>
+
+      {/* Monitoring paused banner */}
+      {service.monitoring_paused_reason && (
+        <div style={{
+          background: 'var(--status-degraded-bg)', border: '1px solid var(--status-degraded-border)',
+          borderRadius: 8, padding: '12px 16px', marginBottom: 24,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div>
+            <span style={{ fontSize: 13, color: 'var(--status-degraded)', fontWeight: 500 }}>
+              Monitoring paused
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 12 }}>
+              {service.monitoring_paused_reason === 'SPEND_CAP_DAILY'
+                ? 'Daily spend cap reached — paid checks resume automatically at UTC midnight.'
+                : service.monitoring_paused_reason === 'SPEND_CAP_MONTHLY'
+                ? 'Monthly spend cap reached — paid checks resume automatically on the 1st.'
+                : 'Paid verification is paused.'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Open incident banner */}
       {openIncident && (

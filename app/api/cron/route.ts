@@ -3,7 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 import { runFullCheck, runCanaryCheck } from '@/lib/check-runner/runner';
 import { runLightweightCheck } from '@/lib/check-runner/lightweight';
 import { persistCheckResult } from '@/lib/check-runner/persist';
+import { sendTelegramAlert } from '@/lib/telegram';
 import type { CanaryConfig } from '@/lib/check-runner/types';
+
+const SPEND_CAP_CODES = new Set(['DAILY_SPEND_CAP_EXCEEDED', 'MONTHLY_SPEND_CAP_EXCEEDED']);
 
 export const maxDuration = 60;
 
@@ -49,10 +52,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── Loop 2: Paid verifications ────────────────────────────────────────────
+  // Auto-unpause services paused by a spend cap if the cap has reset
+  // (daily cap resets at UTC midnight, monthly at UTC month start).
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const monthStart = new Date(todayStart);
+  monthStart.setUTCDate(1);
+
+  await db
+    .from('services')
+    .update({ monitoring_paused_reason: null })
+    .in('monitoring_paused_reason', ['SPEND_CAP_DAILY', 'SPEND_CAP_MONTHLY'])
+    .is('deleted_at', null);
+
   const { data: paidDue, error: paidErr } = await db
     .from('services')
     .select('id, user_id, name, endpoint_url, environment, test_input, expected_schema, expected_price, max_price, latency_threshold_ms, check_interval_minutes, paid_verification_interval_minutes, paid_verification_mode, canary_payload, canary_expected_schema, canary_max_price_usdc, status, consecutive_failures')
     .is('deleted_at', null)
+    .is('monitoring_paused_reason', null)
     .lte('next_paid_verification_at', now)
     .neq('paid_verification_mode', 'disabled');
 
@@ -90,6 +107,40 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
       await persistCheckResult(svc, result);
       paidResults.push({ id: svc.id, status: result.status, type: result.check_type });
+
+      // Detect spend cap hit — pause the service and alert the builder
+      const paymentStage = result.stages?.find(s => s.stage === 'payment');
+      const capCode = paymentStage?.error;
+      if (capCode && SPEND_CAP_CODES.has(capCode)) {
+        const pauseReason = capCode === 'DAILY_SPEND_CAP_EXCEEDED'
+          ? 'SPEND_CAP_DAILY'
+          : 'SPEND_CAP_MONTHLY';
+
+        await db
+          .from('services')
+          .update({ monitoring_paused_reason: pauseReason })
+          .eq('id', svc.id);
+
+        // Alert all active Telegram connections for this service's owner
+        const { data: telegramConns } = await db
+          .from('telegram_connections')
+          .select('chat_id')
+          .eq('user_id', svc.user_id)
+          .eq('active', true);
+
+        const label = capCode === 'DAILY_SPEND_CAP_EXCEEDED'
+          ? 'Daily spend cap reached'
+          : 'Monthly spend cap reached';
+        const alertText =
+          `⚠️ <b>CORTX monitoring paused</b>\n\n` +
+          `<b>${svc.name}</b> — ${label}.\n\n` +
+          `Paid verification has stopped. The service will resume automatically when the cap resets. ` +
+          `Check your spend limits in CORTX settings.`;
+
+        for (const conn of telegramConns ?? []) {
+          await sendTelegramAlert(conn.chat_id, alertText).catch(() => {});
+        }
+      }
     } catch (err) {
       console.error(`Paid check failed for service ${svc.id}:`, err);
       paidResults.push({ id: svc.id, status: 'error', type: svc.paid_verification_mode });

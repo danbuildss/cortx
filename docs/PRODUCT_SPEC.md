@@ -170,28 +170,86 @@ Status is always derived from the most recent check result. It is never inferred
 
 ---
 
-## Long-Term Roadmap
+## Canonical Roadmap
 
-These are directional only. Nothing here is committed until V1 is validated.
+V1 is complete. The full roadmap beyond V1 is:
 
-**Post-V1 (after private beta)**
-- Multiple alert channels (email, Slack, webhooks)
-- Public status pages per service
-- API access for builders
-- Check history export
-- Multiple check frequencies with SLA tiers
+### V1.1 — Monitoring Integrity (ship now)
 
-**Future**
-- Multi-user (teams)
-- MCP endpoint monitoring (separate protocol surface)
-- Cross-service dependency tracking
-- Paid monitoring tiers
+Not a new product version — a hardening milestone. CORTX must never imply paid verification is healthy when it has silently stopped.
 
-**Not being built**
-- Marketplace
-- Routing
-- Token / $CRTX
-- AI scoring
+- Fix SSRF gap in the verification confirmation endpoint
+- Atomic spend reservation (prevent concurrent checks from racing the shared budget)
+- Budget exhaustion alerts: low-balance, daily cap hit, monthly cap hit
+- Explicit "monitoring paused" state visible to the builder when spend is exhausted
+- Stale paid-verification state detection (paid check has not run in N intervals)
+- Rate limiting on exposed sensitive routes
+- Remove or restrict the `_debug` field from production API responses
+- Admin PATCH allowlist
+
+### V1.5 — Reliability Data Foundation (before V2 public expansion)
+
+Goal: Ensure every check performed from V1 forward contributes useful evidence to the V3 Intelligence layer. Audit what is currently retained in `checks.stages` and add any non-reconstructable observations.
+
+Candidates for addition (only data that cannot be reconstructed later):
+- x402 protocol version detected
+- Payment scheme (`x402`, other)
+- Facilitator identity when detectable
+- Network and asset observed
+- Quoted amount vs. configured max amount
+- Recipient fingerprint (hashed where privacy warrants)
+- Per-stage duration
+- Payment outcome code
+- Delivery outcome code
+- HTTP response fingerprint (status + content-type)
+- Price drift (observed vs. expected delta)
+- Verification cost (actual USDC spent)
+- Failure code (fine-grained, beyond stage name)
+- Check type (CORTX-funded observation vs. managed/paid)
+
+**Principle:** Keep raw verification observations as source of truth. Derived scores and rollups can be computed later. Never prematurely store `CORTX Score = 94` — store the observations that produce it.
+
+### V2 — Verify + Reliability Network
+
+2.1 **Service identity model**
+- **Observed** — CORTX independently tracks the endpoint
+- **Claimed** — owner has proven control via token challenge
+- **Verified** — Claimed + recent successful paid verification (with freshness threshold)
+
+2.2 **Add Your Endpoint (public CTA)**
+Flow: Submitted → Safety preflight → Cost analysis → Manual review → Approved → Observed. CORTX never automatically spends money on a submitted URL.
+
+2.3 **CORTX-funded observation tier**
+Curated, not unlimited. Internal ecosystem observation budget. Cost-aware cadence (a $0.01 endpoint checks daily; a $0.10 endpoint checks every few days; a $5 endpoint is not CORTX-funded on a recurring basis).
+
+2.4 **Managed monitoring for owners**
+Owners who want higher frequency, expensive endpoints, custom payloads, or stronger history purchase CORTX verification credits. The CORTX execution wallet performs the checks. Builders do not operate wallets.
+
+### V3 — Intelligence
+
+- **Reliability Explorer**: transform the registry into "Explore x402 Reliability" — show delivery rate, payment success, schema validity, price stability, latency, incidents, last real verification, sample count, verification freshness, trust tier
+- **Historical reliability**: answer "has this service been dependable over time?" not just "is it up right now?"
+- **CORTX Score**: only after sufficient data density per endpoint; always shown with a confidence band (e.g., "97/100 — Low confidence: 11 observations" vs. "96/100 — High confidence: 4,829 observations")
+- **Ecosystem intelligence** (when dataset is meaningful): payment failure trends, schema drift, price drift, reliability by capability, facilitator health
+
+**V3 launch gate:** Do not expose CORTX Score until each endpoint has sufficient paid observations over sufficient time. Exact threshold defined when V3 engineering begins.
+
+### V4 — Preflight + Select
+
+- **Preflight API**: `Should I pay this endpoint?` → returns Safe / Caution / Avoid with evidence
+- **MCP tools**: `cortx_preflight`, `cortx_reliability`, `cortx_incidents`, `cortx_rank`
+- **Bankr integration**: `@bankrbot check this endpoint with CORTX before I pay`
+- **Cori layer**: natural-language reliability guardian built on the preflight infrastructure
+
+Launch requires V3 to have sufficient data density.
+
+### V5 — Trust / Attestations (optional)
+
+ERC-8004 machine-readable trust policies. Research identities, attestations, verifiable observations. Build only if ecosystem adoption warrants it. Do not force CORTX into this simply because it fits the agent narrative.
+
+### V6 — Route (optional / earned)
+
+Only build if CORTX's reliability intelligence creates a demonstrable selection advantage. The ideal outcome may be that every router uses CORTX data — a better business than competing with every router.
 
 ---
 

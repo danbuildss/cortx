@@ -201,23 +201,28 @@ The client-facing Next.js app uses the **anon key** (`NEXT_PUBLIC_SUPABASE_ANON_
 
 ## 6. Cron Endpoint Protection
 
-The Vercel Cron endpoint that triggers check runs must not be invokable by external parties.
+The cron endpoint that triggers check runs must not be invokable by external parties.
+
+### Scheduler
+
+CORTX uses **cron-job.org** (not Vercel Cron) as the scheduler. The `Authorization: Bearer {CRON_SECRET}` header must be manually configured in the cron-job.org job settings — it is not injected automatically.
 
 ### Protection Method
 
-Vercel automatically injects an `Authorization: Bearer $CRON_SECRET` header on all cron-triggered requests. The endpoint validates this header before executing any checks:
+The endpoint validates the Bearer token before executing any checks:
 
 ```typescript
 export async function GET(req: Request) {
-  const authHeader = req.headers.get('Authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const auth = req.headers.get('authorization') ?? '';
+  const secret = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!secret || secret !== process.env.CRON_SECRET) {
     return new Response('Unauthorized', { status: 401 });
   }
   // proceed with checks
 }
 ```
 
-`CRON_SECRET` is a random 32-byte hex string generated at project setup and stored as a Vercel environment variable.
+`CRON_SECRET` is a random 32-byte hex string generated at project setup and stored as a Vercel environment variable. It must also be entered into the cron-job.org job's "Request headers" configuration.
 
 ---
 
@@ -266,3 +271,53 @@ The following events are logged to the server console (structured JSON) and reta
 | Runner error | `service_id`, `error_message` (secrets stripped) |
 
 Private keys, transaction hashes, and wallet addresses are never logged.
+
+---
+
+## 10. Known Open Gaps (V1.1 Targets)
+
+These are confirmed gaps identified during the Aug 2026 codebase audit. They are documented here so they are tracked and not mistaken for intended behavior. All are targeted for V1.1.
+
+### 10.1 SSRF in Verification Confirmation Endpoint
+
+**Gap:** The endpoint that confirms endpoint ownership during the Claimed verification flow (verify confirm) does not apply the same SSRF protection used in the check runner. A user could claim ownership of an internal URL.
+
+**Target fix:** Apply `validateAndResolveUrl` (or equivalent) to all URLs accepted by the verify confirm endpoint before any outbound request.
+
+**Severity:** High — a bypassed SSRF check in an ownership verification flow allows probing internal infrastructure under the appearance of a legitimate claim.
+
+### 10.2 Budget Exhaustion Is Silent
+
+**Gap:** When the daily or monthly spend cap is reached, paid checks silently stop. The builder sees no status change and no alert. The monitoring product continues to appear healthy while paid verification has halted.
+
+**Target fix:**
+- Persist a `monitoring_paused_reason` field on services (or a separate monitoring-state table) when spend cap is hit
+- Expose the paused state in the service detail UI (distinct from Operational / Degraded / Critical / Unknown)
+- Send a Telegram alert when the service enters the paused state due to budget exhaustion
+- Send a low-balance alert when the monitoring wallet balance falls below a configurable threshold (default: 3 days of estimated spend)
+
+**Severity:** High — CORTX implies reliability information is current when it is not. This is the highest immediate trust risk.
+
+### 10.3 Concurrent Check Budget Race
+
+**Gap:** Simultaneous paid checks can race against the same cumulative daily/monthly spend total. Two checks reading the same `todaySpend` value before either writes a payment can both pass the cap check and together overshoot the cap.
+
+**Target fix:** Implement a concurrency-safe spend reservation before the payment stage — either a database-level advisory lock, a Postgres `FOR UPDATE` on the spend tally row, or an atomic increment with a rollback path if the reservation fails.
+
+**Severity:** Medium — the cap can be exceeded but only by one concurrent check's worth of spend. Risk is bounded by the per-payment cap.
+
+### 10.4 `_debug` Field in Production API Responses
+
+**Gap:** The detect endpoint (`/api/services/detect`) returns a `_debug` object in all responses, including production. This field includes the raw response body, decoded payment headers, and parsed payment options from the target URL. While it contains no CORTX secrets, it leaks information about external endpoints and the parsing internals.
+
+**Target fix:** Remove `_debug` from production responses. Gate it behind an admin-only flag or strip it entirely.
+
+**Severity:** Low — no secrets exposed, but unnecessary information disclosure.
+
+### 10.5 Admin Route Auth Is Hardcoded
+
+**Gap:** Admin pages check a hardcoded user ID (`e9374851-ac6f-4f1e-a131-6747fc37184a`). This works but is fragile — the admin user cannot be changed without a code deploy.
+
+**Target fix:** Move admin user identification to an environment variable or a `profiles.is_admin` column with a corresponding RLS policy.
+
+**Severity:** Low — no immediate exploitability, but increases operational risk if admin access needs to change quickly.
