@@ -12,16 +12,42 @@ Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON 
 
 **Official domain: usecortx.dev**
 
-## Company Roadmap (locked)
+## Company Roadmap (canonical — last updated Aug 2026)
 
 ```
-V1 — Monitor  ✅  End-to-end x402 monitoring, incidents, alerts, evidence, public status
-V2 — Verify       Ownership verification, trust labels, historical delivery reputation
-V3 — Select       Agents/platforms compare providers by health, latency, price, delivery %
-V4 — Route        CORTX automatically chooses and fails over between providers
+V1    — Monitor           ✅  End-to-end x402 monitoring, incidents, alerts, evidence, public status
+V1.1  — Monitoring        ⬅ NOW  Hardening milestone: spend safety, SSRF gaps, budget visibility,
+        Integrity               rate limiting, production debug removal, paused-state UI
+V1.5  — Reliability       NEXT  Audit and extend stored check data to capture all
+        Data Foundation         non-reconstructable observations needed for V3 Intelligence
+V2    — Verify +                Observed / Claimed / Verified model, public endpoint submission,
+        Reliability Network     CORTX-funded observation tier, managed monitoring for owners
+V3    — Intelligence            Reliability Explorer, CORTX Score (with confidence bands),
+                                ecosystem intelligence — trends, price drift, schema drift
+V4    — Preflight +             Preflight API, MCP tools (cortx_preflight / cortx_reliability /
+        Select                  cortx_incidents / cortx_rank), Bankr integration, Cori layer
+V5    — Trust /           OPT   ERC-8004 attestations — only if ecosystem adoption warrants it
+        Attestations
+V6    — Route             OPT   Only if CORTX's reliability intelligence creates demonstrable
+                                selection advantage over existing routers
 ```
 
-**Current position:** V1 complete. V2 is next — endpoint ownership verification and trust labels are the missing piece before public launch is fully proven.
+**V3 launch gate:** Do not expose CORTX Score until the dataset has sufficient density.
+Minimum per endpoint before score is shown: enough paid observations to be statistically meaningful (exact threshold TBD when V3 is being designed, but in the range of 30+ observations over 30+ days).
+
+**Business architecture — keep these three things separate forever:**
+
+| Layer | What it is | Who funds it |
+|---|---|---|
+| Monitoring product | Monitoring, incidents, alerts, evidence | Builder subscription |
+| Verification spend | Actual on-chain endpoint calls | CORTX-curated budget (public endpoints) or builder credits (managed monitoring) |
+| Intelligence | Reliability API, preflight, rankings, integrations | Eventually the highest-margin layer |
+
+**On customer-funded verification:** "Customer-funded" means builders buy CORTX verification credits (USDC, card, crypto checkout). The CORTX execution wallet performs the actual checks. Builders never need to operate their own wallets.
+
+**On wallet architecture:** One controlled CORTX monitoring wallet with atomic budget accounting: global budget + per-service budget + per-check cap + concurrency-safe reservation + monitoring-credit ledger + low-balance alert + automatic pause. Per-service wallet isolation would add operational complexity with no benefit at current scale. Enterprise isolation is a later option.
+
+**Current position:** V1 complete. V1.1 is the immediate engineering priority — fix the gaps identified in the Aug 2026 audit before expanding the public registry.
 
 ## Inbound Feature Requests (from builders)
 

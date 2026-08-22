@@ -395,3 +395,40 @@ create policy "Users manage own alert destinations"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 ```
+
+---
+
+## V1.5 Reliability Data Foundation
+
+> **Status:** Required before V2 public registry expansion. Do not implement V3 Intelligence until this is in place.
+
+The `checks` table already stores per-stage evidence as JSONB, which is the correct foundation. The existing data is a genuine historical timeseries — not computed on the fly — and every check row is a permanent reliability observation.
+
+What is missing are several non-reconstructable observations that must be captured at check time or they are lost permanently. These should be added to the `stages[].evidence` objects during V1.5, or as top-level columns on `checks` where they apply across the whole check rather than a single stage.
+
+### Non-Reconstructable Observations to Add
+
+| Field | Location | Why it cannot be reconstructed |
+|---|---|---|
+| `x402_protocol_version` | `checks` top-level | The endpoint may change protocol versions; past version must be recorded at observation time |
+| `payment_scheme` | `payment_terms` stage evidence | Scheme may change (e.g., x402 → custom) |
+| `facilitator_id` | `payment_terms` stage evidence | Facilitator identity inferred from headers/response; not reliably derivable from stored body alone |
+| `recipient_fingerprint` | `payment` stage evidence | Hash of recipient address (not raw address); enables drift detection without storing full address in analytics queries |
+| `price_drift_usdc` | `price_check` stage evidence | `observed_price - expected_price` at the time of check; historical drift series requires this to be stored |
+| `verification_cost_usdc` | `payment` stage evidence | Actual USDC spent (may differ from `observed_price` due to fee inclusion) |
+| `failure_code` | `checks` top-level | Fine-grained failure code beyond stage name (e.g., `DELIVERY_EMPTY_BODY` vs. `DELIVERY_TIMEOUT` — currently both are `delivery`) |
+| `check_type` | `checks` top-level | `'cortx_funded'` (CORTX-paid observation) vs. `'managed'` (builder-funded); needed to distinguish free-tier from paid-tier reliability evidence |
+| `stage_sequence_ms` | Each stage's evidence | Cumulative elapsed time at each stage boundary (vs. per-stage duration); enables accurate waterfall reconstruction |
+
+### Principle
+
+Raw observations are the source of truth. Derived scores (`CORTX Score`, reliability percentages, confidence intervals) are computed from the raw table at query time or materialized in separate rollup tables for performance. **Never store a derived score as the primary record.** A derived score stored without its inputs cannot be audited, corrected, or recomputed if the scoring formula changes.
+
+### Future Tables (not for V1.5)
+
+These tables should not be created until V3 is being actively engineered, but they are described here so the data model direction is clear:
+
+- **`service_reliability_daily`** — daily rollup per service: sample count, pass rate, median latency, price drift, schema pass rate. Materialized from `checks`; never treated as the truth, only as a query performance layer.
+- **`ecosystem_snapshots`** — periodic aggregate snapshots of cross-service trends, used for the Intelligence dashboard.
+
+Both are intentionally deferred. Build them only when query performance on raw `checks` is the bottleneck.

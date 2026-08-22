@@ -1,5 +1,9 @@
 # CORTX V1 — Scope Definition
 
+> **FROZEN — August 2026.** V1 is complete. This document is the historical scope record for V1.
+> Do not add to it. For the active roadmap see `docs/PRODUCT_SPEC.md` (canonical roadmap section) and `NOTES.md`.
+> V1.1 gaps and targets are documented in `docs/SECURITY.md` section 10.
+
 This document is the binding scope reference for V1. If a feature is not listed under Must-Have, it does not exist in V1. When in doubt, cut.
 
 ---
