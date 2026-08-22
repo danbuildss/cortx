@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Sidebar } from '@/components/sidebar';
 import { MobileNav } from '@/components/mobile-nav';
 import { AppThemeProvider } from '@/components/app-theme-provider';
+import { FeedbackWidget } from '@/components/feedback-widget';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user = null;
@@ -64,6 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </main>
         </div>
 
+        <FeedbackWidget />
       </AppThemeProvider>
     </>
   );
