@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
-import { CopyButton } from '@/components/copy-button';
 import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
 import { RegistrySeedForm } from './registry-seed-form';
 import { SubmissionActions } from './submission-actions';
@@ -47,7 +46,6 @@ export default async function AdminPage() {
     authResult,
     { data: allServices },
     { data: checks24h },
-    { data: inviteCodes },
     { data: recentIncidents },
     { data: telegramConns },
     { data: todaySpendRows },
@@ -64,7 +62,6 @@ export default async function AdminPage() {
     service.auth.admin.listUsers({ perPage: 100 }),
     service.from('services').select('id, user_id, name, endpoint_url, status, created_at, last_checked_at').is('deleted_at', null).order('created_at', { ascending: false }),
     service.from('checks').select('service_id, status, failure_stage, observed_price').gte('started_at', since24h),
-    service.from('invite_codes').select('id, code, used_by, used_at').order('used_at', { ascending: false, nullsFirst: false }),
     service.from('incidents').select('id, service_id, status, created_at').order('created_at', { ascending: false }).limit(20),
     service.from('telegram_connections').select('user_id').eq('active', true),
     service.from('checks').select('observed_price').gte('started_at', todayStart.toISOString()).in('status', ['passed', 'success']),
@@ -81,7 +78,6 @@ export default async function AdminPage() {
 
   const authUsers = authResult.data?.users ?? [];
   const services = allServices ?? [];
-  const codes = inviteCodes ?? [];
   const incidents = recentIncidents ?? [];
 
   // Core metrics
@@ -89,9 +85,6 @@ export default async function AdminPage() {
   const totalChecks = checks24h?.length ?? 0;
   const successChecks = checks24h?.filter(c => c.status === 'success' || c.status === 'passed').length ?? 0;
   const avgUptime = totalChecks > 0 ? (successChecks / totalChecks * 100).toFixed(1) : null;
-  const usedCodes = codes.filter(c => c.used_at);
-  const freeCodes = codes.filter(c => !c.used_at);
-
   // Services by status
   const operationalCount = services.filter(s => s.status === 'operational').length;
   const issueCount = services.filter(s => s.status === 'degraded' || s.status === 'critical').length;
@@ -200,19 +193,10 @@ export default async function AdminPage() {
   const seeds = registrySeeds ?? [];
   const pendingSubmissions = pendingSubmissionsData ?? [];
 
-  // Code by email
-  const codeByEmail = new Map<string, string>();
-  for (const code of codes) {
-    if (code.used_by) codeByEmail.set(code.used_by.toLowerCase(), code.code);
-  }
-
   // Activity feed
   type FeedItem = { label: string; sub: string; ts: string; color: string; };
   const feed: FeedItem[] = [];
 
-  for (const code of codes.filter(c => c.used_at && c.used_by)) {
-    feed.push({ label: 'signed up', sub: code.used_by!, ts: code.used_at!, color: '#22c55e' });
-  }
   for (const svc of services) {
     const u = authUsers.find(a => a.id === svc.user_id);
     if (u?.email) feed.push({ label: 'added endpoint', sub: svc.endpoint_url, ts: svc.created_at, color: '#6b7280' });
@@ -544,13 +528,11 @@ export default async function AdminPage() {
                       <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Last seen</th>
                       <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Telegram</th>
                       <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Joined</th>
-                      <th className="mobile-hide" style={{ textAlign: 'left', padding: '8px 18px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>Code used</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sortedUsers.map((u, i) => {
                       const isLast = i === sortedUsers.length - 1;
-                      const code = codeByEmail.get((u.email ?? '').toLowerCase());
                       const svcCount = servicesByUser.get(u.id) ?? 0;
                       const userChecks = checksByUser.get(u.id) ?? 0;
                       const hasTelegram = telegramUserIds.has(u.id);
@@ -581,12 +563,6 @@ export default async function AdminPage() {
                           </td>
                           <td className="mobile-hide" style={tdStyle}>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(u.created_at)}</span>
-                          </td>
-                          <td className="mobile-hide" style={{ ...tdStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            {code
-                              ? <span style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-secondary)', flex: 1 }}>{code}</span>
-                              : <span style={{ fontSize: 11, color: 'var(--text-dim)', flex: 1 }}>—</span>
-                            }
                           </td>
                         </tr>
                       );
@@ -649,40 +625,6 @@ export default async function AdminPage() {
               })}
             </div>
           )}
-
-          {/* Invite codes — historical record from beta */}
-          <div style={card}>
-            <div style={cardHeader}>
-              <span style={cardTitle}>Invite Codes (beta era)</span>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{usedCodes.length} used · {freeCodes.length} left</span>
-            </div>
-            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-              {codes.map((code, i) => {
-                const isLast = i === codes.length - 1;
-                return (
-                  <div key={code.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 14px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)' }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{code.code}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 1 }}>
-                        {code.used_by ? `${code.used_by} · ${formatDate(code.used_at!)}` : 'Available'}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
-                        textTransform: 'uppercase', letterSpacing: '0.04em',
-                        background: code.used_at ? 'rgba(34,197,94,0.08)' : 'rgba(107,114,128,0.1)',
-                        color: code.used_at ? 'var(--status-ok)' : 'var(--text-muted)',
-                      }}>
-                        {code.used_at ? 'Used' : 'Free'}
-                      </span>
-                      <CopyButton text={code.code} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
 
           {/* Activity feed */}
           <div style={card}>
