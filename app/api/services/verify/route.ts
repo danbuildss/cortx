@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { randomBytes } from 'crypto';
+import { validateAndResolveUrl } from '@/lib/check-runner/ssrf';
 
 // POST /api/services/verify
 // body: { serviceId: string, action: 'init' | 'confirm' }
@@ -47,9 +48,16 @@ export async function POST(req: NextRequest) {
     // Fetch the endpoint and look for the token in the response
     let found = false;
     try {
+      let validatedUrl: URL;
+      try {
+        validatedUrl = await validateAndResolveUrl(service.endpoint_url);
+      } catch {
+        return NextResponse.json({ error: 'Endpoint URL failed security validation.' }, { status: 422 });
+      }
+
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
-      const res = await fetch(service.endpoint_url, {
+      const res = await fetch(validatedUrl.toString(), {
         method: 'GET',
         signal: controller.signal,
         headers: { 'User-Agent': 'CORTX-Verify/1.0' },

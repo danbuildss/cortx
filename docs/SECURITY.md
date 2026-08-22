@@ -201,23 +201,28 @@ The client-facing Next.js app uses the **anon key** (`NEXT_PUBLIC_SUPABASE_ANON_
 
 ## 6. Cron Endpoint Protection
 
-The Vercel Cron endpoint that triggers check runs must not be invokable by external parties.
+The cron endpoint that triggers check runs must not be invokable by external parties.
+
+### Scheduler
+
+CORTX uses **cron-job.org** (not Vercel Cron) as the scheduler. The `Authorization: Bearer {CRON_SECRET}` header must be manually configured in the cron-job.org job settings — it is not injected automatically.
 
 ### Protection Method
 
-Vercel automatically injects an `Authorization: Bearer $CRON_SECRET` header on all cron-triggered requests. The endpoint validates this header before executing any checks:
+The endpoint validates the Bearer token before executing any checks:
 
 ```typescript
 export async function GET(req: Request) {
-  const authHeader = req.headers.get('Authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const auth = req.headers.get('authorization') ?? '';
+  const secret = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!secret || secret !== process.env.CRON_SECRET) {
     return new Response('Unauthorized', { status: 401 });
   }
   // proceed with checks
 }
 ```
 
-`CRON_SECRET` is a random 32-byte hex string generated at project setup and stored as a Vercel environment variable.
+`CRON_SECRET` is a random 32-byte hex string generated at project setup and stored as a Vercel environment variable. It must also be entered into the cron-job.org job's "Request headers" configuration.
 
 ---
 

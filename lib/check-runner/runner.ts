@@ -92,39 +92,40 @@ async function readBodyCapped(response: Response, maxBytes = RESPONSE_BODY_MAX_B
   return new TextDecoder().decode(merged);
 }
 
-async function getCumulativeSpendToday(): Promise<number> {
+// Atomically reserve spend budget via the reserve_spend Postgres RPC.
+// Returns 'ok', 'DAILY_SPEND_CAP_EXCEEDED', or 'MONTHLY_SPEND_CAP_EXCEEDED'.
+async function reserveSpend(
+  serviceId: string,
+  amount: number,
+  dailyCap: number,
+  monthlyCap: number
+): Promise<string> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return 0;
+  if (!url || !key) return 'ok';
   const db = createClient(url, key);
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const monthStart = new Date(todayStart);
-  monthStart.setUTCDate(1);
-  const { data } = await db
-    .from('checks')
-    .select('observed_price')
-    .gte('started_at', todayStart.toISOString())
-    .eq('status', 'passed')
-    .not('observed_price', 'is', null);
-  return (data ?? []).reduce((sum, r) => sum + parseFloat(String(r.observed_price ?? 0)), 0);
+  const { data, error } = await db.rpc('reserve_spend', {
+    p_service_id: serviceId,
+    p_amount: amount,
+    p_daily_cap: dailyCap,
+    p_monthly_cap: monthlyCap,
+  });
+  if (error) throw new StageError('WALLET_ERROR', `Spend reservation failed: ${error.message}`);
+  return String(data);
 }
 
-async function getCumulativeSpendThisMonth(): Promise<number> {
+// Release any unexpired reservation for this service (called on payment failure/timeout).
+async function releaseSpendReservation(serviceId: string): Promise<void> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return 0;
+  if (!url || !key) return;
   const db = createClient(url, key);
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-  const { data } = await db
-    .from('checks')
-    .select('observed_price')
-    .gte('started_at', monthStart.toISOString())
-    .eq('status', 'passed')
-    .not('observed_price', 'is', null);
-  return (data ?? []).reduce((sum, r) => sum + parseFloat(String(r.observed_price ?? 0)), 0);
+  const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  await db
+    .from('spend_reservations')
+    .delete()
+    .eq('service_id', serviceId)
+    .gte('reserved_at', cutoff);
 }
 
 function makeStage(
@@ -416,29 +417,34 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     try {
       const walletAddr = getWalletAddress();
 
-      // Enforce cumulative daily and monthly spend caps
+      // Atomically reserve spend budget before payment (prevents concurrent overspend)
       const dailyCap = parseFloat(process.env.CORTX_DAILY_SPEND_CAP_USDC ?? '1.00');
       const monthlyCap = parseFloat(process.env.CORTX_MONTHLY_SPEND_CAP_USDC ?? '10.00');
-
-      const [dailySpent, monthlySpent] = await Promise.all([
-        getCumulativeSpendToday(),
-        getCumulativeSpendThisMonth(),
-      ]);
-
-      if (dailySpent + parsedPrice > dailyCap) {
-        throw new StageError('DAILY_SPEND_CAP_EXCEEDED', `Daily cap of ${dailyCap} USDC reached (spent ${dailySpent.toFixed(6)} today)`);
-      }
-      if (monthlySpent + parsedPrice > monthlyCap) {
-        throw new StageError('MONTHLY_SPEND_CAP_EXCEEDED', `Monthly cap of ${monthlyCap} USDC reached (spent ${monthlySpent.toFixed(6)} this month)`);
+      const reserveResult = await reserveSpend(config.id, parsedPrice, dailyCap, monthlyCap);
+      if (reserveResult !== 'ok') {
+        throw new StageError(
+          reserveResult as 'DAILY_SPEND_CAP_EXCEEDED' | 'MONTHLY_SPEND_CAP_EXCEEDED',
+          reserveResult === 'DAILY_SPEND_CAP_EXCEEDED'
+            ? `Daily cap of ${dailyCap} USDC reached`
+            : `Monthly cap of ${monthlyCap} USDC reached`
+        );
       }
 
-      const result = await Promise.race([
-        executePayment(paymentTerms, observed_price),
-        sleep(PAYMENT_TIMEOUT_MS).then(() => { throw new StageError('PAYMENT_TIMEOUT', 'Payment confirmation timed out'); }),
-      ]) as { txHash: string; walletAddress: string; amountPaid: string };
-
-      txHash = result.txHash;
-      walletAddress = result.walletAddress;
+      let paymentSucceeded = false;
+      try {
+        const result = await Promise.race([
+          executePayment(paymentTerms, observed_price),
+          sleep(PAYMENT_TIMEOUT_MS).then(() => { throw new StageError('PAYMENT_TIMEOUT', 'Payment confirmation timed out'); }),
+        ]) as { txHash: string; walletAddress: string; amountPaid: string };
+        paymentSucceeded = true;
+        txHash = result.txHash;
+        walletAddress = result.walletAddress;
+      } catch (innerErr) {
+        // Release the reservation on payment failure so budget is not consumed
+        await releaseSpendReservation(config.id).catch(() => {});
+        throw innerErr;
+      }
+      void paymentSucceeded; // used only for the release guard above
     } catch (err) {
       const code = err instanceof StageError ? err.code : 'WALLET_ERROR';
       const rawMsg = err instanceof Error ? err.message : String(err);
