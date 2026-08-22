@@ -41,6 +41,8 @@ export default async function AdminPage() {
     try { return await getWalletBalance(getWalletAddress()); } catch { return null; }
   };
 
+  const week7Start = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
   const [
     authResult,
     { data: allServices },
@@ -55,6 +57,9 @@ export default async function AdminPage() {
     { data: allChecksStats },
     { data: registrySeeds },
     { data: pendingSubmissionsData },
+    { count: totalIncidentsCount },
+    { count: resolvedIncidentsCount },
+    { data: allSubmissionCounts },
   ] = await Promise.all([
     service.auth.admin.listUsers({ perPage: 100 }),
     service.from('services').select('id, user_id, name, endpoint_url, status, created_at, last_checked_at').is('deleted_at', null).order('created_at', { ascending: false }),
@@ -69,6 +74,9 @@ export default async function AdminPage() {
     service.from('checks').select('status, observed_price, started_at').order('started_at', { ascending: false }).limit(10000),
     service.from('registry_seeds').select('id, name, endpoint_url, description, status, is_verified, created_at').order('created_at', { ascending: false }),
     service.from('endpoint_submissions').select('id, endpoint_url, name, description, category, x_handle, website_url, submitter_email, submitted_at, status, rejection_reason, seed_id').eq('status', 'pending').order('submitted_at', { ascending: false }),
+    service.from('incidents').select('id', { count: 'exact', head: true }),
+    service.from('incidents').select('id', { count: 'exact', head: true }).eq('status', 'resolved'),
+    service.from('endpoint_submissions').select('status'),
   ]);
 
   const authUsers = authResult.data?.users ?? [];
@@ -139,6 +147,23 @@ export default async function AdminPage() {
     const uid = serviceUserMap.get(c.service_id);
     if (uid) checksByUser.set(uid, (checksByUser.get(uid) ?? 0) + 1);
   }
+
+  // All-time incidents
+  const totalIncidents = totalIncidentsCount ?? 0;
+  const resolvedIncidents = resolvedIncidentsCount ?? 0;
+
+  // Signups this week
+  const signupsThisWeek = betaUsers.filter(u => new Date(u.created_at).getTime() >= new Date(week7Start).getTime()).length;
+
+  // Submissions funnel
+  const submissionRows = allSubmissionCounts ?? [];
+  const submissionsByStatus = submissionRows.reduce<Record<string, number>>((acc, r) => {
+    acc[r.status] = (acc[r.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const totalSubmissions = submissionRows.length;
+  const approvedSubmissions = submissionsByStatus['approved'] ?? 0;
+  const rejectedSubmissions = submissionsByStatus['rejected'] ?? 0;
 
   // Open incidents
   const openIncidents = incidents.filter(i => i.status !== 'resolved');
@@ -229,30 +254,51 @@ export default async function AdminPage() {
         </span>
       </div>
 
-      {/* Metric row 1 */}
+      {/* Metric row 1 — headline proof-of-work numbers */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 10 }}>
+        {(() => {
+          const allWindow = windowStats.find(w => w.label === 'all');
+          const allTimeChecks = allWindow?.total ?? 0;
+          const allTimeUsdc = allWindow?.spend ?? 0;
+          return [
+            { label: 'Total Checks',        value: allTimeChecks.toLocaleString(),              sub: 'all-time, real payments' },
+            { label: 'USDC Verified',        value: `$${allTimeUsdc.toFixed(2)}`,                sub: 'on-chain, Base mainnet' },
+            { label: 'Incidents Detected',   value: String(totalIncidents),                      sub: `${resolvedIncidents} resolved`, amber: totalIncidents - resolvedIncidents > 0 },
+            { label: 'Users',                value: String(betaUsers.length),                    sub: `+${signupsThisWeek} this week`, green: signupsThisWeek > 0 },
+          ].map(({ label, value, sub, green, amber }) => (
+            <div key={label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>{label}</div>
+              <div style={{ fontSize: 26, fontWeight: 600, color: green ? 'var(--status-ok)' : amber ? 'var(--status-degraded)' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginBottom: 4 }}>{value}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</div>
+            </div>
+          ));
+        })()}
+      </div>
+
+      {/* Metric row 2 — operational detail */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 10 }}>
         {[
-          { label: 'Users',                value: String(betaUsers.length),          sub: 'registered accounts' },
           { label: 'Endpoints Monitored', value: String(services.length),           sub: 'across all users' },
+          { label: 'Operational',         value: String(operationalCount),           sub: `of ${services.length} endpoints`, green: issueCount === 0 },
+          { label: 'Degraded / Critical', value: String(issueCount),                sub: 'need attention',                   amber: issueCount > 0 },
           { label: 'Checks (24h)',        value: totalChecks.toLocaleString(),       sub: totalChecks > 0 ? `~${Math.round(totalChecks / 24)}/hr` : 'no data yet' },
-          { label: 'Avg Uptime',          value: avgUptime ? `${avgUptime}%` : '—', sub: 'across all services', green: avgUptime !== null && parseFloat(avgUptime) >= 95 },
-        ].map(({ label, value, sub, green }) => (
+          { label: 'Avg Uptime (24h)',    value: avgUptime ? `${avgUptime}%` : '—', sub: 'across all services',              green: avgUptime !== null && parseFloat(avgUptime) >= 95 },
+        ].map(({ label, value, sub, green, amber }) => (
           <div key={label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>{label}</div>
-            <div style={{ fontSize: 26, fontWeight: 600, color: green ? 'var(--status-ok)' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginBottom: 4 }}>{value}</div>
+            <div style={{ fontSize: 26, fontWeight: 600, fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginBottom: 4, color: green ? 'var(--status-ok)' : amber ? 'var(--status-degraded)' : 'var(--text-primary)' }}>{value}</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Metric row 2 */}
+      {/* Metric row 3 — team & ops health */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
         {[
-          { label: 'Operational',       value: String(operationalCount), sub: `of ${services.length} endpoints`,    green: issueCount === 0 },
-          { label: 'Degraded / Critical', value: String(issueCount),    sub: 'need attention',                     amber: issueCount > 0 },
-          { label: 'Inactive Signups',  value: String(inactiveCount),   sub: 'joined, 0 services added',           amber: inactiveCount > 0 },
+          { label: 'Inactive Signups',   value: String(inactiveCount),  sub: 'joined, 0 services added',  amber: inactiveCount > 0 },
           { label: 'Telegram Connected', value: String(telegramCount),  sub: `of ${betaUsers.length} users` },
-          { label: 'Cron Last Fired',   value: lastCronAt ? timeAgo(lastCronAt) : '—', sub: lastCronAt ? `most recent check` : 'no checks yet', amber: cronStale },
+          { label: 'Cron Last Fired',    value: lastCronAt ? timeAgo(lastCronAt) : '—', sub: lastCronAt ? 'most recent check' : 'no checks yet', amber: cronStale },
+          { label: 'Submissions',        value: String(totalSubmissions), sub: `${approvedSubmissions} approved · ${rejectedSubmissions} rejected`, green: approvedSubmissions > 0 },
         ].map(({ label, value, sub, green, amber }) => (
           <div key={label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>{label}</div>
