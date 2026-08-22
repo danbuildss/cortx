@@ -27,7 +27,8 @@ interface Detected {
 
 type Preset = 'conservative' | 'standard' | 'high';
 
-const MAX_ENDPOINT_PRICE_USDC = 1.00;
+const MAX_EXPECTED_PRICE_USDC = 0.01;
+const MAX_CAP_PRICE_USDC      = 1.00;
 
 const PRESETS: Record<Preset, { label: string; desc: string; intervalMin: number; checksPerMonth: number }> = {
   conservative: { label: 'Conservative', desc: 'Every 6 hours', intervalMin: 360, checksPerMonth: 120 },
@@ -161,8 +162,10 @@ export function OnboardWizard({ initialTelegramConnected, hasWallet }: { initial
     if (!name.trim()) errors.push('Service name required');
     if (!expectedPrice || isNaN(parseFloat(expectedPrice))) errors.push('Expected price required');
     if (!maxPrice || isNaN(parseFloat(maxPrice))) errors.push('Max price required');
-    if (parseFloat(expectedPrice) > MAX_ENDPOINT_PRICE_USDC || parseFloat(maxPrice) > MAX_ENDPOINT_PRICE_USDC) {
-      errors.push(`Endpoints are capped at $${MAX_ENDPOINT_PRICE_USDC.toFixed(2)} USDC per call during the current period.`);
+    if (parseFloat(expectedPrice) > MAX_EXPECTED_PRICE_USDC) {
+      errors.push(`Expected price is capped at $${MAX_EXPECTED_PRICE_USDC.toFixed(2)} USDC per call during the current period.`);
+    } else if (parseFloat(maxPrice) > MAX_CAP_PRICE_USDC) {
+      errors.push(`Max price cannot exceed $${MAX_CAP_PRICE_USDC.toFixed(2)} USDC per call.`);
     }
     try { JSON.parse(testPayload); } catch { errors.push('Test payload must be valid JSON'); }
     try { JSON.parse(expectedSchema); } catch { errors.push('Expected schema must be valid JSON'); }
