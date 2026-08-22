@@ -18,10 +18,12 @@ Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON 
 V1    — Monitor           ✅  End-to-end x402 monitoring, incidents, alerts, evidence, public status
 V1.1  — Monitoring        ⬅ NOW  Hardening milestone: spend safety, SSRF gaps, budget visibility,
         Integrity               rate limiting, production debug removal, paused-state UI
-V1.5  — Reliability       NEXT  Audit and extend stored check data to capture all
-        Data Foundation         non-reconstructable observations needed for V3 Intelligence
-V2    — Verify +                Observed / Claimed / Verified model, public endpoint submission,
-        Reliability Network     CORTX-funded observation tier, managed monitoring for owners
+V1.5  — Reliability       ✅  Richer stage evidence: x402_protocol_version, payment_scheme,
+        Data Foundation         atomic_units_detected, price_drift_usdc, verification_cost_usdc,
+                                recipient_fingerprint. V2 header detection. No migration needed.
+V2    — Verify +          ✅  Public submission modal (registry page), endpoint_submissions table,
+        Reliability Network     admin review queue (approve → registry_seeds, reject with reason).
+                                Migration 016 applied.
 V3    — Intelligence            Reliability Explorer, CORTX Score (with confidence bands),
                                 ecosystem intelligence — trends, price drift, schema drift
 V4    — Preflight +             Preflight API, MCP tools (cortx_preflight / cortx_reliability /
@@ -47,7 +49,7 @@ Minimum per endpoint before score is shown: enough paid observations to be stati
 
 **On wallet architecture:** One controlled CORTX monitoring wallet with atomic budget accounting: global budget + per-service budget + per-check cap + concurrency-safe reservation + monitoring-credit ledger + low-balance alert + automatic pause. Per-service wallet isolation would add operational complexity with no benefit at current scale. Enterprise isolation is a later option.
 
-**Current position:** V1.5 Reliability Data Foundation complete (no migration needed — additive JSONB only). Next: V2 Verify + Reliability Network.
+**Current position:** V2 shipped (PR #85, migration 016 applied). V1.5 + V2 both live. Next: V3 Intelligence — Reliability Explorer, CORTX Score.
 
 ## Inbound Feature Requests (from builders)
 
