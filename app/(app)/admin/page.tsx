@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { CopyButton } from '@/components/copy-button';
 import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
 import { RegistrySeedForm } from './registry-seed-form';
+import { SubmissionActions } from './submission-actions';
 
 const ADMIN_USER_ID = process.env.CORTX_ADMIN_USER_ID ?? '';
 
@@ -53,6 +54,7 @@ export default async function AdminPage() {
     walletBalance,
     { data: allChecksStats },
     { data: registrySeeds },
+    { data: pendingSubmissionsData },
   ] = await Promise.all([
     service.auth.admin.listUsers({ perPage: 100 }),
     service.from('services').select('id, user_id, name, endpoint_url, status, created_at, last_checked_at').is('deleted_at', null).order('created_at', { ascending: false }),
@@ -66,6 +68,7 @@ export default async function AdminPage() {
     fetchWalletBalance(),
     service.from('checks').select('status, observed_price, started_at').order('started_at', { ascending: false }).limit(10000),
     service.from('registry_seeds').select('id, name, endpoint_url, description, status, is_verified, created_at').order('created_at', { ascending: false }),
+    service.from('endpoint_submissions').select('id, endpoint_url, name, description, category, x_handle, website_url, submitter_email, submitted_at, status, rejection_reason, seed_id').eq('status', 'pending').order('submitted_at', { ascending: false }),
   ]);
 
   const authUsers = authResult.data?.users ?? [];
@@ -170,6 +173,7 @@ export default async function AdminPage() {
 
   // Seeds
   const seeds = registrySeeds ?? [];
+  const pendingSubmissions = pendingSubmissionsData ?? [];
 
   // Code by email
   const codeByEmail = new Map<string, string>();
@@ -659,6 +663,69 @@ export default async function AdminPage() {
           </div>
 
         </div>
+      </div>
+
+      {/* Pending Submissions */}
+      <div style={{ marginTop: 24, ...card }}>
+        <div style={cardHeader}>
+          <span style={cardTitle}>Pending Submissions</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: pendingSubmissions.length > 0 ? 'var(--status-degraded)' : 'var(--text-dim)' }}>
+            {pendingSubmissions.length} pending
+          </span>
+        </div>
+        {pendingSubmissions.length === 0 ? (
+          <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            No pending submissions
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {['Endpoint / Name', 'Category', 'Submitter', 'Submitted', 'Actions'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pendingSubmissions.map((sub, i) => {
+                  const isLast = i === pendingSubmissions.length - 1;
+                  const tdStyle: React.CSSProperties = { padding: '10px 16px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)', verticalAlign: 'top' };
+                  return (
+                    <tr key={sub.id}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 }}>{sub.name}</div>
+                        <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-dim)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.endpoint_url}</div>
+                        {sub.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, maxWidth: 240 }}>{sub.description}</div>}
+                        {(sub.x_handle || sub.website_url) && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                            {sub.x_handle && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{sub.x_handle}</span>}
+                            {sub.website_url && <a href={sub.website_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--text-secondary)', textDecoration: 'none' }}>docs ↗</a>}
+                          </div>
+                        )}
+                      </td>
+                      <td style={tdStyle}>
+                        {sub.category
+                          ? <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: 'rgba(99,102,241,0.10)', color: '#a5b4fc', whiteSpace: 'nowrap' }}>{sub.category}</span>
+                          : <span style={{ color: 'var(--text-dim)' }}>—</span>
+                        }
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub.submitter_email ?? '—'}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(sub.submitted_at)}</span>
+                      </td>
+                      <td style={{ ...tdStyle, verticalAlign: 'middle' }}>
+                        <SubmissionActions id={sub.id} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Registry Seeds */}
