@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 
-const ADMIN_USER_ID = 'e9374851-ac6f-4f1e-a131-6747fc37184a';
+const ADMIN_USER_ID = process.env.CORTX_ADMIN_USER_ID ?? '';
 
 async function requireAdmin() {
   const supabase = await createClient();
