@@ -1,5 +1,6 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import { createHash } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { StageError, validateAndResolveUrl } from './ssrf';
 import { executePayment, getWalletAddress, getWalletBalance } from './payment';
@@ -269,9 +270,12 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    // Parse body first; fall back to X-Payment-Required header (used by Bankr and similar gateways)
+    // Parse body first; fall back to payment-required (x402 V2 spec) then x-payment-required (Bankr/V1 compat)
+    const v2Header = response402.headers.get('payment-required') ?? '';
     const xPayHeader = response402.headers.get('x-payment-required') ?? '';
-    const parsed402 = parseToPaymentTerms(rawBody) ?? parseToPaymentTerms(xPayHeader);
+    const parsed402 = parseToPaymentTerms(rawBody) ?? parseToPaymentTerms(v2Header) ?? parseToPaymentTerms(xPayHeader);
+    // Record which x402 protocol version this endpoint spoke
+    const x402ProtocolVersion = v2Header ? 'v2' : xPayHeader ? 'v1_compat' : 'v1';
 
     if (!parsed402) {
       fail(stageTerms, 'INVALID_PAYMENT_TERMS', {
@@ -322,6 +326,8 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       network: matchingOption.network,
       payee_address: '[REDACTED]',
       raw_payment_terms: { accepts_count: paymentTerms.accepts.length, network: matchingOption.network },
+      x402_protocol_version: x402ProtocolVersion,
+      payment_scheme: 'x402',
     }));
 
     // ── Stage 5: Parse Observed Price ─────────────────────────────────────
@@ -350,15 +356,15 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
 
     // x402v2 sends maxAmountRequired in atomic USDC units (6 decimals), e.g. "1000" = $0.001
     // x402v1 / some implementations send decimal USDC, e.g. "0.001"
-    const parsedPrice = rawNum >= 1 && Number.isInteger(rawNum)
-      ? rawNum / 1_000_000
-      : rawNum;
+    const atomicUnitsDetected = rawNum >= 1 && Number.isInteger(rawNum);
+    const parsedPrice = atomicUnitsDetected ? rawNum / 1_000_000 : rawNum;
 
     observed_price = parsedPrice.toFixed(6);
     stages.push(makeStage(stagePrice, true, 0, {
       raw_price_field: rawPrice,
       parsed_price: observed_price,
       unit: 'USDC',
+      atomic_units_detected: atomicUnitsDetected,
     }));
 
     // ── Stage 6: Compare Price Against Expected and Maximum ───────────────
@@ -405,6 +411,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       observed_price,
       max_price: config.max_price,
       result: 'match',
+      price_drift_usdc: (parsedPrice - parseFloat(config.expected_price)).toFixed(6),
     }));
 
     // ── Stage 7: Execute Controlled Payment ───────────────────────────────
@@ -465,6 +472,8 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       network: 'base',
       wallet_address: '[REDACTED]',
       confirmed: true,
+      verification_cost_usdc: observed_price,
+      recipient_fingerprint: createHash('sha256').update(matchingOption.payTo).digest('hex').slice(0, 16),
     }));
 
     // ── Stage 8: Confirm Result Delivery ──────────────────────────────────
