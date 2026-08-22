@@ -27,7 +27,6 @@ interface Detected {
 
 type Preset = 'conservative' | 'standard' | 'high';
 
-const BETA_MAX_ENDPOINT_PRICE_USDC = 1.00;
 
 const PRESETS: Record<Preset, { label: string; desc: string; intervalMin: number; checksPerMonth: number }> = {
   conservative: { label: 'Conservative', desc: 'Every 6 hours', intervalMin: 360, checksPerMonth: 120 },
@@ -161,9 +160,7 @@ export function OnboardWizard({ initialTelegramConnected, hasWallet }: { initial
     if (!name.trim()) errors.push('Service name required');
     if (!expectedPrice || isNaN(parseFloat(expectedPrice))) errors.push('Expected price required');
     if (!maxPrice || isNaN(parseFloat(maxPrice))) errors.push('Max price required');
-    if (parseFloat(expectedPrice) > BETA_MAX_ENDPOINT_PRICE_USDC || parseFloat(maxPrice) > BETA_MAX_ENDPOINT_PRICE_USDC) {
-      errors.push(`Endpoints are capped at $${BETA_MAX_ENDPOINT_PRICE_USDC.toFixed(2)} USDC per call. Lower your expected and max price to continue.`);
-    }
+
     try { JSON.parse(testPayload); } catch { errors.push('Test payload must be valid JSON'); }
     try { JSON.parse(expectedSchema); } catch { errors.push('Expected schema must be valid JSON'); }
     if (!safetyConfirmed) errors.push('Please confirm the payload is safe');

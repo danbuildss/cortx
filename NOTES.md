@@ -49,7 +49,7 @@ Minimum per endpoint before score is shown: enough paid observations to be stati
 
 **On wallet architecture:** One controlled CORTX monitoring wallet with atomic budget accounting: global budget + per-service budget + per-check cap + concurrency-safe reservation + monitoring-credit ledger + low-balance alert + automatic pause. Per-service wallet isolation would add operational complexity with no benefit at current scale. Enterprise isolation is a later option.
 
-**Current position:** V2 shipped (PR #85, migration 016 applied). V1.5 + V2 both live. Next: V3 Intelligence — Reliability Explorer, CORTX Score.
+**Current position:** Public launch (Aug 25, 2026). V1.5 + V2 shipped. Beta closed, open signups. Next: V3 Intelligence — Reliability Explorer, CORTX Score.
 
 ## Inbound Feature Requests (from builders)
 
@@ -120,12 +120,12 @@ This distinction is the foundation of V2 (Verify) and what makes the registry tr
 - [x] In planning
 - [x] Building MVP
 - [x] Beta readiness sprint — **COMPLETE**
-- [x] Private beta ready — invite codes seeded, all infra confirmed working
+- [x] Private beta ready — invite codes seeded, all infra confirmed working (historical)
 - [x] Partnership Readiness Sprint — **COMPLETE** (Phase 1 + Partner Integration Sprint + audit)
 - [x] Layered Verification Sprint — **COMPLETE** (PR #54 merged, migration 007 applied)
 - [x] $CORTX token tiers + public registry — **COMPLETE** (PRs #57, #58 merged, migrations 008+009 applied)
 - [x] Paid check every 4h + lightweight every 15min cron — **COMPLETE** (PR #61 merged, migration 011 applied ✓)
-- [ ] Public launch — **this week**
+- [x] Public launch — **live Aug 25, 2026** — beta closed, open signups, price cap removed, feedback widget removed
 
 **Beta wrapping up.** Public launch planned for next week. Blog post live (usecortx.dev/blog/x402-failure-modes). Utility tweet posted (Aug 15). Ship thread scheduled for Monday. Bankr skill PR open (BankrBot/skills #642). Registry seeding in progress.
 
