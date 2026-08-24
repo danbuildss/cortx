@@ -49,7 +49,7 @@ Minimum per endpoint before score is shown: enough paid observations to be stati
 
 **On wallet architecture:** One controlled CORTX monitoring wallet with atomic budget accounting: global budget + per-service budget + per-check cap + concurrency-safe reservation + monitoring-credit ledger + low-balance alert + automatic pause. Per-service wallet isolation would add operational complexity with no benefit at current scale. Enterprise isolation is a later option.
 
-**Current position:** Public launch (Aug 25, 2026). V1.5 + V2 shipped. Beta closed, open signups. Next: V3 Intelligence — Reliability Explorer, CORTX Score.
+**Current position:** Public launch live (Aug 25, 2026). V1.5 + V2 shipped. Beta closed, open signups. Free reliability report live at /report. Next: V3 Intelligence — Reliability Explorer, CORTX Score.
 
 ## Inbound Feature Requests (from builders)
 
@@ -126,8 +126,9 @@ This distinction is the foundation of V2 (Verify) and what makes the registry tr
 - [x] $CORTX token tiers + public registry — **COMPLETE** (PRs #57, #58 merged, migrations 008+009 applied)
 - [x] Paid check every 4h + lightweight every 15min cron — **COMPLETE** (PR #61 merged, migration 011 applied ✓)
 - [x] Public launch — **live Aug 25, 2026** — beta closed, open signups, price cap removed, feedback widget removed
+- [x] Free reliability report — **`/report`** — no-auth one-time end-to-end check, emails results via Resend, migration 017 applied ✓
 
-**Beta wrapping up.** Public launch planned for next week. Blog post live (usecortx.dev/blog/x402-failure-modes). Utility tweet posted (Aug 15). Ship thread scheduled for Monday. Bankr skill PR open (BankrBot/skills #642). Registry seeding in progress.
+**Public launch live.** Blog posts updated for launch. GitHub links updated to open source repo (x402-reliability-spec). Free reliability report live at /report. Bankr skill PR open (BankrBot/skills #642). Registry seeding in progress.
 
 ### Partnership Readiness Sprint (Phase 1 — shipped)
 
@@ -274,11 +275,17 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 | 2026-08-06 | 3-step onboarding wizard (detect → configure → run) | Reduces time-to-first-monitor to under 2 minutes |
 | 2026-08-06 | Feedback button in app (not modal) | Bottom-right fixed button keeps it accessible without interrupting workflow |
 
-## Open Questions
+## Open Items
 
+- Add `RESEND_API_KEY` to Vercel env (Resend.com free tier — 3k emails/month) for /report email delivery
+- Post GitHub Discussion on coinbase/x402 Discussions (template ready)
+- Merge PR #71 (methodology page → main)
+- BankrBot/skills PR #642 — follow up on merge
+- Loom demo for Base Builder Grant
+- Fill in real usage numbers for grant application (users, DAU, WAU)
 - Email alerts alongside Telegram? (not built)
 - Custom domain for status pages?
-- On-demand check API (needed for Bankr skill v2 — currently skill requires known serviceId)
+- @cortx/check npm package — open source the check runner after launch data accumulates
 
 ---
 
@@ -487,6 +494,9 @@ The open specification for x402 service reliability. Defines the 7-stage verific
 - **PR #83 (merged)**: V1.1 P0 — atomic spend reservation, SSRF fix in verify, monitoring paused state, migration 014 applied ✓
 - **PR #84 (merged)**: V1.1 P1 — _debug removed from production, admin UUID → env var, rate limiting on checks/run + detect + verify, migration 015 applied ✓
 - **V1.5 (no PR — direct commit 5889996)**: Reliability Data Foundation — richer stage evidence in runner.ts (x402_protocol_version, payment_scheme, atomic_units_detected, price_drift_usdc, verification_cost_usdc, recipient_fingerprint). No migration, additive JSONB only.
+- **PR #86 (merged)**: Public launch prep — V2 public submissions, endpoint registry, blog CTA update, GitHub links → x402-reliability-spec, mobile audit pass.
+- **PR #87 (merged)**: Blog CTA update (private beta → public), GitHub links to x402-reliability-spec, Open Source footer link.
+- **PR #88 (merged)**: Free reliability report — /report page, POST /api/reliability-report, runner null-safe expected_price/schema/latency, migration 017 applied ✓, Resend email (add RESEND_API_KEY to Vercel env).
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
