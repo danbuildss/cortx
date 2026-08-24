@@ -127,8 +127,9 @@ This distinction is the foundation of V2 (Verify) and what makes the registry tr
 - [x] Paid check every 4h + lightweight every 15min cron — **COMPLETE** (PR #61 merged, migration 011 applied ✓)
 - [x] Public launch — **live Aug 25, 2026** — beta closed, open signups, price cap removed, feedback widget removed
 - [x] Free reliability report — **`/report`** — no-auth one-time end-to-end check, emails results via Resend, migration 017 applied ✓
+- [x] Bankr skill — **merged into BankrBot/skills main** (PR #642, Aug 24 2026) — CORTX now live in the Bankr skill catalog
 
-**Public launch live.** Blog posts updated for launch. GitHub links updated to open source repo (x402-reliability-spec). Free reliability report live at /report. Bankr skill PR open (BankrBot/skills #642). Registry seeding in progress.
+**Public launch live.** Blog posts updated for launch. GitHub links updated to open source repo (x402-reliability-spec). Free reliability report live at /report. Bankr skill **merged** (BankrBot/skills #642 merged Aug 24, 2026). Registry seeding in progress.
 
 ### Partnership Readiness Sprint (Phase 1 — shipped)
 
