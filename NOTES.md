@@ -275,9 +275,65 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 | 2026-08-06 | 3-step onboarding wizard (detect → configure → run) | Reduces time-to-first-monitor to under 2 minutes |
 | 2026-08-06 | Feedback button in app (not modal) | Bottom-right fixed button keeps it accessible without interrupting workflow |
 
+## Roadmap — Next 3 Months (Aug 2026)
+
+### Month 1 — September: Prove it (builder acquisition)
+
+Product is live. Only job is getting builders using it and finding real failures.
+
+**GTM (CEO focus, not product):**
+- Onboard first 10 builders personally — DM every x402 builder you can find
+- Use /report as the entry point — no friction, no account needed, real result
+- Get Bankr skill PR #642 merged — distribution channel
+- Post GitHub Discussion on coinbase/x402 to get spec visibility
+- Record Loom demo + submit Base Builder Grant
+
+**One product thing:**
+- Data/incident blog post — "We ran X checks across Y x402 endpoints. Here's what we found." Write once you have 1,000+ checks and at least one real failure caught. Most credible content possible.
+
+**Do not build:** anything until you have 5 active builders.
+
+---
+
+### Month 2 — October: Validate the network
+
+**If builders are staying:**
+- Endpoint ownership verification (V2 Verify) — token challenge flow. Aaron @aeon.fun explicitly asked for this.
+- Email alerts — alongside Telegram. Non-crypto builders won't set up a bot.
+- `@cortx/check` npm package — open source the check runner. npm distribution drives spec adoption.
+
+**If builders are churning:** talk to them before building anything.
+
+---
+
+### Month 3 — November: Intelligence layer (V3)
+
+Only start once Phase 1 metrics hit (10 builders, 30 endpoints, 10,000 checks, 10 real incidents detected).
+
+- **CORTX Score** — reliability rating with confidence bands. Requires 30+ observations over 30+ days per endpoint.
+- **Reliability Explorer** — ecosystem trends: which stages fail most, price drift, schema regression frequency.
+- **Open Registry read API** — public read access to reliability scores once 50+ endpoints verified. Distribution moat.
+
+---
+
+### Cori (Sibyl Hackathon) — Sep 1–10
+
+Parallel track, separate repo (`danbuildss/cori`). 10-day sprint. If it wins, AI incident-response becomes CORTX V4.
+
+---
+
+### What not to build in the next 3 months
+
+- Dashboard redesigns or more chart types
+- Discord notifications (do email, skip Discord)
+- V4 Preflight API / MCP tools — too early
+- ERC-8004 attestations — only if ecosystem adopts spec first
+
+---
+
 ## Open Items
 
-- Add `RESEND_API_KEY` to Vercel env (Resend.com free tier — 3k emails/month) for /report email delivery
+- ~~Add `RESEND_API_KEY` to Vercel env~~ ✅ Done (Aug 25, 2026)
 - Post GitHub Discussion on coinbase/x402 Discussions (template ready)
 - Merge PR #71 (methodology page → main)
 - BankrBot/skills PR #642 — follow up on merge
