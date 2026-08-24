@@ -1,7 +1,7 @@
 export const meta = {
   slug: 'why-x402-needs-end-to-end-monitoring',
   title: 'Why x402 services need end-to-end monitoring, not just uptime checks',
-  date: '2026-08-07',
+  date: '2026-08-23',
   excerpt:
     'A ping check tells you the server responded. It tells you nothing about whether your users can actually pay and receive value from your x402 API.',
   readTime: '5 min read',
@@ -125,8 +125,8 @@ export default function Post() {
 
       <h2>Getting started</h2>
       <p>
-        CORTX is in private beta. If you&apos;re building x402 services on Bankr on Base mainnet,{' '}
-        <a href="/signup">request access</a> and set up your first monitor in under 5 minutes.
+        If you&apos;re building x402 services on Base mainnet,{' '}
+        <a href="/signup">create a free account</a> and set up your first monitor in under 5 minutes.
         The onboarding wizard auto-detects your endpoint&apos;s payment terms — paste a URL and the
         expected price is filled in for you.
       </p>

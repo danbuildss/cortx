@@ -126,7 +126,7 @@ export default function LandingPage() {
             <li><a href="/methodology">Methodology</a></li>
             <li><a href="#status">Status</a></li>
             <li><a href="/docs">Docs</a></li>
-            <li><a href="https://github.com/danbuildss/cortx">GitHub</a></li>
+            <li><a href="https://github.com/danbuildss/x402-reliability-spec" target="_blank" rel="noopener noreferrer">GitHub</a></li>
             <li><a href="https://t.me/AskCortxBot">Bot</a></li>
           </ul>
           <div className="nav-actions">
@@ -469,6 +469,7 @@ export default function LandingPage() {
               <div className="ft-col-links">
                 <a href="/about">About</a>
                 <a href="/blog">Blog</a>
+                <a href="https://github.com/danbuildss/x402-reliability-spec" target="_blank" rel="noopener noreferrer">Open Source</a>
               </div>
             </div>
           </div>
@@ -495,7 +496,7 @@ export default function LandingPage() {
               <a href="https://t.me/usecortxdev" className="ft-social-btn" aria-label="Telegram">
                 <svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 2L1.5 6.8l4.2 1.5 1.6 4.7 2.2-2.7 3.2 2.3L13.5 2zm-7.8 5.9l5.5-3.4-3.4 4-.1.1L5.7 7.9z"/></svg>
               </a>
-              <a href="https://github.com/danbuildss/cortx" className="ft-social-btn" aria-label="GitHub">
+              <a href="https://github.com/danbuildss/x402-reliability-spec" target="_blank" rel="noopener noreferrer" className="ft-social-btn" aria-label="GitHub">
                 <svg viewBox="0 0 16 16" fill="currentColor"><path fillRule="evenodd" d="M8 1C4.13 1 1 4.13 1 8c0 3.08 2 5.69 4.77 6.61.35.06.48-.15.48-.34v-1.19c-1.94.42-2.35-.94-2.35-.94-.32-.81-.78-1.02-.78-1.02-.63-.43.05-.42.05-.42.7.05 1.07.72 1.07.72.62 1.07 1.63.76 2.03.58.06-.45.24-.76.44-.93-1.54-.18-3.16-.77-3.16-3.43 0-.76.27-1.38.72-1.87-.07-.18-.31-.88.07-1.84 0 0 .58-.19 1.9.71.55-.15 1.14-.23 1.73-.23.58 0 1.18.08 1.73.23 1.32-.9 1.9-.71 1.9-.71.38.96.14 1.66.07 1.84.45.49.72 1.11.72 1.87 0 2.67-1.63 3.25-3.17 3.43.25.21.47.64.47 1.28v1.9c0 .19.12.4.47.33C13 13.69 15 11.08 15 8c0-3.87-3.13-7-7-7z" clipRule="evenodd"/></svg>
               </a>
               <a href="https://discord.gg/TKUgsqRqTg" className="ft-social-btn" aria-label="Discord">
