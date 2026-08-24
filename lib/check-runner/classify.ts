@@ -5,7 +5,7 @@ const CRITICAL_STAGES = new Set<StageName>(['payment', 'delivery', 'json_parse',
 export function classifyStatus(
   stages: StageResult[],
   latency_ms: number,
-  latency_threshold_ms: number
+  latency_threshold_ms?: number
 ): ClassifyResult {
   const failed = stages.find((s) => s.passed === false);
 
@@ -18,7 +18,7 @@ export function classifyStatus(
     };
   }
 
-  if (latency_ms > latency_threshold_ms) {
+  if (latency_threshold_ms != null && latency_ms > latency_threshold_ms) {
     return {
       check_status: 'passed',
       service_status: 'degraded',

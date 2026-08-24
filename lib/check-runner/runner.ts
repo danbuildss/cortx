@@ -369,9 +369,9 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
 
     // ── Stage 6: Compare Price Against Expected and Maximum ───────────────
     const stagePriceCheck = advance();
-    const expectedPrice = parseFloat(config.expected_price);
+    const expectedPrice = config.expected_price != null ? parseFloat(config.expected_price) : null;
     const maxPrice = parseFloat(config.max_price);
-    const priceMatch = Math.abs(parsedPrice - expectedPrice) < 0.000001;
+    const priceMatch = expectedPrice == null || Math.abs(parsedPrice - expectedPrice) < 0.000001;
 
     if (parsedPrice > maxPrice) {
       fail(stagePriceCheck, 'PRICE_EXCEEDS_MAXIMUM', {
@@ -407,11 +407,11 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     }
 
     stages.push(makeStage(stagePriceCheck, true, 0, {
-      expected_price: config.expected_price,
+      expected_price: config.expected_price ?? 'any',
       observed_price,
       max_price: config.max_price,
-      result: 'match',
-      price_drift_usdc: (parsedPrice - parseFloat(config.expected_price)).toFixed(6),
+      result: expectedPrice == null ? 'accepted' : 'match',
+      price_drift_usdc: expectedPrice != null ? (parsedPrice - expectedPrice).toFixed(6) : '0',
     }));
 
     // ── Stage 7: Execute Controlled Payment ───────────────────────────────
@@ -565,34 +565,38 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
 
     // ── Stage 10: Validate Schema ─────────────────────────────────────────
     const stageSchema = advance();
-    const ajv = new Ajv({ allErrors: true });
-    addFormats(ajv);
+    if (!config.expected_schema) {
+      stages.push(makeStage(stageSchema, true, 0, { skipped: true, reason: 'no_schema_configured' }));
+    } else {
+      const ajv = new Ajv({ allErrors: true });
+      addFormats(ajv);
 
-    let validate: ReturnType<typeof ajv.compile>;
-    try {
-      validate = ajv.compile(config.expected_schema);
-    } catch (err) {
-      fail(stageSchema, 'SCHEMA_COMPILE_ERROR', { error: String(err) }, 0);
-      return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
+      let validate: ReturnType<typeof ajv.compile>;
+      try {
+        validate = ajv.compile(config.expected_schema);
+      } catch (err) {
+        fail(stageSchema, 'SCHEMA_COMPILE_ERROR', { error: String(err) }, 0);
+        return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
+      }
+
+      const valid = validate(parsedJson);
+
+      if (!valid) {
+        fail(stageSchema, 'SCHEMA_VALIDATION_FAILED', {
+          valid: false,
+          errors: validate.errors ?? [],
+        }, 0);
+        return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
+      }
+
+      stages.push(makeStage(stageSchema, true, 0, { valid: true, errors: [] }));
     }
-
-    const valid = validate(parsedJson);
-
-    if (!valid) {
-      fail(stageSchema, 'SCHEMA_VALIDATION_FAILED', {
-        valid: false,
-        errors: validate.errors ?? [],
-      }, 0);
-      return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
-    }
-
-    stages.push(makeStage(stageSchema, true, 0, { valid: true, errors: [] }));
 
     // ── Stage 11: Record Latency ──────────────────────────────────────────
     const latency_ms = Math.round(performance.now() - wallClockStart);
 
     // ── Stage 12: Classify Status ─────────────────────────────────────────
-    const classification = classifyStatus(stages, latency_ms, config.latency_threshold_ms);
+    const classification = classifyStatus(stages, latency_ms, config.latency_threshold_ms ?? undefined);
 
     return {
       service_id: config.id,

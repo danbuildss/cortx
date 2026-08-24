@@ -36,11 +36,11 @@ export type ServiceConfig = {
   id: string;
   user_id: string;
   endpoint_url: string;
-  test_input: Record<string, unknown>;
-  expected_schema: Record<string, unknown>;
-  expected_price: string;
+  test_input: Record<string, unknown> | null;
+  expected_schema: Record<string, unknown> | null;
+  expected_price: string | null;
   max_price: string;
-  latency_threshold_ms: number;
+  latency_threshold_ms: number | null;
   environment: 'mainnet' | 'testnet';
 };
 
