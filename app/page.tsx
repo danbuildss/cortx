@@ -120,6 +120,10 @@ export default function LandingPage() {
                     <div className="mega-ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4"/><path d="M5 6.5h6M5 9.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg></div>
                     <div><div className="mega-title">Service Registry</div><div className="mega-desc">Verified x402 endpoints, live status from real checks</div></div>
                   </a>
+                  <a className="mega-item" href="/report" role="menuitem">
+                    <div className="mega-ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2v5.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" /></svg></div>
+                    <div><div className="mega-title">Free reliability check</div><div className="mega-desc">One-time end-to-end report, no signup required</div></div>
+                  </a>
                 </div>
               </div>
             </li>
@@ -448,6 +452,7 @@ export default function LandingPage() {
             <div>
               <div className="ft-col-label">Resources</div>
               <div className="ft-col-links">
+                <a href="/report">Free reliability check</a>
                 <a href="/docs">Docs</a>
                 <a href="/docs/cost">Cost Guide</a>
                 <a href="#how-it-works">How it works</a>
