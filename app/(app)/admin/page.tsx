@@ -68,7 +68,8 @@ export default async function AdminPage() {
     service.from('checks').select('observed_price').gte('started_at', monthStart.toISOString()).in('status', ['passed', 'success']),
     service.from('checks').select('started_at').order('started_at', { ascending: false }).limit(1),
     fetchWalletBalance(),
-    service.from('checks').select('status, observed_price, started_at').order('started_at', { ascending: false }).limit(10000),
+    // window stats computed via separate count queries below
+    Promise.resolve({ data: [] as { status: string; observed_price: string | null; started_at: string }[] }),
     service.from('registry_seeds').select('id, name, endpoint_url, description, status, is_verified, created_at').order('created_at', { ascending: false }),
     service.from('endpoint_submissions').select('id, endpoint_url, name, description, category, x_handle, website_url, submitter_email, submitted_at, status, rejection_reason, seed_id').eq('status', 'pending').order('submitted_at', { ascending: false }),
     service.from('incidents').select('id', { count: 'exact', head: true }),
@@ -176,18 +177,24 @@ export default async function AdminPage() {
     { label: '1y',  ms: 365 * 24 * 60 * 60 * 1000 },
     { label: 'all', ms: null },
   ];
-  const allChecksArr = allChecksStats ?? [];
-  const windowStats: WindowStat[] = windowDefs.map(({ label, ms }) => {
-    const cutoff = ms !== null ? now - ms : null;
-    const filtered = cutoff !== null
-      ? allChecksArr.filter(c => new Date(c.started_at).getTime() >= cutoff)
-      : allChecksArr;
-    const total = filtered.length;
-    const success = filtered.filter(c => c.status === 'success' || c.status === 'passed').length;
+  const windowStats: WindowStat[] = await Promise.all(windowDefs.map(async ({ label, ms }) => {
+    const cutoff = ms !== null ? new Date(now - ms).toISOString() : null;
+    const baseQuery = () => service.from('checks').select('id', { count: 'exact', head: true });
+    const successQuery = () => service.from('checks').select('id', { count: 'exact', head: true }).in('status', ['passed', 'success']);
+    const spendQuery = () => service.from('checks').select('observed_price').in('status', ['passed', 'success']);
+
+    const [totalRes, successRes, spendRes] = await Promise.all([
+      cutoff ? baseQuery().gte('started_at', cutoff) : baseQuery(),
+      cutoff ? successQuery().gte('started_at', cutoff) : successQuery(),
+      cutoff ? spendQuery().gte('started_at', cutoff) : spendQuery(),
+    ]);
+
+    const total = totalRes.count ?? 0;
+    const success = successRes.count ?? 0;
     const successRate = total > 0 ? (success / total * 100).toFixed(1) : null;
-    const spend = filtered.reduce((s, c) => s + parseFloat(String(c.observed_price ?? '0')), 0);
+    const spend = (spendRes.data ?? []).reduce((s, c) => s + parseFloat(String(c.observed_price ?? '0')), 0);
     return { label, total, successRate, spend };
-  });
+  }));
 
   // Seeds
   const seeds = registrySeeds ?? [];
