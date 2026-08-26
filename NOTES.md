@@ -49,7 +49,7 @@ Minimum per endpoint before score is shown: enough paid observations to be stati
 
 **On wallet architecture:** One controlled CORTX monitoring wallet with atomic budget accounting: global budget + per-service budget + per-check cap + concurrency-safe reservation + monitoring-credit ledger + low-balance alert + automatic pause. Per-service wallet isolation would add operational complexity with no benefit at current scale. Enterprise isolation is a later option.
 
-**Current position:** Public launch (Aug 25, 2026). V1.5 + V2 shipped. Beta closed, open signups. Next: V3 Intelligence — Reliability Explorer, CORTX Score.
+**Current position:** Public launch live (Aug 25, 2026). V1.5 + V2 shipped. Beta closed, open signups. Free reliability report live at /report. Next: V3 Intelligence — Reliability Explorer, CORTX Score.
 
 ## Inbound Feature Requests (from builders)
 
@@ -126,8 +126,10 @@ This distinction is the foundation of V2 (Verify) and what makes the registry tr
 - [x] $CORTX token tiers + public registry — **COMPLETE** (PRs #57, #58 merged, migrations 008+009 applied)
 - [x] Paid check every 4h + lightweight every 15min cron — **COMPLETE** (PR #61 merged, migration 011 applied ✓)
 - [x] Public launch — **live Aug 25, 2026** — beta closed, open signups, price cap removed, feedback widget removed
+- [x] Free reliability report — **`/report`** — no-auth one-time end-to-end check, emails results via Resend, migration 017 applied ✓
+- [x] Bankr skill — **merged into BankrBot/skills main** (PR #642, Aug 24 2026) — CORTX now live in the Bankr skill catalog
 
-**Beta wrapping up.** Public launch planned for next week. Blog post live (usecortx.dev/blog/x402-failure-modes). Utility tweet posted (Aug 15). Ship thread scheduled for Monday. Bankr skill PR open (BankrBot/skills #642). Registry seeding in progress.
+**Public launch live.** Blog posts updated for launch. GitHub links updated to open source repo (x402-reliability-spec). Free reliability report live at /report. Bankr skill **merged** (BankrBot/skills #642 merged Aug 24, 2026). Registry seeding in progress.
 
 ### Partnership Readiness Sprint (Phase 1 — shipped)
 
@@ -274,11 +276,73 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 | 2026-08-06 | 3-step onboarding wizard (detect → configure → run) | Reduces time-to-first-monitor to under 2 minutes |
 | 2026-08-06 | Feedback button in app (not modal) | Bottom-right fixed button keeps it accessible without interrupting workflow |
 
-## Open Questions
+## Roadmap — Next 3 Months (Aug 2026)
 
+### Month 1 — September: Prove it (builder acquisition)
+
+Product is live. Only job is getting builders using it and finding real failures.
+
+**GTM (CEO focus, not product):**
+- Onboard first 10 builders personally — DM every x402 builder you can find
+- Use /report as the entry point — no friction, no account needed, real result
+- Get Bankr skill PR #642 merged — distribution channel
+- Post GitHub Discussion on coinbase/x402 to get spec visibility
+- Record Loom demo + submit Base Builder Grant
+
+**One product thing:**
+- Data/incident blog post — "We ran X checks across Y x402 endpoints. Here's what we found." Write once you have 1,000+ checks and at least one real failure caught. Most credible content possible.
+
+**Do not build:** anything until you have 5 active builders.
+
+---
+
+### Month 2 — October: Validate the network
+
+**If builders are staying:**
+- Endpoint ownership verification (V2 Verify) — token challenge flow. Aaron @aeon.fun explicitly asked for this.
+- Email alerts — alongside Telegram. Non-crypto builders won't set up a bot.
+- `@cortx/check` npm package — open source the check runner. npm distribution drives spec adoption.
+
+**If builders are churning:** talk to them before building anything.
+
+---
+
+### Month 3 — November: Intelligence layer (V3)
+
+Only start once Phase 1 metrics hit (10 builders, 30 endpoints, 10,000 checks, 10 real incidents detected).
+
+- **CORTX Score** — reliability rating with confidence bands. Requires 30+ observations over 30+ days per endpoint.
+- **Reliability Explorer** — ecosystem trends: which stages fail most, price drift, schema regression frequency.
+- **Open Registry read API** — public read access to reliability scores once 50+ endpoints verified. Distribution moat.
+
+---
+
+### Cori (Sibyl Hackathon) — Sep 1–10
+
+Parallel track, separate repo (`danbuildss/cori`). 10-day sprint. If it wins, AI incident-response becomes CORTX V4.
+
+---
+
+### What not to build in the next 3 months
+
+- Dashboard redesigns or more chart types
+- Discord notifications (do email, skip Discord)
+- V4 Preflight API / MCP tools — too early
+- ERC-8004 attestations — only if ecosystem adopts spec first
+
+---
+
+## Open Items
+
+- ~~Add `RESEND_API_KEY` to Vercel env~~ ✅ Done (Aug 25, 2026)
+- Post GitHub Discussion on coinbase/x402 Discussions (template ready)
+- Merge PR #71 (methodology page → main)
+- BankrBot/skills PR #642 — follow up on merge
+- Loom demo for Base Builder Grant
+- Fill in real usage numbers for grant application (users, DAU, WAU)
 - Email alerts alongside Telegram? (not built)
 - Custom domain for status pages?
-- On-demand check API (needed for Bankr skill v2 — currently skill requires known serviceId)
+- @cortx/check npm package — open source the check runner after launch data accumulates
 
 ---
 
@@ -487,6 +551,9 @@ The open specification for x402 service reliability. Defines the 7-stage verific
 - **PR #83 (merged)**: V1.1 P0 — atomic spend reservation, SSRF fix in verify, monitoring paused state, migration 014 applied ✓
 - **PR #84 (merged)**: V1.1 P1 — _debug removed from production, admin UUID → env var, rate limiting on checks/run + detect + verify, migration 015 applied ✓
 - **V1.5 (no PR — direct commit 5889996)**: Reliability Data Foundation — richer stage evidence in runner.ts (x402_protocol_version, payment_scheme, atomic_units_detected, price_drift_usdc, verification_cost_usdc, recipient_fingerprint). No migration, additive JSONB only.
+- **PR #86 (merged)**: Public launch prep — V2 public submissions, endpoint registry, blog CTA update, GitHub links → x402-reliability-spec, mobile audit pass.
+- **PR #87 (merged)**: Blog CTA update (private beta → public), GitHub links to x402-reliability-spec, Open Source footer link.
+- **PR #88 (merged)**: Free reliability report — /report page, POST /api/reliability-report, runner null-safe expected_price/schema/latency, migration 017 applied ✓, Resend email (add RESEND_API_KEY to Vercel env).
 
 ### Partner Integration Sprint deliverables (PR #52, merged)
 
