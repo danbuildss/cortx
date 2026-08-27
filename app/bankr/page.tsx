@@ -1,13 +1,14 @@
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import type { Metadata } from 'next';
 import { computeMetrics } from '@/lib/metrics';
+import { BankrWall, type WallRow } from './_components/bankr-wall';
 
 export const metadata: Metadata = {
   title: 'CORTX × Bankr — x402 Reliability Monitoring',
   description: 'Every x402-gated skill in the Bankr marketplace, monitored by CORTX. Live delivery rates, uptime, and latency from real USDC checks on Base mainnet.',
   openGraph: {
     title: 'CORTX × Bankr — x402 Reliability Monitoring',
-    description: 'Every x402-gated skill in Bankr\'s marketplace, monitored by CORTX with real USDC checks on Base mainnet.',
+    description: "Every x402-gated skill in Bankr's marketplace, monitored by CORTX with real USDC checks on Base mainnet.",
     url: 'https://usecortx.dev/bankr',
     siteName: 'CORTX',
   },
@@ -15,18 +16,51 @@ export const metadata: Metadata = {
 
 export const revalidate = 120;
 
-const STATUS_COLOR: Record<string, string> = {
-  operational: '#22c55e',
-  degraded:    '#f59e0b',
-  critical:    '#ef4444',
-  unknown:     '#6b7280',
+const BANKR_SKILL_URL = 'https://x402.bankr.bot/0xb98f0de777eea8c481b64e33d3e0066cea38fa91/cortx-reliability';
+
+// Known Bankr x402 skills — seed list, grows as builders register
+const KNOWN_BANKR_SKILLS: { name: string; url: string }[] = [
+  { name: 'CORTX Reliability', url: BANKR_SKILL_URL },
+];
+
+type BankrCatalogEntry = {
+  name?: string;
+  url?: string;
+  endpoint_url?: string;
+  slug?: string;
+  description?: string;
+  price?: number;
 };
-const STATUS_LABEL: Record<string, string> = {
-  operational: 'Operational',
-  degraded:    'Degraded',
-  critical:    'Critical',
-  unknown:     'Unknown',
-};
+
+async function fetchBankrCatalog(): Promise<{ name: string; url: string }[]> {
+  const paths = ['', '/catalog', '/api/skills', '/skills'];
+  for (const path of paths) {
+    try {
+      const res = await fetch(`https://x402.bankr.bot${path}`, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(4000),
+        next: { revalidate: 120 },
+      });
+      if (!res.ok) continue;
+      const ct = res.headers.get('content-type') ?? '';
+      if (!ct.includes('json')) continue;
+      const data = await res.json();
+      const arr: BankrCatalogEntry[] = Array.isArray(data)
+        ? data
+        : (data?.skills ?? data?.endpoints ?? data?.items ?? []);
+      if (arr.length > 0) {
+        return arr.map(e => ({
+          name: e.name ?? e.slug ?? 'Unnamed skill',
+          url:  e.url ?? e.endpoint_url ?? '',
+        })).filter(e => e.url);
+      }
+    } catch {
+      // try next path
+    }
+  }
+  // Fall back to the hardcoded seed list
+  return KNOWN_BANKR_SKILLS;
+}
 
 function timeAgo(ts: string | null): string {
   if (!ts) return 'never';
@@ -39,39 +73,6 @@ function timeAgo(ts: string | null): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function safeHref(url: string): string {
-  try {
-    const { protocol } = new URL(url);
-    return protocol === 'https:' || protocol === 'http:' ? url : '#';
-  } catch {
-    return '#';
-  }
-}
-
-function shortUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.hostname + u.pathname.replace(/\/$/, '');
-  } catch {
-    return url;
-  }
-}
-
-type ServiceRow = {
-  id: string;
-  name: string;
-  endpoint_url: string;
-  status: string;
-  last_checked_at: string | null;
-};
-
-type CheckRow = {
-  service_id: string;
-  status: string;
-  latency_ms: number | null;
-  stages: unknown;
-};
-
 export default async function BankrPage() {
   const supabase = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -80,8 +81,8 @@ export default async function BankrPage() {
 
   const since30 = new Date(Date.now() - 30 * 864e5).toISOString();
 
-  // Fetch Bankr-tagged services and their recent checks in parallel
-  const [{ data: services }, { data: recentChecks }] = await Promise.all([
+  // Fetch in parallel: CORTX registered Bankr services + Bankr catalog + recent checks
+  const [{ data: services }, { data: recentChecks }, catalogEntries] = await Promise.all([
     supabase
       .from('services')
       .select('id, name, endpoint_url, status, last_checked_at')
@@ -95,12 +96,13 @@ export default async function BankrPage() {
       .gte('started_at', since30)
       .order('started_at', { ascending: false })
       .limit(2000),
+
+    fetchBankrCatalog(),
   ]);
 
-  const rows: ServiceRow[] = services ?? [];
-  const checks: CheckRow[] = recentChecks ?? [];
-
   // Group checks by service
+  type CheckRow = { service_id: string; status: string; latency_ms: number | null; stages: unknown };
+  const checks: CheckRow[] = recentChecks ?? [];
   const checksByService = new Map<string, CheckRow[]>();
   for (const c of checks) {
     const arr = checksByService.get(c.service_id) ?? [];
@@ -108,22 +110,79 @@ export default async function BankrPage() {
     checksByService.set(c.service_id, arr);
   }
 
-  // Compute per-service metrics
-  const serviceMetrics = rows.map(svc => {
+  // Build a URL → CORTX service lookup
+  type ServiceRow = { id: string; name: string; endpoint_url: string; status: string; last_checked_at: string | null };
+  const cortxServices: ServiceRow[] = services ?? [];
+  const urlToService = new Map<string, ServiceRow>();
+  for (const svc of cortxServices) {
+    urlToService.set(svc.endpoint_url.toLowerCase().replace(/\/$/, ''), svc);
+  }
+
+  // Also include any CORTX services that weren't in the catalog
+  const catalogUrls = new Set(catalogEntries.map(e => e.url.toLowerCase().replace(/\/$/, '')));
+
+  // Build combined wall rows: catalog entries first (matched + unmatched), then any orphaned CORTX services
+  const rows: WallRow[] = [];
+  const usedServiceIds = new Set<string>();
+
+  for (const entry of catalogEntries) {
+    const normalizedUrl = entry.url.toLowerCase().replace(/\/$/, '');
+    const svc = urlToService.get(normalizedUrl);
+
+    if (svc) {
+      const svcChecks = checksByService.get(svc.id) ?? [];
+      const m = computeMetrics(svcChecks);
+      usedServiceIds.add(svc.id);
+      rows.push({
+        type: 'monitored',
+        serviceId: svc.id,
+        name: svc.name,
+        endpointUrl: svc.endpoint_url,
+        status: svc.status,
+        lastCheckedAt: svc.last_checked_at,
+        delivery: m.paid_delivery_percent,
+        uptime: m.uptime_percent,
+        latency: m.median_latency_ms,
+      });
+    } else {
+      rows.push({
+        type: 'unmonitored',
+        name: entry.name,
+        endpointUrl: entry.url,
+      });
+    }
+  }
+
+  // Append any CORTX services not in the catalog (labeled Bankr)
+  for (const svc of cortxServices) {
+    if (usedServiceIds.has(svc.id)) continue;
+    const normalizedUrl = svc.endpoint_url.toLowerCase().replace(/\/$/, '');
+    if (catalogUrls.has(normalizedUrl)) continue;
     const svcChecks = checksByService.get(svc.id) ?? [];
     const m = computeMetrics(svcChecks);
-    return { ...svc, metrics: m, checkCount: svcChecks.length };
-  });
+    rows.push({
+      type: 'monitored',
+      serviceId: svc.id,
+      name: svc.name,
+      endpointUrl: svc.endpoint_url,
+      status: svc.status,
+      lastCheckedAt: svc.last_checked_at,
+      delivery: m.paid_delivery_percent,
+      uptime: m.uptime_percent,
+      latency: m.median_latency_ms,
+    });
+  }
 
-  // Aggregate stats
-  const totalChecks = serviceMetrics.reduce((s, r) => s + r.checkCount, 0);
-  const withDelivery = serviceMetrics.filter(r => r.metrics.paid_delivery_percent !== null);
+  // Aggregate stats (monitored only)
+  const monitored = rows.filter(r => r.type === 'monitored') as Extract<WallRow, { type: 'monitored' }>[];
+  const totalChecks = monitored.reduce((s, r) => {
+    return s + (checksByService.get(r.serviceId)?.length ?? 0);
+  }, 0);
+  const withDelivery = monitored.filter(r => r.delivery !== null);
   const avgDelivery = withDelivery.length > 0
-    ? Math.round(withDelivery.reduce((s, r) => s + (r.metrics.paid_delivery_percent ?? 0), 0) / withDelivery.length * 10) / 10
+    ? Math.round(withDelivery.reduce((s, r) => s + (r.delivery ?? 0), 0) / withDelivery.length * 10) / 10
     : null;
-  const operational = serviceMetrics.filter(r => r.status === 'operational').length;
-
-  const BANKR_SKILL_URL = 'https://x402.bankr.bot/0xb98f0de777eea8c481b64e33d3e0066cea38fa91/cortx-reliability';
+  const operational = monitored.filter(r => r.status === 'operational').length;
 
   return (
     <main style={{ minHeight: '100vh', background: 'var(--bg-page, #08090a)', color: 'var(--text-primary, #f0f1f3)', fontFamily: 'system-ui, sans-serif' }}>
@@ -161,10 +220,10 @@ export default async function BankrPage() {
       <div style={{ borderTop: '1px solid var(--border-subtle, #16181d)', borderBottom: '1px solid var(--border-subtle, #16181d)', padding: '20px 24px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
           {[
-            { label: 'Skills monitored', value: rows.length === 0 ? '—' : String(rows.length) },
-            { label: 'Total checks run', value: totalChecks === 0 ? '—' : totalChecks.toLocaleString() },
+            { label: 'Skills in Bankr catalog', value: rows.length === 0 ? '—' : String(rows.length) },
+            { label: 'CORTX monitored', value: monitored.length === 0 ? '—' : String(monitored.length) },
             { label: 'Avg delivery rate', value: avgDelivery === null ? '—' : `${avgDelivery}%` },
-            { label: 'Operational now', value: rows.length === 0 ? '—' : `${operational}/${rows.length}` },
+            { label: 'Total checks run', value: totalChecks === 0 ? '—' : totalChecks.toLocaleString() },
           ].map(({ label, value }) => (
             <div key={label}>
               <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
@@ -232,130 +291,8 @@ export default async function BankrPage() {
           </div>
         </div>
 
-        {/* Empty state */}
-        {rows.length === 0 && (
-          <div style={{
-            border: '1px dashed var(--border-default, #2a2d35)',
-            borderRadius: 10,
-            padding: '48px 24px',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>No Bankr skills monitored yet</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)', maxWidth: 400, margin: '0 auto', lineHeight: 1.6 }}>
-              Be the first Bankr builder to show buyers your delivery rate.
-              Run the CORTX skill on Bankr to check your endpoint, then sign up for continuous monitoring.
-            </div>
-            <a
-              href={BANKR_SKILL_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-block',
-                marginTop: 20,
-                fontSize: 13,
-                fontWeight: 600,
-                padding: '9px 18px',
-                borderRadius: 6,
-                background: '#22c55e',
-                color: '#000',
-                textDecoration: 'none',
-              }}
-            >
-              Run CORTX skill on Bankr →
-            </a>
-          </div>
-        )}
-
-        {/* Services table */}
-        {rows.length > 0 && (
-          <div style={{ border: '1px solid var(--border-subtle, #16181d)', borderRadius: 10, overflow: 'hidden' }}>
-            {/* Table header */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 110px 110px 90px 100px 90px',
-              gap: 0,
-              padding: '10px 20px',
-              borderBottom: '1px solid var(--border-subtle, #16181d)',
-              background: 'var(--bg-surface, #111214)',
-            }}>
-              {['Skill', 'Status', 'Delivery', 'Uptime', 'Latency', 'Last check'].map(h => (
-                <span key={h} style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--text-muted, #6b7280)' }}>{h}</span>
-              ))}
-            </div>
-
-            {/* Rows */}
-            {serviceMetrics.map((svc, i) => {
-              const color = STATUS_COLOR[svc.status] ?? '#6b7280';
-              const label = STATUS_LABEL[svc.status] ?? 'Unknown';
-              const delivery = svc.metrics.paid_delivery_percent;
-              const uptime = svc.metrics.uptime_percent;
-              const latency = svc.metrics.median_latency_ms;
-              const badgeUrl = `https://usecortx.dev/api/badge/${svc.id}`;
-
-              return (
-                <div
-                  key={svc.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 110px 110px 90px 100px 90px',
-                    gap: 0,
-                    padding: '16px 20px',
-                    borderBottom: i < serviceMetrics.length - 1 ? '1px solid var(--border-subtle, #16181d)' : 'none',
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
-                    alignItems: 'center',
-                  }}
-                >
-                  {/* Name + URL */}
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3 }}>{svc.name}</div>
-                    <a
-                      href={safeHref(svc.endpoint_url)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 11, color: 'var(--text-muted, #6b7280)', textDecoration: 'none', fontFamily: 'monospace' }}
-                    >
-                      {shortUrl(svc.endpoint_url)}
-                    </a>
-                    <div style={{ marginTop: 6 }}>
-                      <img
-                        src={badgeUrl}
-                        alt="CORTX badge"
-                        style={{ height: 18, verticalAlign: 'middle' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Status */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color }}>{label}</span>
-                  </div>
-
-                  {/* Delivery */}
-                  <div style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: delivery === null ? 'var(--text-muted, #6b7280)' : delivery >= 95 ? '#22c55e' : delivery >= 75 ? '#f59e0b' : '#ef4444' }}>
-                    {delivery === null ? '—' : `${delivery}%`}
-                  </div>
-
-                  {/* Uptime */}
-                  <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: uptime === null ? 'var(--text-muted, #6b7280)' : 'var(--text-secondary, #9ca3af)' }}>
-                    {uptime === null ? '—' : `${uptime}%`}
-                  </div>
-
-                  {/* Latency */}
-                  <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: latency === null ? 'var(--text-muted, #6b7280)' : 'var(--text-secondary, #9ca3af)' }}>
-                    {latency === null ? '—' : `${latency}ms`}
-                  </div>
-
-                  {/* Last check */}
-                  <div style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)' }}>
-                    {timeAgo(svc.last_checked_at)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {/* The live wall — client component */}
+        <BankrWall rows={rows} />
 
         {/* Kupo analogy footer */}
         <div style={{ marginTop: 48, paddingTop: 32, borderTop: '1px solid var(--border-subtle, #16181d)' }}>
@@ -363,21 +300,25 @@ export default async function BankrPage() {
             {[
               {
                 label: 'Kupo × Bankr',
-                what: 'Live on-chain wallet signal data',
-                where: 'Radar tab — "Kupo Radar · LIVE"',
-                who: 'Traders making buy decisions',
-                signal: '"Smart money is buying this"',
+                rows: [
+                  { k: 'Data layer', v: 'Live on-chain wallet signal data' },
+                  { k: 'Appears in', v: 'Radar tab — "Kupo Radar · LIVE"' },
+                  { k: 'Audience', v: 'Traders making buy decisions' },
+                  { k: 'Trust signal', v: '"Smart money is buying this"' },
+                ],
                 muted: true,
               },
               {
                 label: 'CORTX × Bankr',
-                what: 'x402 paid delivery reliability data',
-                where: 'Skills section — CORTX 99.2% · 30d',
-                who: 'Users paying x402-gated skills',
-                signal: '"This skill actually delivers after payment"',
+                rows: [
+                  { k: 'Data layer', v: 'x402 paid delivery reliability data' },
+                  { k: 'Appears in', v: 'Skills section — CORTX 99.2% · 30d' },
+                  { k: 'Audience', v: 'Users paying x402-gated skills' },
+                  { k: 'Trust signal', v: '"This skill actually delivers after payment"' },
+                ],
                 muted: false,
               },
-            ].map(({ label, what, where, who, signal, muted }) => (
+            ].map(({ label, rows: items, muted }) => (
               <div
                 key={label}
                 style={{
@@ -389,12 +330,7 @@ export default async function BankrPage() {
                 }}
               >
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.4px', marginBottom: 12, color: muted ? 'var(--text-muted, #6b7280)' : '#22c55e' }}>{label}</div>
-                {[
-                  { k: 'Data layer', v: what },
-                  { k: 'Appears in', v: where },
-                  { k: 'Audience', v: who },
-                  { k: 'Trust signal', v: signal },
-                ].map(({ k, v }) => (
+                {items.map(({ k, v }) => (
                   <div key={k} style={{ marginBottom: 8 }}>
                     <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--text-dim, #4b5563)', marginBottom: 2 }}>{k}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary, #9ca3af)' }}>{v}</div>
