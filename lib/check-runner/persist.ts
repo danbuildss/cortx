@@ -36,9 +36,12 @@ function canResolveIncident(passingType: CheckType, triggerType: CheckType): boo
   return CHECK_TIER[passingType] >= CHECK_TIER[triggerType];
 }
 
+export type TriggerSource = 'scheduled' | 'anomaly_recovery' | 'anomaly_latency';
+
 export async function persistCheckResult(
   svc: ServiceRow,
-  result: CheckResult
+  result: CheckResult,
+  triggerSource: TriggerSource = 'scheduled'
 ): Promise<void> {
   const db = serviceRoleClient();
 
@@ -57,6 +60,7 @@ export async function persistCheckResult(
       observed_price: result.observed_price ? parseFloat(result.observed_price) : null,
       error_message: result.error_message,
       check_type: result.check_type,
+      trigger_source: triggerSource,
     })
     .select('id')
     .single();
