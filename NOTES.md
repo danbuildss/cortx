@@ -28,11 +28,17 @@ V3    — Intelligence            Reliability Explorer, CORTX Score (with confid
                                 ecosystem intelligence — trends, price drift, schema drift
 V4    — Preflight +             Preflight API, MCP tools (cortx_preflight / cortx_reliability /
         Select                  cortx_incidents / cortx_rank), Bankr integration, Cori layer
-V5    — Trust /           OPT   ERC-8004 attestations — only if ecosystem adoption warrants it
+V5    — Protect           RES   Machine-commerce protection — delivery evidence powering refunds,
+                                guarantees, or dispute resolution. DO NOT BUILD YET. Research first.
+                                See "Machine Commerce Protection Direction" section below.
+V6    — Trust /           OPT   ERC-8004 attestations — only if ecosystem adoption warrants it
         Attestations
-V6    — Route             OPT   Only if CORTX's reliability intelligence creates demonstrable
+V7    — Route             OPT   Only if CORTX's reliability intelligence creates demonstrable
                                 selection advantage over existing routers
 ```
+
+**Long-term arc: Monitor → Verify → Protect → Select → Route**
+Each stage is only unlocked by proving the previous one. Do not skip ahead.
 
 **V3 launch gate:** Do not expose CORTX Score until the dataset has sufficient density.
 Minimum per endpoint before score is shown: enough paid observations to be statistically meaningful (exact threshold TBD when V3 is being designed, but in the range of 30+ observations over 30+ days).
@@ -654,3 +660,90 @@ They explicitly ask for a Loom link. Go to loom.com, create a free account, hit 
 3. Alert fires → Telegram notification (30s)
 4. Public status page (15s)
 Keep it under 3 minutes. Loom gives you a shareable link instantly.
+
+---
+
+## Machine Commerce Protection Direction (Aug 28, 2026)
+
+**DO NOT BUILD THIS YET.** This is a research direction, not a roadmap item.
+
+### Core insight
+
+x402 proves that payment happened. Payment does not prove the buyer received what they paid for.
+
+An x402 transaction can result in:
+- payment succeeds → USDC leaves the buyer → endpoint/facilitator fails or times out → valid service never delivered
+
+CORTX currently asks: *"Did this paid endpoint actually work end-to-end?"*
+A future protection layer would ask: *"If it didn't work, should the seller actually keep the money?"*
+
+Do NOT treat these as the same product today.
+
+### Why CORTX is already building the prerequisite
+
+CORTX's verification pipeline already produces a machine-readable verdict:
+
+- `PAID + VALID DELIVERY`
+- `PAID + FAILED DELIVERY`
+
+That verdict is the foundation any protection mechanism would need. CORTX's strongest position is likely **neutral independent verifier** — not the party holding funds.
+
+### Potential future concept: CORTX Protect
+
+Long-term promise: **Agents should never lose money to failed delivery.**
+
+Possible protected flow:
+```
+Agent wants service
+→ delivery requirements established (price, timeout, HTTP success, schema, etc.)
+→ x402 payment
+→ CORTX verifies delivery
+→ valid delivery = PASS
+→ failed delivery = recovery/protection mechanism
+```
+
+Possible architectures to research (do not assume one is correct):
+- seller-funded automatic refunds
+- facilitator integrations
+- escrow / delayed settlement
+- payment channels
+- protocol-native refund mechanisms
+- signed delivery receipts
+- deterministic dispute resolution
+
+### Data opportunity
+
+Long-term: combine synthetic evidence (periodic CORTX-funded checks) with live commerce evidence (verification of actual agent transactions). This reduces dependence on CORTX spending its own USDC while building a much more valuable dataset covering paid delivery success, payment-without-delivery events, settlement failures, response validity, latency, price drift, refunds, provider reliability, and facilitator reliability.
+
+This shifts CORTX from "did this endpoint work during our test?" toward "across actual machine-commerce transactions, how reliably does this service deliver what agents pay for?"
+
+### The key strategic question
+
+**Can CORTX own the independent verification layer that determines whether a machine transaction was commercially completed?**
+
+Do not assume yes. Research and validate first.
+
+### Research required before any implementation
+
+1. Existing x402 refund mechanisms
+2. Existing delivery receipt proposals
+3. Correctness/dispute proposals in the x402 ecosystem
+4. Facilitator timeout and payment edge cases
+5. Existing "delivery or refund" implementations
+6. Whether facilitators are likely to absorb this functionality
+7. How CORTX could participate without custody
+8. What evidence is required to objectively determine failed delivery
+9. Which failures can be deterministically verified vs. subjective service-quality disputes
+10. Whether CORTX can become the neutral verifier used by agents, sellers, facilitators, and marketplaces
+
+### Current priorities remain unchanged
+
+- endpoint coverage
+- real monitoring
+- builder adoption
+- historical reliability data
+- incidents
+- monitoring economics
+- external consumption of CORTX reliability data
+
+Protect the existing wedge: **real end-to-end x402 reliability verification.**
