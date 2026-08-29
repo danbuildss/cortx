@@ -18,7 +18,10 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = req.headers.get('authorization') ?? '';
   const secret = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (!secret || secret !== process.env.CRON_SECRET) {
+  // TRACK2_EXPERIMENT_TOKEN is a one-time env var you set in Vercel to any string you choose.
+  // Set it, deploy, curl with that value, then delete it when done.
+  const token = process.env.TRACK2_EXPERIMENT_TOKEN;
+  if (!token || !secret || secret !== token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
