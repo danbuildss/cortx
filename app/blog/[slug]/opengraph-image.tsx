@@ -58,7 +58,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         >
           <div
             style={{
-              fontSize: title.length > 60 ? 42 : 52,
+              fontSize: title.length > 60 ? 28 : 34,
               fontWeight: 700,
               color: '#ffffff',
               lineHeight: 1.2,
