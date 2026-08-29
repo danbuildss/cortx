@@ -663,6 +663,23 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
+## x402 Ecosystem — Key Clarification (Aug 29, 2026)
+
+**From DukeOphir (@DukeOphir) — x402 team — replying to our blog post:**
+
+> "The x402.org facilitator is a dev tool for local testing, it is NOT intended for production and does not support any mainnet. For production, servers can opt-in to use 3rd party services, see eg docs.x402.org/dev-tools/faci... or self-facilitate. This choice remains opaque to clients, they can't influence nor need to know it."
+
+**Implications for CORTX and spec:**
+
+- x402.org is intentionally dev/local only — not a production fallback
+- This makes the three-level facilitator discovery pattern we documented even more critical: any client defaulting to x402.org in production will silently fail for every real service
+- The spec language should eventually clarify that x402.org is a dev tool, not a default — currently the spec doesn't state this explicitly
+- "This choice remains opaque to clients" — confirms the facilitator URL is the authoritative source; clients must read the 402 response, not assume a universal endpoint
+
+**Action:** Note for future spec update (Track 3 or later). Do not update the blog post — it's already published and the finding stands.
+
+---
+
 ## Machine Commerce Protection Direction (Aug 28, 2026)
 
 **DO NOT BUILD THIS YET.** This is a research direction, not a roadmap item.
