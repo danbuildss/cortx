@@ -13,7 +13,7 @@ import { createPublicClient, http, parseUnits, formatUnits, getAddress } from 'v
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { preparePaymentHeader } from 'x402/client';
-import { useFacilitator, verify as defaultVerify } from 'x402/verify';
+// x402/verify is not imported — we call the facilitator /verify endpoint directly
 import type { X402PaymentTerms } from './types';
 import { StageError, validateAndResolveUrl } from './ssrf';
 
@@ -470,33 +470,70 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
         payload: { ...unsigned.payload, signature },
       };
 
-      // Call facilitator /verify — with timeout guard
+      // Call facilitator /verify directly — bypass the x402 library's verify()
+      // so we can log the exact request body and raw HTTP response for debugging.
+      // toJsonSafe converts BigInts → strings (mirrors what the library does internally).
+      function toJsonSafe(data: unknown): unknown {
+        if (data === null || typeof data !== 'object') return data;
+        if (Array.isArray(data)) return data.map(toJsonSafe);
+        return Object.fromEntries(
+          Object.entries(data as Record<string, unknown>).map(([k, v]) => [
+            k,
+            typeof v === 'bigint' ? v.toString() : toJsonSafe(v),
+          ])
+        );
+      }
+
+      const requestBody = {
+        x402Version: signed.x402Version,
+        paymentPayload: toJsonSafe(signed),
+        paymentRequirements: toJsonSafe(paymentRequirements),
+      };
+
       let verifyResult: { isValid: boolean; invalidReason?: string };
-      const verifyFn = facilitator_is_custom
-        ? useFacilitator({ url: facilitator_url as `${string}://${string}` }).verify
-        : defaultVerify;
+      let rawStatus: number | null = null;
+      let rawResponseBody: string | null = null;
 
       try {
-        const resultPromise = verifyFn(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          signed as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          paymentRequirements as any
-        ) as Promise<{ isValid: boolean; invalidReason?: string }>;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), VERIFY_TIMEOUT_MS);
+        let verifyRes: Response;
+        try {
+          verifyRes = await fetch(`${facilitator_url}/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+            signal: ctrl.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('VERIFY_TIMEOUT')), VERIFY_TIMEOUT_MS)
-        );
+        rawStatus = verifyRes.status;
+        rawResponseBody = await verifyRes.text().catch(() => null);
 
-        verifyResult = await Promise.race([resultPromise, timeoutPromise]);
+        let parsed: Record<string, unknown> = {};
+        try { parsed = JSON.parse(rawResponseBody ?? '{}'); } catch { /* ignore */ }
+
+        if (typeof parsed.isValid !== 'boolean') {
+          throw new Error(`Unexpected facilitator response: ${rawStatus} ${rawResponseBody?.slice(0, 200)}`);
+        }
+
+        verifyResult = {
+          isValid: parsed.isValid as boolean,
+          invalidReason: parsed.invalidReason as string | undefined,
+        };
         facilitator_responded = true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        const isTimeout = msg === 'VERIFY_TIMEOUT';
+        const isTimeout = err instanceof Error && err.name === 'AbortError';
         const d4 = Date.now() - t4;
         fail(stageVerify, isTimeout ? 'VERIFY_TIMEOUT' : 'VERIFY_ERROR', {
           facilitator_url,
           error: msg,
+          raw_status: rawStatus,
+          raw_response: rawResponseBody?.slice(0, 500),
+          request_body_preview: JSON.stringify(requestBody).slice(0, 500),
           wallet_balance_usdc: balanceUsdc,
           has_sufficient_balance: hasBalance,
         }, d4);
