@@ -4,6 +4,7 @@ import { runFullCheck, runCanaryCheck } from '@/lib/check-runner/runner';
 import { runLightweightCheck } from '@/lib/check-runner/lightweight';
 import { persistCheckResult } from '@/lib/check-runner/persist';
 import type { TriggerSource } from '@/lib/check-runner/persist';
+import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
 import { sendTelegramAlert } from '@/lib/telegram';
 import type { CanaryConfig, CheckResult } from '@/lib/check-runner/types';
 
@@ -30,6 +31,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   const now = new Date().toISOString();
+
+  // ── Wallet balance check (admin alert) ────────────────────────────────────
+  await checkWalletBalance();
 
   // ── Loop 1: Lightweight pings ─────────────────────────────────────────────
   const { data: lightweightDue, error: lwErr } = await db
@@ -178,6 +182,60 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       anomaly_triggered: triggeredServiceIds.length,
     },
   });
+}
+
+// Checks the CORTX test wallet balance and sends a Telegram alert to the admin
+// if it falls below the configured threshold. Alerts at most once every 6 hours
+// to avoid spamming on every cron tick while the wallet is empty.
+async function checkWalletBalance(): Promise<void> {
+  const adminChatId = process.env.CORTX_ADMIN_TELEGRAM_CHAT_ID;
+  if (!adminChatId) return; // Admin alert not configured — skip silently
+
+  const threshold = parseFloat(process.env.CORTX_WALLET_LOW_BALANCE_THRESHOLD_USDC ?? '0.05');
+
+  let balance: string;
+  let walletAddr: `0x${string}`;
+  try {
+    walletAddr = getWalletAddress();
+    balance = await getWalletBalance(walletAddr);
+  } catch {
+    return; // Wallet key not set or RPC error — don't block the cron
+  }
+
+  if (parseFloat(balance) >= threshold) return;
+
+  // system_settings is not yet in the generated Supabase types — use any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createClient<any>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  // Check when we last sent a wallet alert (6-hour cooldown)
+  const { data: setting } = await db
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'last_wallet_alert_sent_at')
+    .maybeSingle();
+
+  const lastAlertAt = setting?.value ? new Date(setting.value as string) : null;
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  if (lastAlertAt && lastAlertAt > sixHoursAgo) return;
+
+  const addrDisplay = `${walletAddr.slice(0, 6)}...${walletAddr.slice(-4)}`;
+  await sendTelegramAlert(
+    adminChatId,
+    `⚠️ <b>CORTX wallet balance low</b>\n\n` +
+    `Wallet: <code>${addrDisplay}</code>\n` +
+    `Balance: <b>${parseFloat(balance).toFixed(6)} USDC</b>\n` +
+    `Threshold: ${threshold} USDC\n\n` +
+    `Paid monitoring checks will start failing when balance reaches 0. ` +
+    `Top up the wallet with USDC on Base.`
+  ).catch(() => {}); // Don't let alert failure block the cron
+
+  await db
+    .from('system_settings')
+    .upsert({ key: 'last_wallet_alert_sent_at', value: new Date().toISOString(), updated_at: new Date().toISOString() });
 }
 
 // Returns the trigger reason if a paid check should be fired now, null otherwise.
