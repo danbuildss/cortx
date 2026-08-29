@@ -1,7 +1,8 @@
 import { meta as post1 } from './why-x402-needs-end-to-end-monitoring';
 import { meta as post2 } from './x402-failure-modes';
+import { meta as post3 } from './x402-facilitators-arent-universal';
 
-export const ALL_POSTS = [post1, post2].sort(
+export const ALL_POSTS = [post1, post2, post3].sort(
   (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
 );
 
