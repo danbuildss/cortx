@@ -10,9 +10,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const post = ALL_POSTS.find(p => p.slug === slug);
   if (!post) return {};
+  const ogImage = `https://www.usecortx.dev/api/og?slug=${slug}`;
   return {
     title: `${post.title} — CORTX`,
     description: post.excerpt,
+    openGraph: {
+      title: post.title,
+      description: post.excerpt,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt,
+      images: [ogImage],
+    },
   };
 }
 
