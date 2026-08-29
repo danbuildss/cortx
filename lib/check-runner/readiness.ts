@@ -9,10 +9,10 @@
  * It exists to generate data for docs/track2-findings.md.
  */
 
-import { createPublicClient, http, parseUnits, formatUnits } from 'viem';
+import { createPublicClient, http, parseUnits, formatUnits, getAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
-import { preparePaymentHeader, signPaymentHeader } from 'x402/client';
+import { preparePaymentHeader } from 'x402/client';
 import { useFacilitator, verify as defaultVerify } from 'x402/verify';
 import type { X402PaymentTerms } from './types';
 import { StageError, validateAndResolveUrl } from './ssrf';
@@ -33,6 +33,23 @@ const DEFAULT_FACILITATOR = 'https://x402.org/facilitator';
 const REQUEST_TIMEOUT_MS = 10_000;
 const VERIFY_TIMEOUT_MS = 10_000;
 const RESPONSE_BODY_MAX_BYTES = 1_048_576;
+
+// EIP-3009 TransferWithAuthorization typed-data types (mirrors x402 internals)
+const EIP3009_TYPES = {
+  TransferWithAuthorization: [
+    { name: 'from', type: 'address' },
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'validAfter', type: 'uint256' },
+    { name: 'validBefore', type: 'uint256' },
+    { name: 'nonce', type: 'bytes32' },
+  ],
+} as const;
+
+const NETWORK_CHAIN_IDS: Record<string, number> = {
+  'base': 8453,
+  'base-sepolia': 84532,
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -413,11 +430,39 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
         },
       };
 
-      // Build signed payment payload (EIP-3009 authorization)
+      // Build unsigned EIP-3009 authorization payload
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const unsigned = preparePaymentHeader(account.address, 1, paymentRequirements as any);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const signed = await signPaymentHeader(account as any, paymentRequirements as any, unsigned as any);
+      const auth = unsigned.payload.authorization as Record<string, unknown>;
+
+      // Sign the authorization directly with viem (the exported signPaymentHeader from
+      // x402/client encodes to a base64 string internally, which verify() rejects as
+      // "Data is not an object" — we need the signed object, not the encoded string)
+      const chainId = NETWORK_CHAIN_IDS[paymentRequirements.network] ?? 8453;
+      const extra = paymentRequirements.extra as Record<string, unknown> | undefined;
+      const signature = await account.signTypedData({
+        types: EIP3009_TYPES,
+        domain: {
+          name: String(extra?.name ?? 'USD Coin'),
+          version: String(extra?.version ?? '2'),
+          chainId,
+          verifyingContract: getAddress(paymentRequirements.asset as `0x${string}`),
+        },
+        primaryType: 'TransferWithAuthorization',
+        message: {
+          from: getAddress(auth.from as string),
+          to: getAddress(auth.to as string),
+          value: BigInt(auth.value as string),
+          validAfter: BigInt(auth.validAfter as string),
+          validBefore: BigInt(auth.validBefore as string),
+          nonce: auth.nonce as `0x${string}`,
+        },
+      });
+
+      const signed = {
+        ...unsigned,
+        payload: { ...unsigned.payload, signature },
+      };
 
       // Call facilitator /verify — with timeout guard
       let verifyResult: { isValid: boolean; invalidReason?: string };
