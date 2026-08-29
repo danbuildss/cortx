@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { ALL_POSTS } from '@/content/blog';
+import { BLOG_META } from '@/content/blog/meta';
 
 export const alt = 'CORTX Blog';
 export const size = { width: 1200, height: 630 };
@@ -7,7 +7,7 @@ export const contentType = 'image/png';
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const post = ALL_POSTS.find(p => p.slug === slug);
+  const post = BLOG_META.find(p => p.slug === slug);
   const title = post?.title ?? 'CORTX Blog';
   const excerpt = post?.excerpt ?? '';
 
