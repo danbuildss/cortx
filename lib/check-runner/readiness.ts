@@ -338,10 +338,21 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
       return done('not_ready');
     }
 
-    // Extract facilitator URL from extra field (if provided)
-    const extraFacilitator = matchingOption.extra?.['facilitator'] ?? matchingOption.extra?.['facilitatorUrl'];
-    if (typeof extraFacilitator === 'string' && extraFacilitator.startsWith('https://')) {
-      facilitator_url = extraFacilitator;
+    // Extract facilitator URL — check all levels of the 402 response:
+    // 1. matchingOption.extra.facilitator / facilitatorUrl  (most common in x402 v2)
+    // 2. matchingOption.facilitator / facilitatorUrl        (top-level of accept option)
+    // 3. paymentTerms root                                  (some implementations put it here)
+    const opt = matchingOption as Record<string, unknown>;
+    const terms = paymentTerms as unknown as Record<string, unknown>;
+    const candidateFacilitator =
+      matchingOption.extra?.['facilitator'] ??
+      matchingOption.extra?.['facilitatorUrl'] ??
+      opt['facilitator'] ??
+      opt['facilitatorUrl'] ??
+      terms['facilitator'] ??
+      terms['facilitatorUrl'];
+    if (typeof candidateFacilitator === 'string' && candidateFacilitator.startsWith('https://')) {
+      facilitator_url = candidateFacilitator;
       facilitator_is_custom = true;
     } else {
       facilitator_url = DEFAULT_FACILITATOR;
@@ -546,13 +557,25 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
       const d4 = Date.now() - t4;
 
       if (!verifyResult.isValid) {
-        fail(stageVerify, 'VERIFY_REJECTED', {
+        // HTTP 500 "No facilitator registered for scheme/network" means x402.org doesn't know
+        // this service's payTo address — the service uses a different (possibly self-hosted)
+        // facilitator that wasn't discovered from the 402 response. Distinguish this case so
+        // CORTX doesn't treat it the same as an actual payment validity failure.
+        const rawMsg: string = (() => {
+          try { return (JSON.parse(rawResponseBody ?? '{}') as Record<string, unknown>).invalidMessage as string ?? ''; }
+          catch { return ''; }
+        })();
+        const isNotRegistered = rawStatus === 500 && rawMsg.toLowerCase().includes('no facilitator registered');
+        const errorCode = isNotRegistered ? 'FACILITATOR_NOT_REGISTERED' : 'VERIFY_REJECTED';
+        fail(stageVerify, errorCode, {
           facilitator_url,
           is_valid: false,
           invalid_reason: verifyResult.invalidReason,
+          facilitator_message: rawMsg || undefined,
           raw_status: rawStatus,
-          raw_response: rawResponseBody?.slice(0, 1000),
-          request_sent: requestBody,
+          hint: isNotRegistered
+            ? 'Service uses a facilitator other than x402.org. Discover the correct facilitator URL from the 402 response.'
+            : undefined,
           wallet_balance_usdc: balanceUsdc,
           has_sufficient_balance: hasBalance,
           authorization_ttl_seconds,
