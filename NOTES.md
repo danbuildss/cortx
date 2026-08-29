@@ -678,6 +678,18 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 **Action:** Note for future spec update (Track 3 or later). Do not update the blog post — it's already published and the finding stands.
 
+**Follow-up from DukeOphir — second reply (Aug 29, 2026):**
+
+> "Services listed on the CDP bazaar are only indexed after a successful mainnet payment. So if this is how you discover services, you can be assured they are configured correctly with a prod facilitator"
+
+**What this means:**
+
+- **CDP bazaar** (Coinbase Developer Platform service directory) = curated list of production-ready x402 services
+- Services are only listed after a *successful mainnet payment* — this is an on-chain proof of a working production facilitator
+- This is the cleanest signal available for "this service has a valid production facilitator" — stronger than any client-side check
+- **Future opportunity:** CORTX could cross-reference against CDP bazaar when verifying a new endpoint submission — if it's listed there, the facilitator issue is already solved; if it's not, our facilitator verification is even more valuable
+- **Roadmap note:** Track 3 (Verify) could include a CDP bazaar check as part of the submission flow or the CORTX Score computation
+
 ---
 
 ## Machine Commerce Protection Direction (Aug 28, 2026)
