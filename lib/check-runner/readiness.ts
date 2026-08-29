@@ -411,13 +411,19 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
       const balanceUsdc = formatUnits(balance, USDC_DECIMALS);
       const hasBalance = balance >= parseUnits(observed_price!, USDC_DECIMALS);
 
-      // Build the x402 payment requirements shape the library expects
+      // Build the x402 payment requirements shape the library expects.
+      // PaymentRequirementsSchema at x402.org/facilitator requires `resource` to be a
+      // valid URL. Many services omit it from the 402 body, so fall back to the
+      // endpoint URL — which is always a valid URL and is the resource being paid for.
       const network = CAIP2_TO_X402[matchingOption.network] ?? matchingOption.network;
+      const resourceUrl = (typeof matchingOption.resource === 'string' && matchingOption.resource)
+        ? matchingOption.resource
+        : config.endpoint_url;
       const paymentRequirements = {
         scheme:            matchingOption.scheme            ?? 'exact',
         network,
         maxAmountRequired: matchingOption.maxAmountRequired,
-        resource:          matchingOption.resource          ?? '',
+        resource:          resourceUrl,
         description:       matchingOption.description       ?? '',
         mimeType:          matchingOption.mimeType          ?? 'application/json',
         payTo:             matchingOption.payTo as string,
