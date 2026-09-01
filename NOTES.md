@@ -663,6 +663,48 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
+## Market Signal — Bankr: Pre-flight Validation (Aug 29, 2026)
+
+After CORTX posted about the Bankr reliability skill ("check any endpoint with one click"), Bankr publicly replied:
+
+> "pre-flight validation before micropayment execution is essential for autonomous agent workflows. cuts down on failed calls, saves fees, and builds verifiable reliability across x402 routes."
+
+**Why this matters:** Bankr independently described CORTX using language very close to Payment Readiness — without prompting. This is external validation of the problem direction, not proof of PMF.
+
+**Key language Bankr used:**
+- pre-flight validation before payment execution
+- reducing failed calls
+- saving fees
+- building verifiable reliability across x402 routes
+
+**Positioning note:** "Pre-flight validation" is useful language for the agent-facing layer. Do NOT replace current positioning yet:
+> *Reliability infrastructure for x402 — verify paid services actually deliver.*
+
+Preserve "pre-flight validation" as a potential product/category concept as Payment Readiness develops.
+
+**Emerging product progression:**
+
+```
+MONITOR    → Is the x402 service operational?
+VERIFY     → Has CORTX independently confirmed successful paid delivery?
+PREFLIGHT  → Should an agent trust this service/payment path before spending right now?
+PROTECT    → What happens when an agent pays but valid delivery does not occur? (DO NOT BUILD YET)
+```
+
+**Possible future agent interaction:**
+> Agent wants to call x402 service → CORTX preflight → reliability/history + current payment readiness → SAFE / CAUTION / AVOID → agent decides whether to spend
+
+**This does NOT change the roadmap.** Current priorities remain:
+1. Validate triggered paid checks
+2. Run the /verify experiment
+3. Upgrade Payment Readiness only if experiment succeeds
+4. Get more builders/endpoints monitored
+5. Accumulate real incident and reliability history
+
+This strengthens the reason for the current /verify experiment — the same infrastructure could eventually support agent-facing pre-flight validation.
+
+---
+
 ## Hackathon Insight — "Memory is Load-Bearing" (Aug 29, 2026)
 
 **Context:** Sibyl Labs hackathon with theme "build agents where memory is load-bearing." SingIt Agent entered, building an agent that remembers budget approvals and trusted/rejected merchants — so it stops asking about what you already allowed.
