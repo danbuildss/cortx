@@ -73,6 +73,7 @@ export async function PATCH(req: NextRequest) {
       .update({ status: 'rejected', reviewed_at: new Date().toISOString(), reviewed_by: user.id, rejection_reason })
       .eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await recordCoriDecision(db, sub.discovered_service_id, 'rejected', { submission_id: id, reason: rejection_reason });
     return NextResponse.json({ success: true });
   }
 
@@ -108,5 +109,33 @@ export async function PATCH(req: NextRequest) {
     .eq('id', id);
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  await recordCoriDecision(db, sub.discovered_service_id, 'approved', { submission_id: id, seed_id: seed.id }, seed.id);
   return NextResponse.json({ success: true, seed_id: seed.id });
+}
+
+// Cori candidates: write the review decision back into Cori's memory so it
+// stops treating an approved service as a candidate and records the history.
+// Never fails the review itself.
+async function recordCoriDecision(
+  db: ReturnType<typeof serviceClient>,
+  discoveredServiceId: string | null | undefined,
+  event: 'approved' | 'rejected',
+  details: Record<string, unknown>,
+  seedId?: string
+): Promise<void> {
+  if (!discoveredServiceId) return;
+  try {
+    if (event === 'approved' && seedId) {
+      await db.from('discovered_services').update({
+        linked_seed_id: seedId,
+        classification: 'already_listed',
+        classification_reasons: ['linked:registry'],
+        next_probe_at: null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', discoveredServiceId);
+    }
+    await db.from('discovery_events').insert({ discovered_service_id: discoveredServiceId, event, details });
+  } catch (err) {
+    console.error('[admin/submissions] Cori link-back failed:', err instanceof Error ? err.message : err);
+  }
 }

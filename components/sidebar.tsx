@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAppTheme } from './app-theme-provider';
+import { HEARTBEAT_DISPLAY } from '@/lib/cori/status';
+import type { CoriNav } from '@/app/(app)/admin/cori-data';
 
 // ── Icons ──────────────────────────────────────────────────
 function OverviewIcon() {
@@ -76,6 +78,16 @@ function AdminIcon() {
   );
 }
 
+function CoriIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6.5"/>
+      <circle cx="8" cy="8" r="3"/>
+      <line x1="8" y1="8" x2="12.6" y2="3.4"/>
+    </svg>
+  );
+}
+
 function ExternalIcon() {
   return (
     <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -118,6 +130,7 @@ interface SidebarProps {
   userId: string;
   openIncidents?: number;
   isAdmin?: boolean;
+  cori?: CoriNav | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────
@@ -131,7 +144,7 @@ function initials(displayName: string | null, email: string): string {
 }
 
 // ── Component ──────────────────────────────────────────────
-export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin = false }: SidebarProps) {
+export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin = false, cori = null }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -163,6 +176,12 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
 
   const avatarLetters = initials(displayName, email);
   const w = collapsed ? 52 : 224;
+
+  // /admin/cori is its own item, so Admin is only active on /admin itself
+  const adminActive = pathname === '/admin';
+  const coriActive = isActive('/admin/cori');
+  const coriDisplay = HEARTBEAT_DISPLAY[cori?.state ?? 'not_started'];
+  const coriWaiting = cori?.waiting ?? 0;
 
   const mainNav = [
     { label: 'Overview', href: '/overview', icon: <OverviewIcon /> },
@@ -309,11 +328,11 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
             <div style={{ height: 1, background: 'var(--sidebar-border)', margin: '6px 4px' }} />
             <Link
               href="/admin"
-              className={`app-nav-link${isActive('/admin') ? ' active' : ''}`}
+              className={`app-nav-link${adminActive ? ' active' : ''}`}
               title={collapsed ? 'Admin' : undefined}
-              style={linkStyle(isActive('/admin'))}
+              style={linkStyle(adminActive)}
             >
-              <span style={{ flexShrink: 0, opacity: isActive('/admin') ? 1 : 0.55 }}><AdminIcon /></span>
+              <span style={{ flexShrink: 0, opacity: adminActive ? 1 : 0.55 }}><AdminIcon /></span>
               {!collapsed && (
                 <>
                   <span style={{ flex: 1, whiteSpace: 'nowrap' }}>Admin</span>
@@ -323,6 +342,30 @@ export function Sidebar({ email, displayName, userId, openIncidents = 0, isAdmin
                     border: '1px solid rgba(239,68,68,0.2)', whiteSpace: 'nowrap',
                   }}>OWNER</span>
                 </>
+              )}
+            </Link>
+            <Link
+              href="/admin/cori"
+              className={`app-nav-link${coriActive ? ' active' : ''}`}
+              title={collapsed ? `Cori · ${coriDisplay.label}` : undefined}
+              style={{ ...linkStyle(coriActive), position: 'relative' }}
+            >
+              <span style={{ flexShrink: 0, opacity: coriActive ? 1 : 0.55 }}><CoriIcon /></span>
+              {!collapsed && (
+                <>
+                  <span style={{ whiteSpace: 'nowrap' }}>Cori</span>
+                  <span aria-label={coriDisplay.label} title={coriDisplay.label} style={{ width: 7, height: 7, borderRadius: '50%', background: coriDisplay.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1 }} />
+                  {coriWaiting > 0 && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, background: 'var(--status-degraded)', color: '#fff',
+                      borderRadius: 99, padding: '1px 5px', lineHeight: '15px',
+                    }}>{coriWaiting}</span>
+                  )}
+                </>
+              )}
+              {collapsed && (
+                <span style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: '50%', background: coriDisplay.color }} />
               )}
             </Link>
           </>

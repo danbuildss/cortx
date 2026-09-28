@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/sidebar';
 import { MobileNav } from '@/components/mobile-nav';
 import { AppThemeProvider } from '@/components/app-theme-provider';
 import { FeedbackWidget } from '@/components/feedback-widget';
+import { adminServiceClient, loadCoriNav } from './admin/cori-data';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user = null;
@@ -35,12 +36,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login');
 
+  const isAdmin = !!process.env.CORTX_ADMIN_USER_ID && user!.id === process.env.CORTX_ADMIN_USER_ID;
+  // Owner only: Cori's health dot and review count for the sidebar
+  const cori = isAdmin ? await loadCoriNav(adminServiceClient()) : null;
+
   const sharedNavProps = {
     email: user!.email ?? '',
     displayName,
     userId: user!.id,
     openIncidents,
-    isAdmin: !!process.env.CORTX_ADMIN_USER_ID && user!.id === process.env.CORTX_ADMIN_USER_ID,
+    isAdmin,
+    cori,
   };
 
   return (

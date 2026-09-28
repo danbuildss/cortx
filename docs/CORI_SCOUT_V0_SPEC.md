@@ -1,6 +1,6 @@
 # Cori Scout v0 — Technical Spec
 
-**Status:** APPROVED with defaults (Sep 28, 2026) · Phases A + B built
+**Status:** APPROVED with defaults (Sep 28, 2026) · Phases A, B + C built
 **Scope:** discovery only. Zero USDC. No public claims. No LLM.
 
 ---
@@ -389,3 +389,23 @@ Estimated: A–C about a week of build; D a day with the founder; E one week of 
   - The same pipeline on real Postgres **as `cori_agent`** (production-shaped schema, migrations 023/024) confirms permissions are sufficient and still restrictive.
 - Smoke-tested the built bundle: dry run writes nothing but `dry:*` run rows; a second instance exits on the lock; SIGTERM stops cleanly.
 - The real Bazaar is unreachable from the build container (egress filter), so its live field names get confirmed on the first dry run on the VPS (Phase D).
+
+## Phase C status (built)
+
+- **Cori has its own owner-only page, `/admin/cori`** (founder's choice after seeing the full admin page on a phone), plus a **Cori item in the sidebar and phone menu** under Admin: a health dot (green < 10 min, amber < 30 min, red after, grey before the first run) and a count of candidates waiting for review. The page (`app/(app)/admin/cori/page.tsx`, blocks in `cori-panel.tsx`, reads in `cori-data.ts`) shows:
+  - status: heartbeat, live vs dry run, the last Bazaar scan, services known
+  - **Waiting for you**: Cori's pending candidates as cards with Approve / Reject, and facts from `candidate_metadata` (`cori-candidate.tsx`): price, network, x402 version, method, plain-English "why eligible", the needs-input flag, first seen + source, "Observed (not verified)"
+  - **What Cori knows**: counts per class (head-count queries, because PostgREST caps row reads at 1,000)
+  - recent errors and the last 20 discovery events
+  - before Phase D: only a "Not started yet" card
+- `/admin` keeps one slim Cori line under the header ("● Running · N waiting · Open Cori →"). Its **Pending Submissions** list shows only people's submissions, plus a "N found by Cori → review on the Cori page" line when Cori has candidates.
+- **Review write-back** (`/api/admin/submissions`):
+  - approve sets `linked_seed_id`, class `already_listed`, and logs an `approved` event
+  - reject logs a `rejected` event with the reason
+  - never fails the review itself
+- **Watchdog** in the CORTX cron:
+  - Telegram alert when the newest `cori_runs` row is older than 30 min, repeated at most every 6 h
+  - a single "back" message on recovery
+  - silent until Cori has run once
+  - state kept in `system_settings.cori_watchdog`
+- Pure logic in `lib/cori/status.ts` with tests.
