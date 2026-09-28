@@ -663,6 +663,39 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
+## Product Audit + Market Check (Sep 28, 2026)
+
+Context: ~1 month away from CORTX. Deployment was down, now back. Test wallet is empty. Audit done from code (live site + DB not reachable from the Claude container, so real usage numbers still need pulling from /admin).
+
+### Critical findings (code)
+
+1. **Empty wallet blames builders (P0).** `INSUFFICIENT_BALANCE`, missing key, and spend-cap hits all fail the `payment` stage → check `failed` → service `critical` → incident + Telegram/Discord alert after 2 checks. Public status pages, badges and the reliability API then show the builder's service as broken when the fault is CORTX's wallet. Fix: classify CORTX-side payment failures as `error`, not `failed`. Clean up past checks/incidents caused by it.
+2. **Spend-cap pause does nothing.** `app/api/cron/route.ts` clears `monitoring_paused_reason` for every capped service on every tick without checking whether the cap reset (`todayStart`/`monthStart` computed but unused).
+3. **No x402 V2 payments.** Runner parses V2 402 responses but pays with the V1 client (`x402` v1, `X-Payment` header, `maxAmountRequired` only). V2-only services (`PAYMENT-SIGNATURE` header, `amount` field — e.g. Exa) will fail and look broken.
+4. **"Payment confirmed" isn't verified.** Payment stage records `confirmed: true` after signing only; settlement response header is never read. Evidence claims more than it proves.
+5. **/report can drain the budget.** Free report pays up to $0.10 to any URL. Rotating IPs/emails can send CORTX money to an attacker endpoint until the global cap is hit, which then starves (and via #1, falsely fails) every monitored service.
+6. **Cron is serial with a 60s limit** — will not scale past a handful of paid checks per tick.
+7. **Readiness (/verify, zero-settlement) is built but not wired** — only the admin experiment route uses it. Track 2 result was GO.
+8. **No automated tests** for the check runner.
+
+### Market (Sep 2026) — the category is now crowded
+
+- **ScoutScore** (scoutscore.ai) — closest competitor. 2,079 domains scored, 198 paid-verified with real USDC, V1+V2 headers, MCP + npm SDK + ElizaOS plugin, ERC-8004 registered. Their data: of 169 services accepting payment, **only 36% delivered a working response**. Validates CORTX's thesis hard.
+- **x402-trust.com / x402-trust-mcp** — probes, 402 compliance, price history, on-chain settlement volume. No real paid calls. Paid MCP tools via x402.
+- **402audit** — proxy/resale detection + markup, leaderboard, MCP yes/no.
+- **PayCrow, x402r** — escrow/refund around x402 payments (the Protect layer is being built by others).
+- **ERC-8183 (Agentic Commerce)** — job escrow with an *evaluator* who attests delivery. Natural home for CORTX's verdicts.
+
+### Strategic takeaway
+
+Don't race ScoutScore on breadth with an empty wallet. CORTX's defensible ground:
+- **Depth:** owner-verified endpoints with an owner-defined delivery contract (schema), verified continuously.
+- **Live evidence over synthetic:** a client SDK that wraps an agent's x402 calls (preflight before, delivery check after, report outcome) turns every real agent call into reliability data without CORTX spending.
+- **Self-funding:** an x402-paid preflight endpoint makes checks pay for themselves.
+- **Evaluator role:** CORTX as the neutral delivery verifier (ERC-8183 evaluator) is the path to "agents only pay for delivered results".
+
+---
+
 ## Market Signal — Bankr: Pre-flight Validation (Aug 29, 2026)
 
 After CORTX posted about the Bankr reliability skill ("check any endpoint with one click"), Bankr publicly replied:
