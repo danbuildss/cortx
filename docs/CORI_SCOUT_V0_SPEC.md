@@ -1,6 +1,6 @@
 # Cori Scout v0 — Technical Spec
 
-**Status:** APPROVED with defaults (Sep 28, 2026) · Phases A + B built
+**Status:** APPROVED with defaults (Sep 28, 2026) · Phases A, B + C built
 **Scope:** discovery only. Zero USDC. No public claims. No LLM.
 
 ---
@@ -389,3 +389,23 @@ Estimated: A–C about a week of build; D a day with the founder; E one week of 
   - The same pipeline on real Postgres **as `cori_agent`** (production-shaped schema, migrations 023/024) confirms permissions are sufficient and still restrictive.
 - Smoke-tested the built bundle: dry run writes nothing but `dry:*` run rows; a second instance exits on the lock; SIGTERM stops cleanly.
 - The real Bazaar is unreachable from the build container (egress filter), so its live field names get confirmed on the first dry run on the VPS (Phase D).
+
+## Phase C status (built)
+
+- Admin **Cori panel** (`app/(app)/admin/cori-panel.tsx`). It shows:
+  - heartbeat state: green < 10 min, amber < 30 min, red after
+  - live vs dry run
+  - the last Bazaar scan
+  - counts per class (head-count queries, because PostgREST caps row reads at 1,000)
+  - recent errors and the last 12 discovery events
+- **Pending Submissions** show Cori candidates with a badge and facts from `candidate_metadata` (`cori-candidate.tsx`): price, network, x402 version, method, plain-English "why eligible", the needs-input flag, first seen + source, and "Observed (not verified)".
+- **Review write-back** (`/api/admin/submissions`):
+  - approve sets `linked_seed_id`, class `already_listed`, and logs an `approved` event
+  - reject logs a `rejected` event with the reason
+  - never fails the review itself
+- **Watchdog** in the CORTX cron:
+  - Telegram alert when the newest `cori_runs` row is older than 30 min, repeated at most every 6 h
+  - a single "back" message on recovery
+  - silent until Cori has run once
+  - state kept in `system_settings.cori_watchdog`
+- Pure logic in `lib/cori/status.ts` with tests (77 total).

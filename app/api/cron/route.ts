@@ -5,6 +5,7 @@ import { runFullCheck, runCanaryCheck, getSpendCaps } from '@/lib/check-runner/r
 import { runLightweightCheck } from '@/lib/check-runner/lightweight';
 import { runReadinessCheck, readinessToCheckResult, readinessReason } from '@/lib/check-runner/readiness';
 import { READINESS_UNAVAILABLE_RECHECK_MINUTES } from '@/lib/check-runner/schedule';
+import { minutesSince, parseWatchdogState, watchdogDecision } from '@/lib/cori/status';
 import { persistCheckResult } from '@/lib/check-runner/persist';
 import type { TriggerSource } from '@/lib/check-runner/persist';
 import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
@@ -37,6 +38,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // ── Wallet balance check (admin alert) ────────────────────────────────────
   await checkWalletBalance();
+
+  // ── Cori watchdog (admin alert if the Cori agent goes silent) ─────────────
+  await checkCoriHeartbeat().catch((err) => console.error('Cori watchdog failed:', err));
 
   // ── Loop 1: Lightweight pings ─────────────────────────────────────────────
   const { data: lightweightDue, error: lwErr } = await db
@@ -268,6 +272,50 @@ async function unpauseServicesWithResetCaps(db: SupabaseClient): Promise<void> {
     .update({ monitoring_paused_reason: null })
     .in('monitoring_paused_reason', reasonsToClear)
     .is('deleted_at', null);
+}
+
+// Alerts the admin on Telegram when the Cori agent (VPS) stops reporting in:
+// once when it goes silent for 30+ min, again at most every 6 h while it
+// stays down, and once when it's back. Silent until Cori has ever run.
+async function checkCoriHeartbeat(): Promise<void> {
+  const adminChatId = process.env.CORTX_ADMIN_TELEGRAM_CHAT_ID;
+  if (!adminChatId) return;
+
+  // cori_runs / system_settings aren't in the generated Supabase types
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createClient<any>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: lastRun, error } = await db
+    .from('cori_runs')
+    .select('started_at')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return; // table missing or unreachable — nothing to report
+
+  const { data: setting } = await db
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'cori_watchdog')
+    .maybeSingle();
+
+  const now = new Date();
+  const lastRunAt = lastRun?.started_at ? new Date(lastRun.started_at as string) : null;
+  const decision = watchdogDecision(lastRunAt, parseWatchdogState(setting?.value as string | null), now);
+  if (!decision.send) return;
+
+  const text = decision.send === 'down'
+    ? `⚠️ <b>Cori is silent</b>\n\nNo report from the Cori agent for ${minutesSince(lastRunAt!, now)} minutes. ` +
+      `Check the Cori server (<code>systemctl status cori</code>, <code>journalctl -u cori</code>).`
+    : `✅ <b>Cori is running again</b>\n\nThe Cori agent is reporting in.`;
+  await sendTelegramAlert(adminChatId, text).catch(() => {});
+
+  await db
+    .from('system_settings')
+    .upsert({ key: 'cori_watchdog', value: JSON.stringify(decision.next), updated_at: now.toISOString() });
 }
 
 // Checks the CORTX test wallet balance and sends a Telegram alert to the admin

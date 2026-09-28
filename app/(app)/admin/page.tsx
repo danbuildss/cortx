@@ -4,6 +4,10 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
 import { RegistrySeedForm } from './registry-seed-form';
 import { SubmissionActions } from './submission-actions';
+import { CoriPanel, type CoriEvent, type CoriRun } from './cori-panel';
+import { CoriBadge, CoriCandidateDetails } from './cori-candidate';
+import { CLASS_ORDER } from '@/lib/cori/status';
+import type { Classification } from '@/lib/cori/classify';
 
 const ADMIN_USER_ID = process.env.CORTX_ADMIN_USER_ID ?? '';
 
@@ -71,11 +75,24 @@ export default async function AdminPage() {
     // window stats computed via separate count queries below
     Promise.resolve({ data: [] as { status: string; observed_price: string | null; started_at: string }[] }),
     service.from('registry_seeds').select('id, name, endpoint_url, description, status, is_verified, created_at').order('created_at', { ascending: false }),
-    service.from('endpoint_submissions').select('id, endpoint_url, name, description, category, x_handle, website_url, submitter_email, submitted_at, status, rejection_reason, seed_id').eq('status', 'pending').order('submitted_at', { ascending: false }),
+    service.from('endpoint_submissions').select('id, endpoint_url, name, description, category, x_handle, website_url, submitter_email, submitted_at, status, rejection_reason, seed_id, source, candidate_metadata').eq('status', 'pending').order('submitted_at', { ascending: false }),
     service.from('incidents').select('id', { count: 'exact', head: true }),
     service.from('incidents').select('id', { count: 'exact', head: true }).eq('status', 'resolved'),
     service.from('endpoint_submissions').select('status'),
   ]);
+
+  // Cori (agent on the VPS): run log, what it knows, recent activity.
+  // Counts per class use head-count queries (PostgREST caps row reads at 1000).
+  const [coriRunsRes, coriTotalRes, coriEventsRes, ...coriClassRes] = await Promise.all([
+    service.from('cori_runs').select('kind, started_at, ok, stats, error').order('started_at', { ascending: false }).limit(50),
+    service.from('discovered_services').select('id', { count: 'exact', head: true }),
+    service.from('discovery_events').select('at, event, details, discovered_services(service_name, canonical_url)').order('at', { ascending: false }).limit(12),
+    ...CLASS_ORDER.map((c) => service.from('discovered_services').select('id', { count: 'exact', head: true }).eq('classification', c)),
+  ]);
+  const coriRuns = (coriRunsRes.data ?? []) as CoriRun[];
+  const coriEvents = (coriEventsRes.data ?? []) as unknown as CoriEvent[];
+  const coriClassCounts: Partial<Record<Classification, number>> = {};
+  CLASS_ORDER.forEach((c, i) => { coriClassCounts[c] = coriClassRes[i]?.count ?? 0; });
 
   const authUsers = authResult.data?.users ?? [];
   const services = allServices ?? [];
@@ -298,6 +315,14 @@ export default async function AdminPage() {
           </div>
         ))}
       </div>
+
+      <CoriPanel
+        runs={coriRuns}
+        classCounts={coriClassCounts}
+        totalDiscovered={coriTotalRes.count ?? 0}
+        events={coriEvents}
+        now={now}
+      />
 
       {/* Multi-window stats */}
       <div style={{ marginBottom: 20, ...card }}>
@@ -689,9 +714,13 @@ export default async function AdminPage() {
                   return (
                     <tr key={sub.id}>
                       <td style={tdStyle}>
-                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 }}>{sub.name}</div>
-                        <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-dim)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.endpoint_url}</div>
-                        {sub.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, maxWidth: 240 }}>{sub.description}</div>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          {sub.source === 'cori_scout' && <CoriBadge />}
+                          <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{sub.name}</span>
+                        </div>
+                        <a href={sub.endpoint_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-dim)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none' }}>{sub.endpoint_url} ↗</a>
+                        {sub.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, maxWidth: 320 }}>{sub.description}</div>}
+                        {sub.source === 'cori_scout' && <CoriCandidateDetails metadata={sub.candidate_metadata} />}
                         {(sub.x_handle || sub.website_url) && (
                           <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
                             {sub.x_handle && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{sub.x_handle}</span>}
@@ -706,7 +735,7 @@ export default async function AdminPage() {
                         }
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub.submitter_email ?? '—'}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub.source === 'cori_scout' ? 'Cori Scout' : (sub.submitter_email ?? '—')}</span>
                       </td>
                       <td style={tdStyle}>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(sub.submitted_at)}</span>
