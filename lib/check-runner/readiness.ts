@@ -24,6 +24,8 @@ import {
   atomicAmount,
   findFacilitatorUrl,
   isServiceSideVerifyRejection,
+  NETWORK_ALIASES,
+  selectPaymentOption,
   parsePaymentRequired,
   priceToUsdc,
   type ParsedPaymentRequired,
@@ -34,17 +36,12 @@ import type { CheckResult, StageName, StageResult } from './types';
 const REQUEST_TIMEOUT_MS = 10_000;
 const VERIFY_TIMEOUT_MS = 10_000;
 const RESPONSE_BODY_MAX_BYTES = 1_048_576;
-const USDC_BASE_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // lowercase
 
 const CAIP2_TO_X402: Record<string, string> = {
   'eip155:8453':  'base',
   'eip155:84532': 'base-sepolia',
 };
 
-const NETWORK_ALIASES: Record<string, string[]> = {
-  mainnet: ['base', 'eip155:8453'],
-  testnet: ['base-sepolia', 'eip155:84532'],
-};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -288,8 +285,7 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
     }
 
     const acceptedNetworks = NETWORK_ALIASES[config.environment] ?? NETWORK_ALIASES.mainnet;
-    const onNetwork = parsed.options.filter((o) => acceptedNetworks.includes(o.network));
-    const option = onNetwork.find((o) => ['usdc', USDC_BASE_ADDRESS].includes(o.asset.toLowerCase())) ?? onNetwork[0];
+    const option = selectPaymentOption(parsed.options, config.environment);
 
     if (!option) {
       fail(stageTerms, 'UNSUPPORTED_NETWORK', {

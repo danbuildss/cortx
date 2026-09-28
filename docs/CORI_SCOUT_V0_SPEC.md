@@ -1,6 +1,6 @@
 # Cori Scout v0 — Technical Spec
 
-**Status:** DRAFT for founder approval · Sep 28, 2026
+**Status:** APPROVED with defaults (Sep 28, 2026) · Phase A built
 **Scope:** discovery only. Zero USDC. No public claims. No LLM.
 
 ---
@@ -61,7 +61,7 @@ Key boundaries:
 | S4 | **Merchant expansion** | For an eligible service, query S1 with `payTo=<merchant>` to find the merchant's other resources. | High (same source) | ✅ capped |
 | — | ScoutScore API, x402 directory websites, on-chain settlement crawling | Not used in v0: competitor data dependency / scraping terms / cost. Revisit with permission or an official API. | — | ❌ |
 
-**To confirm in Phase A (can't be reached from the build container):** the exact CDP facilitator base URL, whether `/discovery/resources` needs a CDP API key (if so: a read-only key on the VPS, which is not a money credential), rate limits, and the exact field names of the Bazaar input/output metadata inside `extensions`. The spec treats these as config, not constants.
+**Confirmed in Phase A:** `GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources`. Bazaar discovery is **public: no CDP API key needed**. About **16,170 resources** were indexed as of Sep 2026 (per coinbase/cdp-sdk#806). **Still to confirm on the first dry run** (not reachable from the build container): rate limits, and the exact field names of the Bazaar input/output metadata inside `extensions`. `lib/cori/bazaar.ts` reads them leniently.
 
 ---
 
@@ -75,6 +75,7 @@ One **cycle** per source (default every 6 h, jittered), plus a continuous **prob
 4. **Upsert** `discovered_services` (by `canonical_url`) and `discovery_sources_seen` (by service + source). Write a `discovery_events` row for `first_seen`, `listing_changed` (content hash differs) and `reappeared`.
 5. **Link** against CORTX records (S3): set `linked_service_id` / `linked_seed_id` / `linked_submission_id`.
 6. **Schedule a probe**: new → now; listing changed → now; otherwise per the cadence in §6.
+6b. **Listing-first classification.** Each listing already carries its `accepts[]` (network, asset, scheme, price), so Scout classifies from the listing first. Only services that pass on paper (class `pending`) get a live probe. With about 16k listings, that avoids probing thousands of off-network or expensive endpoints.
 7. **Probe** (free; §6) → parse the 402 with `parsePaymentRequired()` → choose the Base+USDC option (same rule as the runner) → `priceToUsdc()`, `findFacilitatorUrl()`.
 8. **Classify** (§7). On a class change, write a `discovery_events` row.
 9. **Queue**: `eligible` / `needs_input` candidates not yet queued → insert into `endpoint_submissions` with `source = 'cori_scout'` (§4). Daily cap (default 25).
@@ -262,6 +263,7 @@ A probe asks "does this URL answer with valid x402 payment terms?". **It can nev
 
 ## 10. Security / SSRF protections
 
+- **Address rules are now an allow-list** (`lib/net/ip.ts`, shared with the existing runner): only public unicast addresses pass. This closes gaps in the old block-list: IPv4-mapped IPv6 (`::ffff:127.0.0.1`), 6to4, multicast and similar.
 - **Tightened URL safety for Cori:** today `validateAndResolveUrl()` checks DNS once, but `fetch()` resolves again, which leaves a DNS-rebinding window. Cori uses a **pinned fetch**: an `undici` `Agent` whose `connect.lookup` rejects private/reserved addresses **at connect time** (same `ipaddr.js` rules as today). https only, blocked ports as today.
 - **Redirects:** manual, ≤ 2, each hop re-validated; never follow to http or to a private address.
 - **Caps everywhere:** response bodies (64 KB probes / 5 MB source pages), JSON metadata stored (16 KB), text fields (name 120 chars, description 1,000), tags (20).
@@ -356,10 +358,19 @@ Estimated: A–C about a week of build; D a day with the founder; E one week of 
 
 ---
 
-## Decisions needed before Phase A
+## Decisions (approved Sep 28, 2026)
 
-1. **Eligible price cap:** default **$0.05** per call?
-2. **Daily queue cap:** default **25** new candidates/day?
-3. **Sources at start:** CDP Bazaar only (recommended), with others added via `cori_sources` after review?
-4. **DB access:** dedicated `cori_agent` role (recommended) vs the service-role key on the VPS (not recommended: full database access).
-5. **User-Agent contact:** point to the GitHub repo for now, and add a short public "About Cori / opt-out" page later?
+1. Eligible price cap: **$0.05** per call (`CORI_MAX_ELIGIBLE_PRICE_USDC`)
+2. Daily queue cap: **25** new candidates/day
+3. Sources at start: **CDP Bazaar only**, others added later via `cori_sources`
+4. DB access: dedicated **`cori_agent`** least-privilege role (no service-role key on the VPS)
+5. User-Agent contact: the **GitHub repo** for now; an "About Cori / opt-out" page later
+
+## Phase A status (built)
+
+- `supabase/migrations/023_cori_scout.sql`: tables, queue link, `cori_agent` role + RLS policies. Verified on Postgres 16 (re-runnable; the role can't read checks/incidents/private columns, can't approve, can't write the registry, and can only queue `cori_scout` + `pending`, once per service).
+- `lib/net/ip.ts`: shared allow-list address rules (now also used by the existing runner).
+- `lib/net/safe-fetch.ts`: connect-time DNS pinning, re-validated redirects that never replay a body, body/time caps.
+- `lib/cori/normalize.ts`, `lib/cori/classify.ts`, `lib/cori/bazaar.ts`: pure pipeline pieces.
+- `selectPaymentOption` / `NETWORK_ALIASES` / `isUsdcAsset` moved into `lib/check-runner/x402.ts`, so the runner, readiness and Scout share one rule.
+- Tests: 61 total (31 new: normalization, full classification matrix, Bazaar V1/V2 parsing and caps, IP rules, safe-fetch against a real local HTTPS server incl. DNS rebinding).

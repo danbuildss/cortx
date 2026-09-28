@@ -672,7 +672,9 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 - Infra: Cori gets its **own Hetzner VPS in a separate CORTX project from Phase 1**. VPS = discovery, free probes, baselines, anomaly detection, investigation orchestration. **No wallet key on the VPS**; paid checks go DB queue → existing Vercel payment path. Spending is deterministic (price cap, global daily/monthly budget, per-service limits, cooldowns, known-good input). **No AI controls spending.**
 - Content style: specific, reproducible incident evidence + recovery — not dramatic ecosystem-wide percentages.
 - Thesis: **the checker can be open; the network and accumulated evidence are the moat.**
-- **Now building: Scout v0 only** — spec at `docs/CORI_SCOUT_V0_SPEC.md` (awaiting approval). Discovery only, zero USDC, no public claims, no LLM, candidates into the existing admin review queue.
+- **Now building: Scout v0 only**: spec at `docs/CORI_SCOUT_V0_SPEC.md`, **approved with defaults Sep 28** ($0.05 eligible cap, 25/day queue cap, CDP Bazaar only, `cori_agent` least-privilege DB role, GitHub repo as UA contact). Discovery only, zero USDC, no public claims, no LLM, candidates into the existing admin review queue.
+- **Phase A built (PR open):** migration 023 (tables + `cori_agent` role + RLS), shared allow-list IP rules, SSRF-safe fetch with connect-time DNS pinning, URL normalization, classification, Bazaar listing parser; 61 tests. Bazaar confirmed public (no API key), ~16k resources → listing-first classification, only probe what passes on paper. **Founder action after merge:** run migration 023, then set the role password (`alter role cori_agent with login password '…'`, kept in a password manager — it goes on the VPS in Phase D).
+- Next: Phase B (agent/cori process: sources, probe, queue, scheduler, dry-run), then C (admin panel + watchdog), D (VPS go-live), E (observe a week).
 
 ## Proposal: Autonomous Reliability Network / "Cori" agent (Sep 28, 2026) — superseded by LOCKED DIRECTION above
 
