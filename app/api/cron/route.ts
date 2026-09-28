@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { runFullCheck, runCanaryCheck } from '@/lib/check-runner/runner';
+import { timingSafeEqual } from 'crypto';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { runFullCheck, runCanaryCheck, getSpendCaps } from '@/lib/check-runner/runner';
 import { runLightweightCheck } from '@/lib/check-runner/lightweight';
 import { persistCheckResult } from '@/lib/check-runner/persist';
 import type { TriggerSource } from '@/lib/check-runner/persist';
@@ -21,7 +22,7 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = req.headers.get('authorization') ?? '';
   const secret = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (!secret || secret !== process.env.CRON_SECRET) {
+  if (!isValidCronSecret(secret, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -76,17 +77,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── Loop 2: Paid verifications ────────────────────────────────────────────
-  // Auto-unpause services paused by a spend cap if the cap has reset
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const monthStart = new Date(todayStart);
-  monthStart.setUTCDate(1);
-
-  await db
-    .from('services')
-    .update({ monitoring_paused_reason: null })
-    .in('monitoring_paused_reason', ['SPEND_CAP_DAILY', 'SPEND_CAP_MONTHLY'])
-    .is('deleted_at', null);
+  // Auto-unpause services paused by a spend cap, but only once that cap has reset
+  await unpauseServicesWithResetCaps(db);
 
   const { data: paidDue, error: paidErr } = await db
     .from('services')
@@ -155,14 +147,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .eq('user_id', svc.user_id)
           .eq('active', true);
 
-        const label = capCode === 'DAILY_SPEND_CAP_EXCEEDED'
-          ? 'Daily spend cap reached'
-          : 'Monthly spend cap reached';
+        const resumes = capCode === 'DAILY_SPEND_CAP_EXCEEDED'
+          ? 'tomorrow (00:00 UTC)'
+          : 'at the start of next month (UTC)';
+        // The cap is CORTX's platform-wide verification budget, not the builder's.
         const alertText =
-          `⚠️ <b>CORTX monitoring paused</b>\n\n` +
-          `<b>${svc.name}</b> — ${label}.\n\n` +
-          `Paid verification has stopped. The service will resume automatically when the cap resets. ` +
-          `Check your spend limits in CORTX settings.`;
+          `ℹ️ <b>CORTX paid verification paused</b>\n\n` +
+          `<b>${svc.name}</b> — CORTX has used its verification budget for this period. ` +
+          `This is on our side, not a problem with your service, and your status is unchanged.\n\n` +
+          `Free availability checks continue. Paid verification resumes automatically ${resumes}.`;
 
         for (const conn of telegramConns ?? []) {
           await sendTelegramAlert(conn.chat_id, alertText).catch(() => {});
@@ -182,6 +175,43 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       anomaly_triggered: triggeredServiceIds.length,
     },
   });
+}
+
+function isValidCronSecret(provided: string, expected: string | undefined): boolean {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// Clears spend-cap pauses only when the cap that caused them has actually reset.
+// Uses the get_spend_totals RPC (migration 020). If the RPC is unavailable,
+// falls back to unpausing everything (the pre-020 behaviour) so services never
+// get stuck paused — the next capped check simply re-pauses them.
+async function unpauseServicesWithResetCaps(db: SupabaseClient): Promise<void> {
+  const { data, error } = await db.rpc('get_spend_totals');
+  const row = Array.isArray(data) ? data[0] : data;
+
+  const reasonsToClear: string[] = [];
+  if (error || !row) {
+    console.warn('get_spend_totals unavailable, unpausing all capped services:', error?.message);
+    reasonsToClear.push('SPEND_CAP_DAILY', 'SPEND_CAP_MONTHLY');
+  } else {
+    const { dailyCap, monthlyCap } = getSpendCaps();
+    const dailySpent = Number(row.daily_spent ?? 0);
+    const monthlySpent = Number(row.monthly_spent ?? 0);
+    const monthlyHasRoom = monthlySpent < monthlyCap;
+    if (monthlyHasRoom) reasonsToClear.push('SPEND_CAP_MONTHLY');
+    if (monthlyHasRoom && dailySpent < dailyCap) reasonsToClear.push('SPEND_CAP_DAILY');
+  }
+
+  if (reasonsToClear.length === 0) return;
+
+  await db
+    .from('services')
+    .update({ monitoring_paused_reason: null })
+    .in('monitoring_paused_reason', reasonsToClear)
+    .is('deleted_at', null);
 }
 
 // Checks the CORTX test wallet balance and sends a Telegram alert to the admin

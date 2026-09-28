@@ -104,6 +104,8 @@ export default async function ServiceStatusPage({ params }: { params: Promise<{ 
       .from('incidents')
       .select('id, severity, failure_stage, opened_at, resolved_at, status')
       .eq('service_id', serviceId)
+      // Incidents caused by CORTX's own wallet/budget are not the service's outages
+      .or('resolution_type.is.null,resolution_type.neq.false_positive')
       .order('opened_at', { ascending: false })
       .limit(10),
   ]);

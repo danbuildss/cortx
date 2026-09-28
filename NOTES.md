@@ -663,6 +663,152 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
+## Sep 2026 Reboot — Days 1–3 plan (approved Sep 28)
+
+Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builders vs build" decision are deferred until the founder is back with /admin numbers.
+
+| Day | Scope | Status |
+|---|---|---|
+| 1 | Wallet/budget failures → `error` (never blame builders); spend-cap pause only lifts after cap resets; timing-safe cron secret; migration 020 cleanup of false incidents | ✅ Built — PR open, **run migration 020 after merge** |
+| 2 | x402 V2 payments (`amount` field, V2 payment header, read official docs first); record real on-chain settlement from the receipt header | Not started |
+| 3 | Wire zero-cost readiness (/verify) into cron: readiness every 15 min, paid check daily + on anomaly; readiness failures count toward incidents, only paid checks resolve; "Payment readiness" line on service page; one migration | Not started |
+
+### Day 1 details (what shipped)
+
+- `lib/check-runner/classify.ts` — `isCortxSidePaymentFailure()`: WALLET_NOT_CONFIGURED, INSUFFICIENT_BALANCE, BALANCE_READ_FAILED, SPEND_RESERVATION_FAILED, DAILY/MONTHLY_SPEND_CAP_EXCEEDED, PAYMENT_TIMEOUT → check status `error`. Service-side codes stay `failed`: NO_USDC_OPTION, PAYMENT_SIGNING_FAILED (replaces the old catch-all WALLET_ERROR).
+- `app/api/cron/route.ts` — unpause only when `get_spend_totals()` shows room under the cap (falls back to old behaviour if the RPC is missing); pause alert to builders now says it's CORTX's budget, not their service; timing-safe CRON_SECRET check.
+- Migration 020 — `get_spend_totals()`; `reserve_spend()` now counts every check whose payment went through (previously only fully passed checks, so payments that failed at delivery were missed); reclassifies past false failures, closes/relabels their incidents as `false_positive`, recomputes affected service status. Also revokes anon/authenticated EXECUTE on `reserve_spend`, `get_spend_totals`, `check_and_record_rate_limit` (Supabase exposed them over REST — anyone could burn the budget).
+- Public service status page hides `false_positive` incidents.
+- First automated tests: `npm test` (Node built-in runner, no new deps).
+
+**Founder action items:** merge PR → run `supabase/migrations/020_cortx_side_failures.sql` in Supabase (preview SELECTs at the top of the file) → top up the CORTX wallet with $5–10 USDC on Base (send to the address; key stays in Vercel).
+
+---
+
+## Product Audit + Market Check (Sep 28, 2026)
+
+Context: ~1 month away from CORTX. Deployment was down, now back. Test wallet is empty. Audit done from code (live site + DB not reachable from the Claude container, so real usage numbers still need pulling from /admin).
+
+### Critical findings (code)
+
+1. **Empty wallet blames builders (P0).** `INSUFFICIENT_BALANCE`, missing key, and spend-cap hits all fail the `payment` stage → check `failed` → service `critical` → incident + Telegram/Discord alert after 2 checks. Public status pages, badges and the reliability API then show the builder's service as broken when the fault is CORTX's wallet. Fix: classify CORTX-side payment failures as `error`, not `failed`. Clean up past checks/incidents caused by it.
+2. **Spend-cap pause does nothing.** `app/api/cron/route.ts` clears `monitoring_paused_reason` for every capped service on every tick without checking whether the cap reset (`todayStart`/`monthStart` computed but unused).
+3. **No x402 V2 payments.** Runner parses V2 402 responses but pays with the V1 client (`x402` v1, `X-Payment` header, `maxAmountRequired` only). V2-only services (`PAYMENT-SIGNATURE` header, `amount` field — e.g. Exa) will fail and look broken.
+4. **"Payment confirmed" isn't verified.** Payment stage records `confirmed: true` after signing only; settlement response header is never read. Evidence claims more than it proves.
+5. **/report can drain the budget.** Free report pays up to $0.10 to any URL. Rotating IPs/emails can send CORTX money to an attacker endpoint until the global cap is hit, which then starves (and via #1, falsely fails) every monitored service.
+6. **Cron is serial with a 60s limit** — will not scale past a handful of paid checks per tick.
+7. **Readiness (/verify, zero-settlement) is built but not wired** — only the admin experiment route uses it. Track 2 result was GO.
+8. **No automated tests** for the check runner.
+
+### Market (Sep 2026) — the category is now crowded
+
+- **ScoutScore** (scoutscore.ai) — closest competitor. 2,079 domains scored, 198 paid-verified with real USDC, V1+V2 headers, MCP + npm SDK + ElizaOS plugin, ERC-8004 registered. Their data: of 169 services accepting payment, **only 36% delivered a working response**. Validates CORTX's thesis hard.
+- **x402-trust.com / x402-trust-mcp** — probes, 402 compliance, price history, on-chain settlement volume. No real paid calls. Paid MCP tools via x402.
+- **402audit** — proxy/resale detection + markup, leaderboard, MCP yes/no.
+- **PayCrow, x402r** — escrow/refund around x402 payments (the Protect layer is being built by others).
+- **ERC-8183 (Agentic Commerce)** — job escrow with an *evaluator* who attests delivery. Natural home for CORTX's verdicts.
+
+### Strategic takeaway
+
+Don't race ScoutScore on breadth with an empty wallet. CORTX's defensible ground:
+- **Depth:** owner-verified endpoints with an owner-defined delivery contract (schema), verified continuously.
+- **Live evidence over synthetic:** a client SDK that wraps an agent's x402 calls (preflight before, delivery check after, report outcome) turns every real agent call into reliability data without CORTX spending.
+- **Self-funding:** an x402-paid preflight endpoint makes checks pay for themselves.
+- **Evaluator role:** CORTX as the neutral delivery verifier (ERC-8183 evaluator) is the path to "agents only pay for delivered results".
+
+---
+
+## Market Signal — Bankr: Pre-flight Validation (Aug 29, 2026)
+
+After CORTX posted about the Bankr reliability skill ("check any endpoint with one click"), Bankr publicly replied:
+
+> "pre-flight validation before micropayment execution is essential for autonomous agent workflows. cuts down on failed calls, saves fees, and builds verifiable reliability across x402 routes."
+
+**Why this matters:** Bankr independently described CORTX using language very close to Payment Readiness — without prompting. This is external validation of the problem direction, not proof of PMF.
+
+**Key language Bankr used:**
+- pre-flight validation before payment execution
+- reducing failed calls
+- saving fees
+- building verifiable reliability across x402 routes
+
+**Positioning note:** "Pre-flight validation" is useful language for the agent-facing layer. Do NOT replace current positioning yet:
+> *Reliability infrastructure for x402 — verify paid services actually deliver.*
+
+Preserve "pre-flight validation" as a potential product/category concept as Payment Readiness develops.
+
+**Emerging product progression:**
+
+```
+MONITOR    → Is the x402 service operational?
+VERIFY     → Has CORTX independently confirmed successful paid delivery?
+PREFLIGHT  → Should an agent trust this service/payment path before spending right now?
+PROTECT    → What happens when an agent pays but valid delivery does not occur? (DO NOT BUILD YET)
+```
+
+**Possible future agent interaction:**
+> Agent wants to call x402 service → CORTX preflight → reliability/history + current payment readiness → SAFE / CAUTION / AVOID → agent decides whether to spend
+
+**This does NOT change the roadmap.** Current priorities remain:
+1. Validate triggered paid checks
+2. Run the /verify experiment
+3. Upgrade Payment Readiness only if experiment succeeds
+4. Get more builders/endpoints monitored
+5. Accumulate real incident and reliability history
+
+This strengthens the reason for the current /verify experiment — the same infrastructure could eventually support agent-facing pre-flight validation.
+
+---
+
+## Hackathon Insight — "Memory is Load-Bearing" (Aug 29, 2026)
+
+**Context:** Sibyl Labs hackathon with theme "build agents where memory is load-bearing." SingIt Agent entered, building an agent that remembers budget approvals and trusted/rejected merchants — so it stops asking about what you already allowed.
+
+**Why this matters for CORTX:**
+
+This is the same thesis as CORTX, one layer deeper. SingIt solves the *approval memory* layer — the agent remembers what the user said yes/no to. CORTX solves the layer underneath: *are the services those agents are spending on actually working?*
+
+Approval memory is useless if the endpoint is broken and the agent pays into a silent failure. CORTX's reliability data is the trust infrastructure the whole category needs.
+
+**The Cori framing this unlocks:**
+
+> "Cori remembers which x402 services are safe to spend on. CORTX verifies they actually work. Wipe the memory and the agent either stops transacting or starts trusting broken endpoints. That's load-bearing."
+
+Cori's memory isn't just "you approved this merchant once" — it's "this endpoint passed 47 consecutive end-to-end checks." That's a stronger, verifiable form of the same idea.
+
+**Takeaway:** The agentic payments category is converging on this problem. CORTX is building the right layer at the right time.
+
+---
+
+## x402 Ecosystem — Key Clarification (Aug 29, 2026)
+
+**From DukeOphir (@DukeOphir) — x402 team — replying to our blog post:**
+
+> "The x402.org facilitator is a dev tool for local testing, it is NOT intended for production and does not support any mainnet. For production, servers can opt-in to use 3rd party services, see eg docs.x402.org/dev-tools/faci... or self-facilitate. This choice remains opaque to clients, they can't influence nor need to know it."
+
+**Implications for CORTX and spec:**
+
+- x402.org is intentionally dev/local only — not a production fallback
+- This makes the three-level facilitator discovery pattern we documented even more critical: any client defaulting to x402.org in production will silently fail for every real service
+- The spec language should eventually clarify that x402.org is a dev tool, not a default — currently the spec doesn't state this explicitly
+- "This choice remains opaque to clients" — confirms the facilitator URL is the authoritative source; clients must read the 402 response, not assume a universal endpoint
+
+**Action:** Note for future spec update (Track 3 or later). Do not update the blog post — it's already published and the finding stands.
+
+**Follow-up from DukeOphir — second reply (Aug 29, 2026):**
+
+> "Services listed on the CDP bazaar are only indexed after a successful mainnet payment. So if this is how you discover services, you can be assured they are configured correctly with a prod facilitator"
+
+**What this means:**
+
+- **CDP bazaar** (Coinbase Developer Platform service directory) = curated list of production-ready x402 services
+- Services are only listed after a *successful mainnet payment* — this is an on-chain proof of a working production facilitator
+- This is the cleanest signal available for "this service has a valid production facilitator" — stronger than any client-side check
+- **Future opportunity:** CORTX could cross-reference against CDP bazaar when verifying a new endpoint submission — if it's listed there, the facilitator issue is already solved; if it's not, our facilitator verification is even more valuable
+- **Roadmap note:** Track 3 (Verify) could include a CDP bazaar check as part of the submission flow or the CORTX Score computation
+
+---
+
 ## Machine Commerce Protection Direction (Aug 28, 2026)
 
 **DO NOT BUILD THIS YET.** This is a research direction, not a roadmap item.

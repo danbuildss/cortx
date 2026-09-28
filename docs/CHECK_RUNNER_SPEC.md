@@ -278,10 +278,18 @@ Payee address is stored but flagged as sensitive.
 5. Receive and parse the payment receipt
 
 **Possible errors:**
-- `INSUFFICIENT_BALANCE` — wallet balance < observed_price
-- `PAYMENT_REJECTED` — transaction rejected by the network
-- `PAYMENT_TIMEOUT` — confirmation not received within timeout
-- `WALLET_ERROR` — signing or submission failure
+
+CORTX-side (recorded as check status `error` — never change service status, open incidents, or count in public metrics):
+- `WALLET_NOT_CONFIGURED` — wallet key missing or malformed
+- `INSUFFICIENT_BALANCE` — CORTX wallet balance < observed_price
+- `BALANCE_READ_FAILED` — could not read the wallet balance from the Base RPC
+- `SPEND_RESERVATION_FAILED` — spend reservation RPC failed
+- `DAILY_SPEND_CAP_EXCEEDED` / `MONTHLY_SPEND_CAP_EXCEEDED` — platform verification budget used up
+- `PAYMENT_TIMEOUT` — signing did not complete within timeout
+
+Service-side (recorded as `failed`):
+- `NO_USDC_OPTION` — payment terms offer no USDC option
+- `PAYMENT_SIGNING_FAILED` — the service's payment requirements could not be signed (bad payTo, amount, or asset)
 
 **Evidence stored:**
 ```json
