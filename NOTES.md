@@ -480,7 +480,13 @@ Checked all public repos while paused before Phase D.
 - **CORTX (the "reference implementation") doesn't emit spec-shaped records:** different stage names (`price_check`/`payment` vs `price_validity`/`payment_processing`, no separate `402_response`), no `spec_version`.
 - **`danbuildss/cori` is a stale Aug 19 Python scaffold** (2 commits): README describes token price/whale alerts, and its design has `X402_PRIVATE_KEY` on the agent server — contradicts the locked no-key-on-server rule. Real Cori = `cortx/agent/cori`.
 - **`@cortx/check` not on npm** (name free).
-- Proposed (awaiting approval): A) MIT LICENSE in cortx; B) cori README → "moved to cortx/agent/cori", drop the key var, founder archives the repo; C) spec v0.3 (V2, checker-side errors, facilitator auth = unavailable, no x402.org fallback, receipt rules, known-good input, first test vectors from our e2e fakes); D) CORTX exports spec-conformant evidence records with `spec_version`, validated against the spec schema; E) publish `@cortx/check` after C+D.
+- **Approved Sep 28 ("I approve the open source work"), MIT by default. Built:**
+  - OS-1: MIT `LICENSE` in cortx.
+  - OS-2: `danbuildss/cori` PR #1 — README "moved to cortx/agent/cori" notice, `X402_PRIVATE_KEY` → `X402_PAY_TO_ADDRESS`. Founder archives the repo after merge.
+  - OS-3: spec **v0.3** PR on `x402-reliability-spec`: x402 V1+V2 section, Checker-Side Errors (`outcome: checker_error`, `fault`), Test Input (`input_source`), stage-5 settlement receipt rules (`settlement_status`, receipt-only `tx_hash`), Error Codes, no x402.org facilitator fallback, stage 5 doesn't call a facilitator, readiness `unavailable` + new codes, BLOCKED_ADDRESS, conformance 7–10, **8 test vectors** + CI validation.
+  - OS-4: cortx `lib/check-runner/spec-record.ts` (`toSpecRecord`), vendored vectors in `test/spec-vectors/`, `spec-conformance.test.ts` runs all 8 through the real runner — **CORTX passes all 8**. Public API `/api/v1/reliability/[id]` adds `evidence_spec_version` + `latest_paid_evidence` (checker-side error text redacted). Partner docs updated.
+  - OS-5 (npm `@cortx/check`) later.
+- Original proposal: A) MIT LICENSE in cortx; B) cori README → "moved to cortx/agent/cori", drop the key var, founder archives the repo; C) spec v0.3 (V2, checker-side errors, facilitator auth = unavailable, no x402.org fallback, receipt rules, known-good input, first test vectors from our e2e fakes); D) CORTX exports spec-conformant evidence records with `spec_version`, validated against the spec schema; E) publish `@cortx/check` after C+D.
 
 ## Open Source Strategy — "Open Tools. Paid Network." (Aug 18, 2026)
 

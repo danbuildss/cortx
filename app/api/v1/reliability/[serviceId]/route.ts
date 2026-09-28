@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { computeMetrics } from '@/lib/metrics';
+import { toSpecRecord, SPEC_VERSION } from '@/lib/check-runner/spec-record';
+import type { CheckResult } from '@/lib/check-runner/types';
 
 function db() {
   return createClient(
@@ -31,10 +33,11 @@ export async function GET(
     { data: service },
     { data: activeIncident },
     { data: checks },
+    { data: latestPaid },
   ] = await Promise.all([
     supabase
       .from('services')
-      .select('id, name, status, last_checked_at, paid_verification_mode, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at')
+      .select('id, name, endpoint_url, status, last_checked_at, paid_verification_mode, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at')
       .eq('id', serviceId)
       .is('deleted_at', null)
       .maybeSingle(),
@@ -55,6 +58,16 @@ export async function GET(
       .gte('started_at', since30)
       .order('started_at', { ascending: false })
       .limit(1000),
+
+    // Latest paid check, published as an x402 Reliability Spec evidence record
+    supabase
+      .from('checks')
+      .select('started_at, status, stages, check_type, error_message')
+      .eq('service_id', serviceId)
+      .in('check_type', ['full', 'canary'])
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (!service) {
@@ -64,6 +77,17 @@ export async function GET(
   const allChecks = checks ?? [];
   const paidChecks = allChecks.filter(c => c.check_type === 'full' || c.check_type === 'canary');
   const metrics = computeMetrics(paidChecks.length > 0 ? paidChecks : allChecks);
+
+  const latestEvidence = latestPaid
+    ? toSpecRecord(
+        {
+          ...(latestPaid as unknown as CheckResult),
+          started_at: new Date(latestPaid.started_at),
+          stages: latestPaid.stages ?? [],
+        },
+        { endpoint: service.endpoint_url, redactCheckerErrors: true },
+      )
+    : null;
 
   return NextResponse.json(
     {
@@ -90,6 +114,9 @@ export async function GET(
             opened_at:     activeIncident.opened_at,
           }
         : null,
+      // https://github.com/danbuildss/x402-reliability-spec
+      evidence_spec_version:   SPEC_VERSION,
+      latest_paid_evidence:    latestEvidence,
     },
     {
       headers: {
