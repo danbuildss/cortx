@@ -687,6 +687,7 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
   - Note: postgrest-js `.contains(col, [obj])` builds a Postgres array literal (`{[object Object]}`) — pass JSON text for jsonb.
 - **Spend caps in production are $5/day and $50/month** (Vercel env `CORTX_DAILY_SPEND_CAP_USDC=5`, `CORTX_MONTHLY_SPEND_CAP_USDC=50`; code defaults are $1/$10). Founder did not set them this session. Recommended lowering to 1 / 10 in Vercel; wallet balance ($3.84) is the real ceiling today.
 - **Exa "Contents" test service** (`api.exa.ai/contents`, open incident since ~Aug 24): founder's own test endpoint that never worked; **left as is on purpose**. Its failures (ZERO_PRICE at `price_check`) are real and stay in the stats.
+- **Status Sep 28 (end of session): Phases A, B, C all merged (#114–#117). Paused by founder until they're home.** Resume with: founder checks /admin (USDC Verified real number, 24h uptime ~91%), optionally lowers Vercel caps to 1/10 and redeploys, then says "approve D".
 - Next: Phase D (VPS go-live together: Hetzner CORTX project + server, `cori_agent` password, first **dry run** to confirm live Bazaar fields, then live), then E (observe a week).
 
 ## Proposal: Autonomous Reliability Network / "Cori" agent (Sep 28, 2026) — superseded by LOCKED DIRECTION above
