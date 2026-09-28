@@ -143,7 +143,12 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     'schema_validation',
   ];
 
-  const advance = (): StageName => remainingStages.shift()!;
+  const advance = (): StageName => {
+    const next = remainingStages.shift();
+    // Fail loudly: an extra advance() shifts every later stage name by one
+    if (!next) throw new Error('Check runner bug: more stage steps than stages');
+    return next;
+  };
   const markRemaining = (): void => {
     for (const s of remainingStages) stages.push(notReached(s));
   };
@@ -301,7 +306,10 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       payment_scheme: matchingOption.scheme,
     }));
 
-    // ── Stage 5: Parse Observed Price ─────────────────────────────────────
+    // ── Stages 5–6: Parse the price, then compare it to expected/max ──────
+    // Both steps are the single `price_check` stage: one advance(), one stage
+    // row. (Until Sep 2026 they each called advance(), which shifted every
+    // later stage name by one — see migration 022.)
     const stagePrice = advance();
     const rawPrice = matchingOption.amount;
     const price = priceToUsdc(matchingOption);
@@ -320,22 +328,22 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
 
     const parsedPrice = price.usdc;
     observed_price = parsedPrice.toFixed(6);
-    stages.push(makeStage(stagePrice, true, 0, {
+    const parsedPriceEvidence = {
       raw_price_field: rawPrice,
       price_field_name: matchingOption.amountField,
       parsed_price: observed_price,
       unit: 'USDC',
       atomic_units_detected: price.atomic,
-    }));
+    };
 
-    // ── Stage 6: Compare Price Against Expected and Maximum ───────────────
-    const stagePriceCheck = advance();
+    const stagePriceCheck = stagePrice;
     const expectedPrice = config.expected_price != null ? parseFloat(config.expected_price) : null;
     const maxPrice = parseFloat(config.max_price);
     const priceMatch = expectedPrice == null || Math.abs(parsedPrice - expectedPrice) < 0.000001;
 
     if (parsedPrice > maxPrice) {
       fail(stagePriceCheck, 'PRICE_EXCEEDS_MAXIMUM', {
+        ...parsedPriceEvidence,
         expected_price: config.expected_price,
         observed_price,
         max_price: config.max_price,
@@ -348,6 +356,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     const betaCap = parseFloat(process.env.BETA_MAX_ENDPOINT_PRICE_USDC ?? '1.00');
     if (parsedPrice > betaCap) {
       fail(stagePriceCheck, 'BETA_PRICE_CAP_EXCEEDED', {
+        ...parsedPriceEvidence,
         observed_price,
         beta_max_price_usdc: betaCap.toFixed(2),
         result: 'exceeds_beta_cap',
@@ -358,6 +367,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
 
     if (!priceMatch) {
       fail(stagePriceCheck, 'PRICE_MISMATCH', {
+        ...parsedPriceEvidence,
         expected_price: config.expected_price,
         observed_price,
         max_price: config.max_price,
@@ -368,6 +378,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     }
 
     stages.push(makeStage(stagePriceCheck, true, 0, {
+      ...parsedPriceEvidence,
       expected_price: config.expected_price ?? 'any',
       observed_price,
       max_price: config.max_price,

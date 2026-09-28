@@ -673,6 +673,17 @@ Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builder
 | 2 | x402 V2 payments (`amount` field, V2 payment header, read official docs first); record real on-chain settlement from the receipt header | ✅ Built — PR open, no migration. After merge: click Run check on a V2 service (e.g. Exa) to confirm end to end |
 | 3 | Wire zero-cost readiness (/verify) into cron: readiness every 15 min, paid check daily + on anomaly; readiness failures count toward incidents; "Payment readiness" card on service page; one migration | ✅ Built — PR open. **Run migration 021 BEFORE merging** (the service page and cron read the new columns) |
 
+### Day 3 follow-up — stage-name bug + readiness auth (Sep 28)
+
+**Live results after Day 3 merged (cron test run, 09:33 UTC):** cron healthy (200, 29s). 5 Bankr paid checks passed with real V2 payments (`PAYMENT-SIGNATURE`, $0.001 each). Contents (Exa) failed `ZERO_PRICE` — Exa quotes `"0"` for the empty test input; **founder action: set Contents test input to a real request, e.g. `{"urls": ["https://example.com"]}`**.
+
+**Bankr's facilitator now requires auth.** `POST https://api.bankr.bot/facilitator/verify` → `401 {"error":"missing bearer token"}` (it answered without auth in the Aug Track 2 experiment). So readiness can't run for any current service. Fix: facilitator 401/403 → readiness `unavailable` ("Payment facilitator requires authentication"), no check row, re-checked daily. Options for later: ask Bankr for a verify-only API key; or verify against a facilitator CORTX has its own key for (e.g. CDP) — proves terms are payable, not that the service's own facilitator is up.
+
+**Stage-name bug (live since PR #56, Aug 15).** The paid runner called `advance()` 8 times for 7 stage names (price parse + price compare each advanced), so every stage from the price step on was saved under the previous stage's name, and schema validation had no name. Impact: public "paid delivery %" actually measured price-OK + payment-signed; "schema validity %" measured JSON parsing; wrong `failure_stage` on checks/incidents/alerts; migration 020 found 0 because wallet failures were saved as `delivery`; spend-cap pause never triggered (budget cap itself still worked).
+- Fix: parse + compare are one `price_check` stage; `advance()` now throws if called too often.
+- Regression test: `lib/check-runner/runner.e2e.test.ts` runs the real `runFullCheck` against a local fake x402 service (V1 + V2, pass, no receipt, paid-not-delivered, schema fail, bad JSON, price over max) and asserts exact stage names + settlement. Confirmed it fails (7/7) against the old runner. Test-only hooks in `test/` stub SSRF (localhost) and the wallet balance read; `npm test` = 30 tests.
+- Migration 022 repairs history: rebuilds shifted stages (verified on Postgres against real old-runner output — 10/10 scenarios match the fixed runner), fixes `failure_stage` on checks + incidents, re-runs the 020 wallet cleanup. Run AFTER merging. Historical public paid-delivery % may drop — the repaired numbers are the true ones.
+
 ### Day 3 details (what shipped)
 
 - `lib/check-runner/readiness.ts` rewritten for production on the shared x402 code (V1 + V2). Probe 402 → parse terms → find facilitator → price ≤ max → sign EIP-3009 → facilitator `/verify` (never `/settle`).

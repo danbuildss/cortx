@@ -55,7 +55,8 @@ export type ReadinessStageResult = StageResult & { stage: ReadinessStage };
 /**
  * ready       — the facilitator would accept a payment right now
  * not_ready   — a real agent's payment would fail (service-side problem)
- * unavailable — the service doesn't publish its facilitator; can't check
+ * unavailable — can't check: the service doesn't publish its facilitator, or
+ *               the facilitator requires authentication (401/403)
  * error       — CORTX-side problem (wallet, our request, blocked URL); not the service's fault
  */
 export type ReadinessStatus = 'ready' | 'not_ready' | 'unavailable' | 'error';
@@ -370,6 +371,7 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
     }
 
     let rawStatus: number;
+    let responseExcerpt = '';
     let parsedResponse: Record<string, unknown> = {};
     try {
       const res = await fetchWithTimeout(verifyUrl.toString(), {
@@ -380,6 +382,7 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
       }, VERIFY_TIMEOUT_MS);
       rawStatus = res.status;
       const text = await res.text().catch(() => '');
+      responseExcerpt = text.slice(0, 300);
       try { parsedResponse = JSON.parse(text) as Record<string, unknown>; } catch { /* not JSON */ }
     } catch (err) {
       // The service's own facilitator is down or slow: real payments would fail too.
@@ -391,13 +394,19 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
     const d4 = Date.now() - t4;
 
     if (typeof parsedResponse.isValid !== 'boolean') {
+      if (rawStatus === 401 || rawStatus === 403) {
+        // The facilitator only serves its own customers (Bankr's has required a
+        // bearer token since Sep 2026). Not a failure — CORTX just can't check.
+        fail(stageVerify, 'FACILITATOR_AUTH_REQUIRED', { facilitator_url, http_status: rawStatus, response_excerpt: responseExcerpt }, d4);
+        return done('unavailable');
+      }
       if (rawStatus >= 500) {
-        fail(stageVerify, 'FACILITATOR_ERROR', { facilitator_url, http_status: rawStatus }, d4);
+        fail(stageVerify, 'FACILITATOR_ERROR', { facilitator_url, http_status: rawStatus, response_excerpt: responseExcerpt }, d4);
         return done('not_ready');
       }
       // A 4xx without a verdict most likely means the facilitator didn't accept
       // how CORTX built the request — don't blame the service for that.
-      fail(stageVerify, 'VERIFY_REQUEST_REJECTED', { facilitator_url, http_status: rawStatus, cortx_side: true }, d4);
+      fail(stageVerify, 'VERIFY_REQUEST_REJECTED', { facilitator_url, http_status: rawStatus, response_excerpt: responseExcerpt, cortx_side: true }, d4);
       return done('error', `Facilitator returned HTTP ${rawStatus} without a verdict`);
     }
 
@@ -412,6 +421,7 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
         is_valid: false,
         invalid_reason: verify_invalid_reason,
         http_status: rawStatus,
+        response_excerpt: responseExcerpt,
         ...(serviceSide ? {} : { cortx_side: true }),
       }, d4);
       return serviceSide
@@ -449,8 +459,13 @@ export function readinessToCheckResult(r: ReadinessResult): CheckResult | null {
 // Human-readable reason for the service page.
 export function readinessReason(r: ReadinessResult): string | null {
   if (r.status === 'ready') return null;
-  if (r.status === 'unavailable') return 'Service does not publish its facilitator';
   const failed = r.stages.find((s) => s.passed === false);
+  if (r.status === 'unavailable') {
+    if (failed?.error === 'FACILITATOR_AUTH_REQUIRED') {
+      return `Payment facilitator requires authentication (HTTP ${String(failed.evidence?.http_status ?? '401')})`;
+    }
+    return 'Service does not publish its payment facilitator';
+  }
   if (r.verify_invalid_reason) return `Facilitator: ${r.verify_invalid_reason}`;
   return failed?.error ?? r.error_message ?? null;
 }
