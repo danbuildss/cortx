@@ -1,13 +1,12 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
 import { RegistrySeedForm } from './registry-seed-form';
 import { SubmissionActions } from './submission-actions';
-import { CoriPanel, type CoriEvent, type CoriRun } from './cori-panel';
-import { CoriBadge, CoriCandidateDetails } from './cori-candidate';
-import { CLASS_ORDER } from '@/lib/cori/status';
-import type { Classification } from '@/lib/cori/classify';
+import { CoriAdminLine } from './cori-panel';
+import { adminServiceClient, loadCoriNav } from './cori-data';
+import { formatUsdc, isCortxSide, isSuccess, splitStageFailures, successRate, sumPaid, SUCCESS_STATUSES, type PaidCheck } from '@/lib/admin/stats';
 
 const ADMIN_USER_ID = process.env.CORTX_ADMIN_USER_ID ?? '';
 
@@ -30,15 +29,45 @@ export default async function AdminPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.id !== ADMIN_USER_ID) redirect('/overview');
 
-  const service = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  const service = adminServiceClient();
 
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  // UTC, same as the spend caps (get_spend_totals / reserve_spend)
+  const nowDate = new Date();
+  const todayStartMs = Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth(), nowDate.getUTCDate());
+  const monthStartMs = Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth(), 1);
   const now = Date.now();
+
+  // Every check whose payment went through — the same rule the spend caps use
+  // (check_payment_passed), so a payment counts even if delivery then failed.
+  // Paged: PostgREST returns at most 1000 rows per request.
+  const fetchPaidChecks = async (): Promise<PaidCheck[]> => {
+    const rows: PaidCheck[] = [];
+    for (let from = 0; from < 100_000; from += 1000) {
+      const { data, error } = await service.from('checks').select('started_at, observed_price')
+        .not('observed_price', 'is', null)
+        // JSON text: postgrest-js turns a JS array into a Postgres array literal
+        .contains('stages', JSON.stringify([{ stage: 'payment', passed: true }]))
+        .order('started_at', { ascending: true }).order('id', { ascending: true })
+        .range(from, from + 999);
+      if (error || !data) break;
+      rows.push(...(data as PaidCheck[]));
+      if (data.length < 1000) break;
+    }
+    return rows;
+  };
+
+  // Today / this month exactly as the caps see them (includes in-flight reservations)
+  const fetchCapSpend = async (): Promise<{ daily: number; monthly: number } | null> => {
+    try {
+      const { data, error } = await service.rpc('get_spend_totals');
+      const row = Array.isArray(data) ? data[0] : data;
+      if (error || !row) return null;
+      return { daily: Number(row.daily_spent ?? 0), monthly: Number(row.monthly_spent ?? 0) };
+    } catch {
+      return null;
+    }
+  };
 
   const fetchWalletBalance = async (): Promise<string | null> => {
     try { return await getWalletBalance(getWalletAddress()); } catch { return null; }
@@ -52,47 +81,42 @@ export default async function AdminPage() {
     { data: checks24h },
     { data: recentIncidents },
     { data: telegramConns },
-    { data: todaySpendRows },
-    { data: monthSpendRows },
+    { data: openIncidentsData },
     { data: lastCheckRow },
     walletBalance,
-    { data: allChecksStats },
+    paidChecks,
+    capSpend,
     { data: registrySeeds },
     { data: pendingSubmissionsData },
     { count: totalIncidentsCount },
     { count: resolvedIncidentsCount },
-    { data: allSubmissionCounts },
+    { count: totalSubmissionsCount },
+    { count: approvedSubmissionsCount },
+    { count: rejectedSubmissionsCount },
+    coriNav,
   ] = await Promise.all([
     service.auth.admin.listUsers({ perPage: 100 }),
     service.from('services').select('id, user_id, name, endpoint_url, status, created_at, last_checked_at').is('deleted_at', null).order('created_at', { ascending: false }),
     service.from('checks').select('service_id, status, failure_stage, observed_price').gte('started_at', since24h),
     service.from('incidents').select('id, service_id, status, created_at').order('created_at', { ascending: false }).limit(20),
     service.from('telegram_connections').select('user_id').eq('active', true),
-    service.from('checks').select('observed_price').gte('started_at', todayStart.toISOString()).in('status', ['passed', 'success']),
-    service.from('checks').select('observed_price').gte('started_at', monthStart.toISOString()).in('status', ['passed', 'success']),
+    // All open incidents, not just the ones among the latest 20
+    service.from('incidents').select('id, service_id, status, created_at').neq('status', 'resolved').order('created_at', { ascending: false }),
     service.from('checks').select('started_at').order('started_at', { ascending: false }).limit(1),
     fetchWalletBalance(),
-    // window stats computed via separate count queries below
-    Promise.resolve({ data: [] as { status: string; observed_price: string | null; started_at: string }[] }),
+    fetchPaidChecks(),
+    fetchCapSpend(),
     service.from('registry_seeds').select('id, name, endpoint_url, description, status, is_verified, created_at').order('created_at', { ascending: false }),
-    service.from('endpoint_submissions').select('id, endpoint_url, name, description, category, x_handle, website_url, submitter_email, submitted_at, status, rejection_reason, seed_id, source, candidate_metadata').eq('status', 'pending').order('submitted_at', { ascending: false }),
+    // People's submissions only — Cori's candidates are reviewed on /admin/cori
+    service.from('endpoint_submissions').select('id, endpoint_url, name, description, category, x_handle, website_url, submitter_email, submitted_at, status, rejection_reason, seed_id').eq('status', 'pending').or('source.is.null,source.neq.cori_scout').order('submitted_at', { ascending: false }),
     service.from('incidents').select('id', { count: 'exact', head: true }),
     service.from('incidents').select('id', { count: 'exact', head: true }).eq('status', 'resolved'),
-    service.from('endpoint_submissions').select('status'),
+    // Head counts: row reads stop at 1000 and Cori adds submissions daily
+    service.from('endpoint_submissions').select('id', { count: 'exact', head: true }),
+    service.from('endpoint_submissions').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+    service.from('endpoint_submissions').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
+    loadCoriNav(service),
   ]);
-
-  // Cori (agent on the VPS): run log, what it knows, recent activity.
-  // Counts per class use head-count queries (PostgREST caps row reads at 1000).
-  const [coriRunsRes, coriTotalRes, coriEventsRes, ...coriClassRes] = await Promise.all([
-    service.from('cori_runs').select('kind, started_at, ok, stats, error').order('started_at', { ascending: false }).limit(50),
-    service.from('discovered_services').select('id', { count: 'exact', head: true }),
-    service.from('discovery_events').select('at, event, details, discovered_services(service_name, canonical_url)').order('at', { ascending: false }).limit(12),
-    ...CLASS_ORDER.map((c) => service.from('discovered_services').select('id', { count: 'exact', head: true }).eq('classification', c)),
-  ]);
-  const coriRuns = (coriRunsRes.data ?? []) as CoriRun[];
-  const coriEvents = (coriEventsRes.data ?? []) as unknown as CoriEvent[];
-  const coriClassCounts: Partial<Record<Classification, number>> = {};
-  CLASS_ORDER.forEach((c, i) => { coriClassCounts[c] = coriClassRes[i]?.count ?? 0; });
 
   const authUsers = authResult.data?.users ?? [];
   const services = allServices ?? [];
@@ -101,8 +125,9 @@ export default async function AdminPage() {
   // Core metrics
   const betaUsers = authUsers.filter(u => u.id !== ADMIN_USER_ID);
   const totalChecks = checks24h?.length ?? 0;
-  const successChecks = checks24h?.filter(c => c.status === 'success' || c.status === 'passed').length ?? 0;
-  const avgUptime = totalChecks > 0 ? (successChecks / totalChecks * 100).toFixed(1) : null;
+  const successChecks = checks24h?.filter(c => isSuccess(c.status)).length ?? 0;
+  const cortxErrors24h = checks24h?.filter(c => isCortxSide(c.status)).length ?? 0;
+  const avgUptime = successRate(totalChecks, successChecks, cortxErrors24h);
   // Services by status
   const operationalCount = services.filter(s => s.status === 'operational').length;
   const issueCount = services.filter(s => s.status === 'degraded' || s.status === 'critical').length;
@@ -116,21 +141,17 @@ export default async function AdminPage() {
   const telegramUserIds = new Set((telegramConns ?? []).map(t => t.user_id));
   const telegramCount = betaUsers.filter(u => telegramUserIds.has(u.id)).length;
 
-  // Stage failure breakdown
-  const stageFails = new Map<string, number>();
-  for (const c of (checks24h ?? [])) {
-    if (c.failure_stage) stageFails.set(c.failure_stage, (stageFails.get(c.failure_stage) ?? 0) + 1);
-  }
-  const stageFailList = Array.from(stageFails.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-  const maxStageFailCount = stageFailList[0]?.[1] ?? 1;
+  // Stage failure breakdown: the service's failures vs CORTX-side errors
+  const stageFailSplit = splitStageFailures(checks24h ?? []);
+  const serviceStageFails = stageFailSplit.service.slice(0, 5);
+  const cortxStageFails = stageFailSplit.cortx.slice(0, 5);
+  const maxStageFailCount = Math.max(serviceStageFails[0]?.[1] ?? 0, cortxStageFails[0]?.[1] ?? 0, 1);
 
   // Spend tracking
   const dailyCap = parseFloat(process.env.CORTX_DAILY_SPEND_CAP_USDC ?? '1.00');
   const monthlyCap = parseFloat(process.env.CORTX_MONTHLY_SPEND_CAP_USDC ?? '10.00');
-  const todaySpend = (todaySpendRows ?? []).reduce((s, r) => s + parseFloat(String(r.observed_price ?? '0')), 0);
-  const monthSpend = (monthSpendRows ?? []).reduce((s, r) => s + parseFloat(String(r.observed_price ?? '0')), 0);
+  const todaySpend = capSpend?.daily ?? sumPaid(paidChecks, todayStartMs);
+  const monthSpend = capSpend?.monthly ?? sumPaid(paidChecks, monthStartMs);
 
   // Top cost by service (24h)
   const spendByService = new Map<string, { total: number; count: number }>();
@@ -167,17 +188,12 @@ export default async function AdminPage() {
   const signupsThisWeek = betaUsers.filter(u => new Date(u.created_at).getTime() >= new Date(week7Start).getTime()).length;
 
   // Submissions funnel
-  const submissionRows = allSubmissionCounts ?? [];
-  const submissionsByStatus = submissionRows.reduce<Record<string, number>>((acc, r) => {
-    acc[r.status] = (acc[r.status] ?? 0) + 1;
-    return acc;
-  }, {});
-  const totalSubmissions = submissionRows.length;
-  const approvedSubmissions = submissionsByStatus['approved'] ?? 0;
-  const rejectedSubmissions = submissionsByStatus['rejected'] ?? 0;
+  const totalSubmissions = totalSubmissionsCount ?? 0;
+  const approvedSubmissions = approvedSubmissionsCount ?? 0;
+  const rejectedSubmissions = rejectedSubmissionsCount ?? 0;
 
   // Open incidents
-  const openIncidents = incidents.filter(i => i.status !== 'resolved');
+  const openIncidents = openIncidentsData ?? [];
   const openIncidentServiceIds = new Set(openIncidents.map(i => i.service_id));
 
   // Last cron run
@@ -185,7 +201,7 @@ export default async function AdminPage() {
   const cronStale = lastCronAt !== null && Date.now() - new Date(lastCronAt).getTime() > 30 * 60 * 1000;
 
   // Multi-window stats
-  type WindowStat = { label: string; total: number; successRate: string | null; spend: number; };
+  type WindowStat = { label: string; total: number; successRate: string | null; errors: number; spend: number; };
   const windowDefs: { label: string; ms: number | null }[] = [
     { label: '24h', ms: 24 * 60 * 60 * 1000 },
     { label: '7d',  ms: 7 * 24 * 60 * 60 * 1000 },
@@ -197,20 +213,19 @@ export default async function AdminPage() {
   const windowStats: WindowStat[] = await Promise.all(windowDefs.map(async ({ label, ms }) => {
     const cutoff = ms !== null ? new Date(now - ms).toISOString() : null;
     const baseQuery = () => service.from('checks').select('id', { count: 'exact', head: true });
-    const successQuery = () => service.from('checks').select('id', { count: 'exact', head: true }).in('status', ['passed', 'success']);
-    const spendQuery = () => service.from('checks').select('observed_price').in('status', ['passed', 'success']);
+    const successQuery = () => service.from('checks').select('id', { count: 'exact', head: true }).in('status', [...SUCCESS_STATUSES]);
+    const errorQuery = () => service.from('checks').select('id', { count: 'exact', head: true }).eq('status', 'error');
 
-    const [totalRes, successRes, spendRes] = await Promise.all([
+    const [totalRes, successRes, errorRes] = await Promise.all([
       cutoff ? baseQuery().gte('started_at', cutoff) : baseQuery(),
       cutoff ? successQuery().gte('started_at', cutoff) : successQuery(),
-      cutoff ? spendQuery().gte('started_at', cutoff) : spendQuery(),
+      cutoff ? errorQuery().gte('started_at', cutoff) : errorQuery(),
     ]);
 
     const total = totalRes.count ?? 0;
-    const success = successRes.count ?? 0;
-    const successRate = total > 0 ? (success / total * 100).toFixed(1) : null;
-    const spend = (spendRes.data ?? []).reduce((s, c) => s + parseFloat(String(c.observed_price ?? '0')), 0);
-    return { label, total, successRate, spend };
+    const errors = errorRes.count ?? 0;
+    const spend = sumPaid(paidChecks, ms !== null ? now - ms : undefined);
+    return { label, total, successRate: successRate(total, successRes.count ?? 0, errors), errors, spend };
   }));
 
   // Seeds
@@ -262,6 +277,8 @@ export default async function AdminPage() {
         </span>
       </div>
 
+      <CoriAdminLine nav={coriNav} />
+
       {/* Metric row 1 — headline proof-of-work numbers */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 10 }}>
         {(() => {
@@ -269,8 +286,8 @@ export default async function AdminPage() {
           const allTimeChecks = allWindow?.total ?? 0;
           const allTimeUsdc = allWindow?.spend ?? 0;
           return [
-            { label: 'Total Checks',        value: allTimeChecks.toLocaleString(),              sub: 'all-time, real payments' },
-            { label: 'USDC Verified',        value: `$${allTimeUsdc.toFixed(2)}`,                sub: 'on-chain, Base mainnet' },
+            { label: 'Total Checks',        value: allTimeChecks.toLocaleString(),              sub: 'all-time, free + paid' },
+            { label: 'USDC Verified',        value: formatUsdc(allTimeUsdc),                     sub: `${paidChecks.length.toLocaleString()} paid checks · Base` },
             { label: 'Incidents Detected',   value: String(totalIncidents),                      sub: `${resolvedIncidents} resolved`, amber: totalIncidents - resolvedIncidents > 0 },
             { label: 'Users',                value: String(betaUsers.length),                    sub: `+${signupsThisWeek} this week`, green: signupsThisWeek > 0 },
           ].map(({ label, value, sub, green, amber }) => (
@@ -290,7 +307,7 @@ export default async function AdminPage() {
           { label: 'Operational',         value: String(operationalCount),           sub: `of ${services.length} endpoints`, green: issueCount === 0 },
           { label: 'Degraded / Critical', value: String(issueCount),                sub: 'need attention',                   amber: issueCount > 0 },
           { label: 'Checks (24h)',        value: totalChecks.toLocaleString(),       sub: totalChecks > 0 ? `~${Math.round(totalChecks / 24)}/hr` : 'no data yet' },
-          { label: 'Avg Uptime (24h)',    value: avgUptime ? `${avgUptime}%` : '—', sub: 'across all services',              green: avgUptime !== null && parseFloat(avgUptime) >= 95 },
+          { label: 'Avg Uptime (24h)',    value: avgUptime ? `${avgUptime}%` : '—', sub: cortxErrors24h > 0 ? `excl. ${cortxErrors24h} CORTX-side error${cortxErrors24h !== 1 ? 's' : ''}` : 'across all services', green: avgUptime !== null && parseFloat(avgUptime) >= 95 },
         ].map(({ label, value, sub, green, amber }) => (
           <div key={label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: 8, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>{label}</div>
@@ -316,31 +333,23 @@ export default async function AdminPage() {
         ))}
       </div>
 
-      <CoriPanel
-        runs={coriRuns}
-        classCounts={coriClassCounts}
-        totalDiscovered={coriTotalRes.count ?? 0}
-        events={coriEvents}
-        now={now}
-      />
-
       {/* Multi-window stats */}
       <div style={{ marginBottom: 20, ...card }}>
         <div style={cardHeader}>
           <span style={cardTitle}>Platform Stats</span>
-          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>checks · success rate · spend</span>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>success rate excludes CORTX-side errors</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 360 }}>
+          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
             <thead>
               <tr>
-                {['Window', 'Checks', 'Success rate', 'Spend (USDC)'].map(h => (
+                {['Window', 'Checks', 'Success rate', 'CORTX-side', 'Spend (USDC)'].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {windowStats.map(({ label, total, successRate, spend }, i) => {
+              {windowStats.map(({ label, total, successRate, errors, spend }, i) => {
                 const isLast = i === windowStats.length - 1;
                 const rateNum = successRate !== null ? parseFloat(successRate) : null;
                 const rateColor = rateNum === null ? 'var(--text-dim)' : rateNum >= 95 ? 'var(--status-ok)' : rateNum >= 80 ? 'var(--status-degraded)' : 'var(--status-critical)';
@@ -356,6 +365,11 @@ export default async function AdminPage() {
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: rateColor, fontVariantNumeric: 'tabular-nums' }}>
                         {successRate !== null ? `${successRate}%` : '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 12, color: errors === 0 ? 'var(--text-dim)' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                        {errors === 0 ? '—' : errors.toLocaleString()}
                       </span>
                     </td>
                     <td style={tdStyle}>
@@ -606,23 +620,29 @@ export default async function AdminPage() {
           </div>
 
           {/* Stage failure breakdown */}
-          {stageFailList.length > 0 && (
+          {(serviceStageFails.length > 0 || cortxStageFails.length > 0) && (
             <div style={card}>
               <div style={cardHeader}>
                 <span style={cardTitle}>Stage Failures (24h)</span>
                 <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>across all users</span>
               </div>
-              <div style={{ padding: '8px 16px' }}>
-                {stageFailList.map(([stage, count]) => (
-                  <div key={stage} style={{ display: 'flex', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1, fontFamily: 'var(--font-geist-mono)' }}>{stage}</span>
-                    <div style={{ width: 120, height: 4, background: 'var(--bg-muted)', borderRadius: 2, margin: '0 12px' }}>
-                      <div style={{ height: 4, borderRadius: 2, background: 'var(--status-critical)', width: `${Math.round((count / maxStageFailCount) * 100)}%` }} />
+              {[
+                { title: 'Service failures', rows: serviceStageFails, color: 'var(--status-critical)' },
+                { title: 'CORTX-side (not the service’s fault)', rows: cortxStageFails, color: 'var(--text-dim)' },
+              ].filter(g => g.rows.length > 0).map(g => (
+                <div key={g.title} style={{ padding: '8px 16px' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500, padding: '4px 0' }}>{g.title}</div>
+                  {g.rows.map(([stage, count]) => (
+                    <div key={stage} style={{ display: 'flex', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1, minWidth: 0, fontFamily: 'var(--font-geist-mono)', overflowWrap: 'anywhere' }}>{stage}</span>
+                      <div style={{ width: 96, height: 4, background: 'var(--bg-muted)', borderRadius: 2, margin: '0 12px', flexShrink: 0 }}>
+                        <div style={{ height: 4, borderRadius: 2, background: g.color, width: `${Math.round((count / maxStageFailCount) * 100)}%` }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 28, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{count}</span>
                     </div>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 28, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{count}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -670,8 +690,8 @@ export default async function AdminPage() {
               return (
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 16px', borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)' }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: item.color, flexShrink: 0, marginTop: 4 }} />
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, overflowWrap: 'anywhere' }}>
                       <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.sub}</span>{' '}
                       {item.label}
                     </div>
@@ -714,13 +734,9 @@ export default async function AdminPage() {
                   return (
                     <tr key={sub.id}>
                       <td style={tdStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                          {sub.source === 'cori_scout' && <CoriBadge />}
-                          <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{sub.name}</span>
-                        </div>
+                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 }}>{sub.name}</div>
                         <a href={sub.endpoint_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-dim)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none' }}>{sub.endpoint_url} ↗</a>
                         {sub.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, maxWidth: 320 }}>{sub.description}</div>}
-                        {sub.source === 'cori_scout' && <CoriCandidateDetails metadata={sub.candidate_metadata} />}
                         {(sub.x_handle || sub.website_url) && (
                           <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
                             {sub.x_handle && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{sub.x_handle}</span>}
@@ -735,7 +751,7 @@ export default async function AdminPage() {
                         }
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub.source === 'cori_scout' ? 'Cori Scout' : (sub.submitter_email ?? '—')}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub.submitter_email ?? '—'}</span>
                       </td>
                       <td style={tdStyle}>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(sub.submitted_at)}</span>
@@ -749,6 +765,11 @@ export default async function AdminPage() {
               </tbody>
             </table>
           </div>
+        )}
+        {coriNav && coriNav.waiting > 0 && (
+          <Link href="/admin/cori" style={{ display: 'block', padding: '10px 16px', borderTop: '1px solid var(--border-subtle)', fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none' }}>
+            <strong style={{ color: 'var(--status-degraded)' }}>{coriNav.waiting}</strong> found by Cori → review on the Cori page
+          </Link>
         )}
       </div>
 

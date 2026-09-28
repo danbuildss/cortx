@@ -21,6 +21,14 @@ export function heartbeatState(lastRunAt: Date | null, now: Date): HeartbeatStat
   return 'silent';
 }
 
+// How each state shows in the app (sidebar dot, admin line, Cori page)
+export const HEARTBEAT_DISPLAY: Record<HeartbeatState, { label: string; color: string }> = {
+  healthy: { label: 'Running', color: 'var(--status-ok)' },
+  late: { label: 'Late', color: 'var(--status-degraded)' },
+  silent: { label: 'Silent', color: 'var(--status-critical)' },
+  not_started: { label: 'Not started yet', color: 'var(--text-dim)' },
+};
+
 // Dry runs log their runs as `dry:<kind>`
 export function isDryRunKind(kind: string | null | undefined): boolean {
   return !!kind && kind.startsWith('dry:');

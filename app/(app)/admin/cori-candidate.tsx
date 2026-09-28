@@ -2,6 +2,8 @@
 // network, why it's eligible, where and when it was first seen. Reads the
 // candidate_metadata Cori wrote when it queued the service.
 import { explainReasons } from '@/lib/cori/status';
+import { SubmissionActions } from './submission-actions';
+import type { CoriCandidate } from './cori-data';
 
 type Meta = {
   classification?: string;
@@ -64,6 +66,34 @@ export function CoriCandidateDetails({ metadata }: { metadata: unknown }) {
         {firstSeen && <>First seen {firstSeen}</>}
         {sources && <> via {sources}</>}
         {' · '}Observed (not verified)
+      </div>
+    </div>
+  );
+}
+
+// One candidate on the Cori page's review list: name, URL, Cori's facts, and
+// the same Approve / Reject actions as the admin submissions table.
+export function CoriCandidateCard({ c, last }: { c: CoriCandidate; last: boolean }) {
+  const needsInput = (c.candidate_metadata as { classification?: string } | null)?.classification === 'needs_input';
+  return (
+    <div style={{ padding: '12px 16px', borderBottom: last ? 'none' : '1px solid var(--border-subtle)', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>{c.name}</span>
+        {needsInput && (
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.05em', textTransform: 'uppercase',
+            background: 'rgba(217,119,6,0.12)', color: 'var(--status-degraded)', whiteSpace: 'nowrap',
+          }}>Needs input</span>
+        )}
+      </div>
+      <a href={c.endpoint_url} target="_blank" rel="noopener noreferrer" style={{
+        display: 'block', fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-dim)',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', marginTop: 2,
+      }}>{c.endpoint_url} ↗</a>
+      {c.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, overflowWrap: 'anywhere' }}>{c.description}</div>}
+      <CoriCandidateDetails metadata={c.candidate_metadata} />
+      <div style={{ marginTop: 10 }}>
+        <SubmissionActions id={c.id} />
       </div>
     </div>
   );

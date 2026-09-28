@@ -392,13 +392,13 @@ Estimated: A–C about a week of build; D a day with the founder; E one week of 
 
 ## Phase C status (built)
 
-- Admin **Cori panel** (`app/(app)/admin/cori-panel.tsx`). It shows:
-  - heartbeat state: green < 10 min, amber < 30 min, red after
-  - live vs dry run
-  - the last Bazaar scan
-  - counts per class (head-count queries, because PostgREST caps row reads at 1,000)
-  - recent errors and the last 12 discovery events
-- **Pending Submissions** show Cori candidates with a badge and facts from `candidate_metadata` (`cori-candidate.tsx`): price, network, x402 version, method, plain-English "why eligible", the needs-input flag, first seen + source, and "Observed (not verified)".
+- **Cori has its own owner-only page, `/admin/cori`** (founder's choice after seeing the full admin page on a phone), plus a **Cori item in the sidebar and phone menu** under Admin: a health dot (green < 10 min, amber < 30 min, red after, grey before the first run) and a count of candidates waiting for review. The page (`app/(app)/admin/cori/page.tsx`, blocks in `cori-panel.tsx`, reads in `cori-data.ts`) shows:
+  - status: heartbeat, live vs dry run, the last Bazaar scan, services known
+  - **Waiting for you**: Cori's pending candidates as cards with Approve / Reject, and facts from `candidate_metadata` (`cori-candidate.tsx`): price, network, x402 version, method, plain-English "why eligible", the needs-input flag, first seen + source, "Observed (not verified)"
+  - **What Cori knows**: counts per class (head-count queries, because PostgREST caps row reads at 1,000)
+  - recent errors and the last 20 discovery events
+  - before Phase D: only a "Not started yet" card
+- `/admin` keeps one slim Cori line under the header ("● Running · N waiting · Open Cori →"). Its **Pending Submissions** list shows only people's submissions, plus a "N found by Cori → review on the Cori page" line when Cori has candidates.
 - **Review write-back** (`/api/admin/submissions`):
   - approve sets `linked_seed_id`, class `already_listed`, and logs an `approved` event
   - reject logs a `rejected` event with the reason
@@ -408,4 +408,4 @@ Estimated: A–C about a week of build; D a day with the founder; E one week of 
   - a single "back" message on recovery
   - silent until Cori has run once
   - state kept in `system_settings.cori_watchdog`
-- Pure logic in `lib/cori/status.ts` with tests (77 total).
+- Pure logic in `lib/cori/status.ts` with tests.

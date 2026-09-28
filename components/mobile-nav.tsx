@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAppTheme } from './app-theme-provider';
+import { HEARTBEAT_DISPLAY } from '@/lib/cori/status';
+import type { CoriNav } from '@/app/(app)/admin/cori-data';
 
 interface MobileNavProps {
   email: string;
@@ -12,6 +14,7 @@ interface MobileNavProps {
   userId: string;
   openIncidents?: number;
   isAdmin?: boolean;
+  cori?: CoriNav | null;
 }
 
 function initials(displayName: string | null, email: string): string {
@@ -23,7 +26,7 @@ function initials(displayName: string | null, email: string): string {
   return email[0].toUpperCase();
 }
 
-export function MobileNav({ email, displayName, userId, openIncidents = 0, isAdmin = false }: MobileNavProps) {
+export function MobileNav({ email, displayName, userId, openIncidents = 0, isAdmin = false, cori = null }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -52,6 +55,12 @@ export function MobileNav({ email, displayName, userId, openIncidents = 0, isAdm
   }
 
   const avatarLetters = initials(displayName, email);
+
+  // /admin/cori is its own item, so Admin is only active on /admin itself
+  const adminActive = pathname === '/admin';
+  const coriActive = isActive('/admin/cori');
+  const coriDisplay = HEARTBEAT_DISPLAY[cori?.state ?? 'not_started'];
+  const coriWaiting = cori?.waiting ?? 0;
 
   const mainNav = [
     { label: 'Overview',     href: '/overview',            activePath: undefined },
@@ -209,12 +218,12 @@ export function MobileNav({ email, displayName, userId, openIncidents = 0, isAdm
                   href="/admin"
                   style={{
                     ...navLinkStyle,
-                    color: isActive('/admin') ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    background: isActive('/admin') ? 'var(--bg-hover)' : 'transparent',
-                    fontWeight: isActive('/admin') ? 500 : 400,
+                    color: adminActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    background: adminActive ? 'var(--bg-hover)' : 'transparent',
+                    fontWeight: adminActive ? 500 : 400,
                   }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = isActive('/admin') ? 'var(--bg-hover)' : 'transparent'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = adminActive ? 'var(--bg-hover)' : 'transparent'; }}
                 >
                   Admin
                   <span style={{
@@ -222,6 +231,28 @@ export function MobileNav({ email, displayName, userId, openIncidents = 0, isAdm
                     background: 'rgba(239,68,68,0.12)', color: 'var(--status-critical)',
                     border: '1px solid rgba(239,68,68,0.2)',
                   }}>OWNER</span>
+                </Link>
+                <Link
+                  href="/admin/cori"
+                  style={{
+                    ...navLinkStyle,
+                    color: coriActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    background: coriActive ? 'var(--bg-hover)' : 'transparent',
+                    fontWeight: coriActive ? 500 : 400,
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = coriActive ? 'var(--bg-hover)' : 'transparent'; }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                    Cori
+                    <span aria-label={coriDisplay.label} style={{ width: 8, height: 8, borderRadius: '50%', background: coriDisplay.color }} />
+                  </span>
+                  {coriWaiting > 0 && (
+                    <span style={{
+                      fontSize: 12, fontWeight: 600, background: 'var(--status-degraded)', color: '#fff',
+                      borderRadius: 99, padding: '1px 8px', lineHeight: '20px',
+                    }}>{coriWaiting}</span>
+                  )}
                 </Link>
               </>
             )}
