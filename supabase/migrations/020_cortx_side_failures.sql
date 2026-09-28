@@ -9,9 +9,9 @@
 -- `error` (infrastructure). This migration:
 --
 --   Part 1. Adds get_spend_totals() and fixes spend accounting in reserve_spend()
---   Part 2. Reclassifies past CORTX-side payment failures as `error`
 --   Part 3. Closes the incidents those false failures opened
 --   Part 4. Recomputes status for the affected services
+--   Part 2. Reclassifies past CORTX-side payment failures as `error` (runs last)
 --
 -- ─── PREVIEW FIRST ─────────────────────────────────────────────────────────
 -- Before running this file, paste the three SELECTs below into the Supabase
@@ -188,24 +188,13 @@ begin
 end $$;
 
 
--- ═══ Parts 2–4: data cleanup (single transaction) ═══════════════════════════
+-- ═══ Parts 2–4: data cleanup ══════════════════════════════════════════════════
+-- No temp tables or explicit transaction: the Supabase SQL editor may run each
+-- statement on its own. Order matters instead — incidents and service status
+-- are fixed first (while the false failures are still `failed`), and the
+-- checks themselves are reclassified last. Every step is safe to re-run.
 
-begin;
-
--- Part 2: remember which checks and services are affected, then reclassify.
-create temporary table _false_failures on commit drop as
-  select c.id as check_id, c.service_id
-  from public.checks c
-  where c.status = 'failed'
-    and public.is_cortx_side_payment_failure(c.stages);
-
-update public.checks c
-set status = 'error',
-    error_message = coalesce(c.error_message,
-      'Reclassified by migration 020: CORTX verification wallet/budget failure, not a service failure')
-where c.id in (select check_id from _false_failures);
-
--- Part 3: close open incidents that were opened by a false failure.
+-- Part 3a: close open incidents that were opened by a false failure.
 update public.incidents i
 set status = 'resolved',
     resolved_at = now(),
@@ -216,11 +205,14 @@ set status = 'resolved',
       'actor', 'system',
       'note', 'False positive: caused by the CORTX verification wallet/budget, not by this service'
     ))
-where i.status in ('open', 'acknowledged')
-  and i.triggering_check_id in (select check_id from _false_failures);
+from public.checks c
+where c.id = i.triggering_check_id
+  and c.status = 'failed'
+  and public.is_cortx_side_payment_failure(c.stages)
+  and i.status in ('open', 'acknowledged');
 
--- Past (already resolved) incidents opened by a false failure: relabel so they
--- no longer read as real outages in the incident history.
+-- Part 3b: past (already resolved) incidents opened by a false failure —
+-- relabel so they no longer read as real outages in the incident history.
 update public.incidents i
 set resolution_type = 'false_positive',
     timeline = coalesce(i.timeline, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
@@ -229,14 +221,20 @@ set resolution_type = 'false_positive',
       'actor', 'system',
       'note', 'Marked false positive: caused by the CORTX verification wallet/budget, not by this service'
     ))
-where i.status = 'resolved'
-  and coalesce(i.resolution_type, '') <> 'false_positive'
-  and i.triggering_check_id in (select check_id from _false_failures);
+from public.checks c
+where c.id = i.triggering_check_id
+  and c.status = 'failed'
+  and public.is_cortx_side_payment_failure(c.stages)
+  and i.status = 'resolved'
+  and coalesce(i.resolution_type, '') <> 'false_positive';
 
 -- Part 4: recompute status + consecutive failures for affected services from
--- their paid checks, ignoring infrastructure errors.
+-- their real paid checks (ignoring infrastructure errors and false failures).
 with affected as (
-  select distinct service_id from _false_failures
+  select distinct c.service_id
+  from public.checks c
+  where c.status = 'failed'
+    and public.is_cortx_side_payment_failure(c.stages)
 ),
 paid as (
   select c.service_id, c.status, c.failure_stage, c.started_at
@@ -244,6 +242,7 @@ paid as (
   join affected a on a.service_id = c.service_id
   where c.status in ('passed', 'failed')
     and coalesce(c.check_type, 'full') <> 'lightweight'
+    and not (c.status = 'failed' and public.is_cortx_side_payment_failure(c.stages))
 ),
 last_pass as (
   select service_id, max(started_at) as at
@@ -276,4 +275,10 @@ left join latest l on l.service_id = a.service_id
 left join streak st on st.service_id = a.service_id
 where s.id = a.service_id;
 
-commit;
+-- Part 2 (last): reclassify the false failures themselves as infrastructure errors.
+update public.checks c
+set status = 'error',
+    error_message = coalesce(c.error_message,
+      'Reclassified by migration 020: CORTX verification wallet/budget failure, not a service failure')
+where c.status = 'failed'
+  and public.is_cortx_side_payment_failure(c.stages);
