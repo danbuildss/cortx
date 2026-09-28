@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { StageError, validateAndResolveUrl } from './ssrf';
 import { executePayment, getWalletAddress, getWalletBalance } from './payment';
-import { classifyStatus } from './classify';
+import { classifyStatus, isCortxSidePaymentFailure } from './classify';
 import type { ServiceConfig, CanaryConfig, CheckResult, StageResult, StageName, X402PaymentTerms } from './types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -111,8 +111,16 @@ async function reserveSpend(
     p_daily_cap: dailyCap,
     p_monthly_cap: monthlyCap,
   });
-  if (error) throw new StageError('WALLET_ERROR', `Spend reservation failed: ${error.message}`);
+  if (error) throw new StageError('SPEND_RESERVATION_FAILED', `Spend reservation failed: ${error.message}`);
   return String(data);
+}
+
+// Global CORTX verification budget (shared by every paid check on the platform).
+export function getSpendCaps(): { dailyCap: number; monthlyCap: number } {
+  return {
+    dailyCap: parseFloat(process.env.CORTX_DAILY_SPEND_CAP_USDC ?? '1.00'),
+    monthlyCap: parseFloat(process.env.CORTX_MONTHLY_SPEND_CAP_USDC ?? '10.00'),
+  };
 }
 
 // Release any unexpired reservation for this service (called on payment failure/timeout).
@@ -425,8 +433,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       const walletAddr = getWalletAddress();
 
       // Atomically reserve spend budget before payment (prevents concurrent overspend)
-      const dailyCap = parseFloat(process.env.CORTX_DAILY_SPEND_CAP_USDC ?? '1.00');
-      const monthlyCap = parseFloat(process.env.CORTX_MONTHLY_SPEND_CAP_USDC ?? '10.00');
+      const { dailyCap, monthlyCap } = getSpendCaps();
       const reserveResult = await reserveSpend(config.id, parsedPrice, dailyCap, monthlyCap);
       if (reserveResult !== 'ok') {
         throw new StageError(
@@ -453,16 +460,22 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       }
       void paymentSucceeded; // used only for the release guard above
     } catch (err) {
-      const code = err instanceof StageError ? err.code : 'WALLET_ERROR';
+      const code = err instanceof StageError ? err.code : 'PAYMENT_SIGNING_FAILED';
       const rawMsg = err instanceof Error ? err.message : String(err);
       const walletKey = process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__';
       const msg = rawMsg.replaceAll(walletKey, '[REDACTED]');
+      const cortxSide = isCortxSidePaymentFailure(code);
       fail(stagePayment, code, {
         error: msg,
         network: 'base',
+        ...(cortxSide ? { cortx_side: true } : {}),
       }, Math.round(performance.now() - t7));
       markRemaining();
-      return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
+      // Wallet/budget problems are CORTX's fault, not the service's — record as
+      // an infrastructure error so the builder is never blamed or alerted.
+      return cortxSide
+        ? buildResult(config.id, started_at, stages, failure_stage, observed_price, 'error', `CORTX verification wallet: ${msg}`)
+        : buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
     const d7 = Math.round(performance.now() - t7);
@@ -636,7 +649,8 @@ function buildResult(
   stages: StageResult[],
   failure_stage: StageName | null,
   observed_price: string | null,
-  status: 'passed' | 'failed'
+  status: 'passed' | 'failed' | 'error',
+  error_message: string | null = null
 ): CheckResult {
   return {
     service_id,
@@ -647,7 +661,7 @@ function buildResult(
     failure_stage,
     stages,
     observed_price,
-    error_message: null,
+    error_message,
     check_type: 'full',
   };
 }

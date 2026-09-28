@@ -663,6 +663,28 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
+## Sep 2026 Reboot — Days 1–3 plan (approved Sep 28)
+
+Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builders vs build" decision are deferred until the founder is back with /admin numbers.
+
+| Day | Scope | Status |
+|---|---|---|
+| 1 | Wallet/budget failures → `error` (never blame builders); spend-cap pause only lifts after cap resets; timing-safe cron secret; migration 020 cleanup of false incidents | ✅ Built — PR open, **run migration 020 after merge** |
+| 2 | x402 V2 payments (`amount` field, V2 payment header, read official docs first); record real on-chain settlement from the receipt header | Not started |
+| 3 | Wire zero-cost readiness (/verify) into cron: readiness every 15 min, paid check daily + on anomaly; readiness failures count toward incidents, only paid checks resolve; "Payment readiness" line on service page; one migration | Not started |
+
+### Day 1 details (what shipped)
+
+- `lib/check-runner/classify.ts` — `isCortxSidePaymentFailure()`: WALLET_NOT_CONFIGURED, INSUFFICIENT_BALANCE, BALANCE_READ_FAILED, SPEND_RESERVATION_FAILED, DAILY/MONTHLY_SPEND_CAP_EXCEEDED, PAYMENT_TIMEOUT → check status `error`. Service-side codes stay `failed`: NO_USDC_OPTION, PAYMENT_SIGNING_FAILED (replaces the old catch-all WALLET_ERROR).
+- `app/api/cron/route.ts` — unpause only when `get_spend_totals()` shows room under the cap (falls back to old behaviour if the RPC is missing); pause alert to builders now says it's CORTX's budget, not their service; timing-safe CRON_SECRET check.
+- Migration 020 — `get_spend_totals()`; `reserve_spend()` now counts every check whose payment went through (previously only fully passed checks, so payments that failed at delivery were missed); reclassifies past false failures, closes/relabels their incidents as `false_positive`, recomputes affected service status. Also revokes anon/authenticated EXECUTE on `reserve_spend`, `get_spend_totals`, `check_and_record_rate_limit` (Supabase exposed them over REST — anyone could burn the budget).
+- Public service status page hides `false_positive` incidents.
+- First automated tests: `npm test` (Node built-in runner, no new deps).
+
+**Founder action items:** merge PR → run `supabase/migrations/020_cortx_side_failures.sql` in Supabase (preview SELECTs at the top of the file) → top up the CORTX wallet with $5–10 USDC on Base (send to the address; key stays in Vercel).
+
+---
+
 ## Product Audit + Market Check (Sep 28, 2026)
 
 Context: ~1 month away from CORTX. Deployment was down, now back. Test wallet is empty. Audit done from code (live site + DB not reachable from the Claude container, so real usage numbers still need pulling from /admin).

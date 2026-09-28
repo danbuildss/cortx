@@ -7,6 +7,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { createPaymentHeader } from 'x402/client';
+import { StageError } from './ssrf';
 import type { X402PaymentTerms } from './types';
 
 const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
@@ -30,9 +31,9 @@ const CAIP2_TO_X402: Record<string, string> = {
 
 function getTestWalletKey(): `0x${string}` {
   const key = process.env.CORTX_TEST_WALLET_KEY;
-  if (!key) throw new Error('CORTX_TEST_WALLET_KEY not set');
+  if (!key) throw new StageError('WALLET_NOT_CONFIGURED', 'CORTX_TEST_WALLET_KEY not set');
   if (!key.startsWith('0x') || key.length !== 66) {
-    throw new Error('CORTX_TEST_WALLET_KEY must be a 0x-prefixed 32-byte hex string');
+    throw new StageError('WALLET_NOT_CONFIGURED', 'CORTX_TEST_WALLET_KEY must be a 0x-prefixed 32-byte hex string');
   }
   return key as `0x${string}`;
 }
@@ -73,20 +74,26 @@ export async function executePayment(
       opt.asset?.toLowerCase() === 'usdc'
   );
 
-  if (!rawOption) throw new Error('No USDC payment option found in payment terms');
+  if (!rawOption) throw new StageError('NO_USDC_OPTION', 'No USDC payment option found in payment terms');
 
   // Check balance before signing
   const amountUnits = parseUnits(observedPrice, USDC_DECIMALS);
-  const balance = await publicClient.readContract({
-    address: USDC_ADDRESS,
-    abi: USDC_ABI,
-    functionName: 'balanceOf',
-    args: [account.address],
-  });
+  let balance: bigint;
+  try {
+    balance = await publicClient.readContract({
+      address: USDC_ADDRESS,
+      abi: USDC_ABI,
+      functionName: 'balanceOf',
+      args: [account.address],
+    }) as bigint;
+  } catch {
+    throw new StageError('BALANCE_READ_FAILED', 'Could not read CORTX wallet balance from Base RPC');
+  }
 
-  if ((balance as bigint) < amountUnits) {
-    throw new Error(
-      `INSUFFICIENT_BALANCE: wallet has ${formatUnits(balance as bigint, USDC_DECIMALS)} USDC, need ${observedPrice}`
+  if (balance < amountUnits) {
+    throw new StageError(
+      'INSUFFICIENT_BALANCE',
+      `CORTX wallet has ${formatUnits(balance, USDC_DECIMALS)} USDC, need ${observedPrice}`
     );
   }
 
@@ -115,8 +122,14 @@ export async function executePayment(
   };
 
   // LocalAccount satisfies x402's EvmSigner — pass directly (no wallet client needed)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const paymentHeader = await createPaymentHeader(account as any, 1, paymentRequirements as any);
+  let paymentHeader: string;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    paymentHeader = await createPaymentHeader(account as any, 1, paymentRequirements as any);
+  } catch (err) {
+    // Signing fails on malformed payment requirements from the service (bad payTo, amount, asset)
+    throw new StageError('PAYMENT_SIGNING_FAILED', err instanceof Error ? err.message : String(err));
+  }
 
   return {
     txHash: paymentHeader,  // base64-encoded signed x402 payment payload

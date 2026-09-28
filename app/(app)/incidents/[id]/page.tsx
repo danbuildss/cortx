@@ -247,7 +247,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
           border: '1px solid var(--status-operational-border)', borderRadius: 8,
           padding: '12px 16px', fontSize: 13, color: 'var(--status-operational)',
         }}>
-          ✓ Resolved {formatRelative(incident.resolved_at)} — {incident.resolution_type ?? 'auto'}
+          ✓ Resolved {formatRelative(incident.resolved_at)} — {(incident.resolution_type ?? 'auto').replaceAll('_', ' ')}
         </div>
       )}
     </div>
