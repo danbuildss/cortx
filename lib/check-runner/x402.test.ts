@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  atomicAmount,
   buildV2PaymentHeader,
+  findFacilitatorUrl,
+  isServiceSideVerifyRejection,
   decodeHeaderJson,
   explorerTxUrl,
   parsePaymentRequired,
@@ -131,4 +134,41 @@ test('explorer links only for real tx hashes on known networks', () => {
   assert.equal(explorerTxUrl('eip155:84532', TX), `https://sepolia.basescan.org/tx/${TX}`);
   assert.equal(explorerTxUrl('base', 'not-a-hash'), null);
   assert.equal(explorerTxUrl('solana', TX), null);
+});
+
+test('atomic amount for EIP-3009 value', () => {
+  assert.equal(atomicAmount({ amount: '10000', amountField: 'amount' }), 10000n);
+  assert.equal(atomicAmount({ amount: '1000', amountField: 'maxAmountRequired' }), 1000n);
+  assert.equal(atomicAmount({ amount: '0.01', amountField: 'maxAmountRequired' }), 10000n, 'decimal V1 price → atomic');
+  assert.equal(atomicAmount({ amount: 'x', amountField: 'amount' }), null);
+});
+
+test('facilitator discovery: option.extra, option, then root; https only', () => {
+  const opt = { scheme: 'exact', network: 'base', maxAmountRequired: '1000', asset: USDC, payTo: PAY_TO };
+  const parse = (root: Record<string, unknown>) => parsePaymentRequired(JSON.stringify(root), headers())!;
+
+  let p = parse({ accepts: [{ ...opt, extra: { facilitator: 'https://fac.example/api/' } }] });
+  assert.equal(findFacilitatorUrl(p, p.options[0]), 'https://fac.example/api');
+
+  p = parse({ accepts: [{ ...opt, facilitator: 'https://api.bankr.bot/facilitator' }] });
+  assert.equal(findFacilitatorUrl(p, p.options[0]), 'https://api.bankr.bot/facilitator');
+
+  p = parse({ facilitatorUrl: 'https://root.example', accepts: [opt] });
+  assert.equal(findFacilitatorUrl(p, p.options[0]), 'https://root.example');
+
+  p = parse({ accepts: [{ ...opt, facilitator: 'http://insecure.example' }] });
+  assert.equal(findFacilitatorUrl(p, p.options[0]), null, 'http is rejected');
+
+  p = parse({ accepts: [opt] });
+  assert.equal(findFacilitatorUrl(p, p.options[0]), null, 'spec keeps it opaque → unavailable');
+});
+
+test('verify rejections: only service misconfiguration counts against the service', () => {
+  for (const r of ['invalid_network', 'invalid_scheme', 'unsupported_scheme', 'invalid_payment_requirements', 'invalid_exact_evm_payload_recipient_mismatch']) {
+    assert.equal(isServiceSideVerifyRejection(r), true, r);
+  }
+  for (const r of ['insufficient_funds', 'invalid_exact_evm_payload_signature', 'invalid_exact_evm_payload_authorization_valid_before',
+    'invalid_exact_evm_payload_authorization_value_mismatch', 'invalid_payload', 'invalid_x402_version', 'unexpected_verify_error', 'something_new', null]) {
+    assert.equal(isServiceSideVerifyRejection(r), false, String(r));
+  }
 });

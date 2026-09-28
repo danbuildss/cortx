@@ -3,6 +3,8 @@ import { timingSafeEqual } from 'crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { runFullCheck, runCanaryCheck, getSpendCaps } from '@/lib/check-runner/runner';
 import { runLightweightCheck } from '@/lib/check-runner/lightweight';
+import { runReadinessCheck, readinessToCheckResult, readinessReason } from '@/lib/check-runner/readiness';
+import { READINESS_UNAVAILABLE_RECHECK_MINUTES } from '@/lib/check-runner/schedule';
 import { persistCheckResult } from '@/lib/check-runner/persist';
 import type { TriggerSource } from '@/lib/check-runner/persist';
 import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
@@ -76,13 +78,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // ── Loop 1b: Payment readiness (facilitator /verify, no USDC moves) ───────
+  const readinessResults = await runReadinessLoop(db, now);
+
   // ── Loop 2: Paid verifications ────────────────────────────────────────────
   // Auto-unpause services paused by a spend cap, but only once that cap has reset
   await unpauseServicesWithResetCaps(db);
 
   const { data: paidDue, error: paidErr } = await db
     .from('services')
-    .select('id, user_id, name, endpoint_url, environment, test_input, expected_schema, expected_price, max_price, latency_threshold_ms, check_interval_minutes, paid_verification_interval_minutes, paid_verification_mode, canary_payload, canary_expected_schema, canary_max_price_usdc, status, consecutive_failures')
+    .select('id, user_id, name, endpoint_url, environment, test_input, expected_schema, expected_price, max_price, latency_threshold_ms, check_interval_minutes, paid_verification_interval_minutes, paid_verification_mode, canary_payload, canary_expected_schema, canary_max_price_usdc, status, consecutive_failures, readiness_status')
     .is('deleted_at', null)
     .is('monitoring_paused_reason', null)
     .lte('next_paid_verification_at', now)
@@ -169,12 +174,63 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({
     lightweight: { processed: (lightweightDue ?? []).length, results: lightweightResults },
+    readiness: readinessResults,
     paid: {
       processed: (paidDue ?? []).length,
       results: paidResults,
       anomaly_triggered: triggeredServiceIds.length,
     },
   });
+}
+
+// Runs readiness checks for services that are due. Free (nothing settles), so
+// it runs even while paid checks are paused by the spend cap. Failures here
+// never break the rest of the cron — e.g. before migration 021 is applied.
+async function runReadinessLoop(
+  db: SupabaseClient,
+  now: string
+): Promise<{ processed: number; results: Array<{ id: string; status: string }>; skipped_reason?: string }> {
+  const { data: due, error } = await db
+    .from('services')
+    .select('id, user_id, name, endpoint_url, environment, test_input, max_price, status, consecutive_failures, latency_threshold_ms, check_interval_minutes, paid_verification_interval_minutes, readiness_status, readiness_consecutive_failures, readiness_check_interval_minutes')
+    .is('deleted_at', null)
+    .lte('next_readiness_check_at', now);
+
+  if (error) {
+    console.warn('Readiness loop skipped:', error.message);
+    return { processed: 0, results: [], skipped_reason: error.message };
+  }
+
+  const results: Array<{ id: string; status: string }> = [];
+  for (const svc of due ?? []) {
+    try {
+      const readiness = await runReadinessCheck({
+        service_id: svc.id,
+        endpoint_url: svc.endpoint_url,
+        max_price: String(svc.max_price ?? '1.00'),
+        environment: (svc.environment as 'mainnet' | 'testnet') ?? 'mainnet',
+        test_input: svc.test_input as Record<string, unknown> | null,
+      });
+
+      const checkResult = readinessToCheckResult(readiness);
+      if (checkResult) {
+        await persistCheckResult(svc, checkResult, 'scheduled', { readinessReason: readinessReason(readiness) });
+      } else {
+        // Service doesn't publish its facilitator: no check row, re-probe daily
+        await db.from('services').update({
+          readiness_status: 'unavailable',
+          readiness_reason: readinessReason(readiness),
+          last_readiness_check_at: now,
+          next_readiness_check_at: new Date(Date.now() + READINESS_UNAVAILABLE_RECHECK_MINUTES * 60_000).toISOString(),
+        }).eq('id', svc.id);
+      }
+      results.push({ id: svc.id, status: readiness.status });
+    } catch (err) {
+      console.error(`Readiness check failed for service ${svc.id}:`, err);
+      results.push({ id: svc.id, status: 'error' });
+    }
+  }
+  return { processed: (due ?? []).length, results };
 }
 
 function isValidCronSecret(provided: string, expected: string | undefined): boolean {

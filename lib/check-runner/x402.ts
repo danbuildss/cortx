@@ -38,6 +38,8 @@ export type ParsedPaymentRequired = {
   /** V2 ResourceInfo ({ url, description, mimeType }) when the server sent one */
   resource: Record<string, unknown> | null;
   source: 'body' | 'payment-required' | 'x-payment-required';
+  /** The PaymentRequired object exactly as received */
+  raw: Record<string, unknown>;
 };
 
 type HeaderGetter = { get(name: string): string | null };
@@ -106,7 +108,7 @@ function fromObject(
   const version: X402Version =
     declared === 2 || (declared !== 1 && source === 'payment-required') ? 2 : 1;
 
-  return { version, options, resource: asRecord(obj.resource), source };
+  return { version, options, resource: asRecord(obj.resource), source, raw: obj };
 }
 
 // Reads payment terms from a 402 response. The body takes precedence (it's
@@ -146,6 +148,53 @@ export function priceToUsdc(option: Pick<PaymentOption, 'amount' | 'amountField'
   if (!option.amount || !Number.isFinite(n)) return null;
   const atomic = option.amountField === 'amount' || (n >= 1 && Number.isInteger(n));
   return { usdc: atomic ? n / 10 ** USDC_DECIMALS : n, atomic };
+}
+
+// Exact amount to authorize, in atomic USDC units (what EIP-3009 `value` must be).
+export function atomicAmount(option: Pick<PaymentOption, 'amount' | 'amountField'>): bigint | null {
+  const price = priceToUsdc(option);
+  if (!price) return null;
+  if (price.atomic) {
+    try { return BigInt(option.amount); } catch { return null; }
+  }
+  return BigInt(Math.round(price.usdc * 10 ** USDC_DECIMALS));
+}
+
+// ─── Facilitator (readiness checks) ─────────────────────────────────────────
+
+// The x402 spec keeps the facilitator opaque to clients, so only services that
+// publish it can get a readiness check. Looks where gateways put it in practice:
+// option.extra, the option itself, then the PaymentRequired root (Bankr).
+export function findFacilitatorUrl(parsed: ParsedPaymentRequired, option: PaymentOption): string | null {
+  const candidates = [
+    option.extra?.facilitator, option.extra?.facilitatorUrl,
+    option.raw.facilitator, option.raw.facilitatorUrl,
+    parsed.raw.facilitator, parsed.raw.facilitatorUrl,
+  ];
+  for (const c of candidates) {
+    if (typeof c !== 'string') continue;
+    try {
+      const url = new URL(c);
+      if (url.protocol === 'https:') return url.toString().replace(/\/+$/, '');
+    } catch { /* not a URL */ }
+  }
+  return null;
+}
+
+// Facilitator /verify rejections (x402 v2 spec §9) that mean the service is
+// misconfigured. Everything else — including signature, amount, timing and
+// balance problems — could be CORTX building the payment wrong, so it is
+// recorded as a CORTX-side error and never counted against the service.
+const SERVICE_SIDE_VERIFY_REASONS = new Set([
+  'invalid_exact_evm_payload_recipient_mismatch',
+  'invalid_network',
+  'invalid_payment_requirements',
+  'invalid_scheme',
+  'unsupported_scheme',
+]);
+
+export function isServiceSideVerifyRejection(reason: string | null | undefined): boolean {
+  return reason != null && SERVICE_SIDE_VERIFY_REASONS.has(reason);
 }
 
 // ─── Networks ───────────────────────────────────────────────────────────────

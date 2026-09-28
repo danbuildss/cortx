@@ -10,6 +10,7 @@ import { ChecksPanel } from './_components/checks-panel';
 import type { CheckRecord } from './_components/checks-panel';
 import { SharePanel } from './_components/share-panel';
 import { VerifyPanel } from './_components/verify-panel';
+import { paidIntervalMinutes } from '@/lib/check-runner/schedule';
 
 function fmtInterval(minutes: number): string {
   if (minutes >= 1440 && minutes % 1440 === 0) return minutes === 1440 ? 'Daily' : `Every ${minutes / 1440}d`;
@@ -37,7 +38,7 @@ export default async function ServiceDetailPage({
 
   const { data: service } = await supabase
     .from('services')
-    .select('id, name, endpoint_url, status, last_checked_at, check_interval_minutes, environment, expected_price, max_price, lightweight_check_interval_minutes, paid_verification_mode, paid_verification_interval_minutes, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at, verification_status, verification_token, verified_at, monitoring_paused_reason')
+    .select('id, name, endpoint_url, status, last_checked_at, check_interval_minutes, environment, expected_price, max_price, lightweight_check_interval_minutes, paid_verification_mode, paid_verification_interval_minutes, last_lightweight_check_at, last_paid_verification_at, last_full_verification_at, verification_status, verification_token, verified_at, monitoring_paused_reason, readiness_status, readiness_reason, last_readiness_check_at, readiness_check_interval_minutes')
     .eq('id', id)
     .is('deleted_at', null)
     .single();
@@ -156,13 +157,23 @@ export default async function ServiceDetailPage({
           {service.paid_verification_mode !== 'disabled' && (
             <MonitoringCard
               label={service.paid_verification_mode === 'canary' ? 'Canary verification' : 'Full verification'}
-              interval={fmtInterval(service.paid_verification_interval_minutes ?? service.check_interval_minutes)}
+              interval={fmtInterval(paidIntervalMinutes(
+                service.paid_verification_interval_minutes ?? service.check_interval_minutes,
+                service.readiness_status,
+                true
+              ))}
               lastAt={service.paid_verification_mode === 'full' ? service.last_full_verification_at : service.last_paid_verification_at}
               chipLabel={service.paid_verification_mode === 'canary' ? 'canary' : 'full'}
               chipColor={service.paid_verification_mode === 'canary' ? '#d97706' : '#2563eb'}
               chipBg={service.paid_verification_mode === 'canary' ? 'rgba(217,119,6,0.12)' : 'rgba(37,99,235,0.12)'}
             />
           )}
+          <ReadinessCard
+            status={service.readiness_status ?? 'unknown'}
+            reason={service.readiness_reason}
+            interval={fmtInterval(service.readiness_check_interval_minutes ?? 15)}
+            lastAt={service.last_readiness_check_at}
+          />
         </div>
       </div>
 
@@ -260,6 +271,65 @@ function MonitoringCard({
         <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{label}</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
           {interval} · last {lastAt ? formatRelative(lastAt) : 'never'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const READINESS_DISPLAY: Record<string, { text: string; color: string }> = {
+  ready:       { text: 'Ready — a payment would be accepted', color: 'var(--status-operational)' },
+  not_ready:   { text: 'Not ready', color: 'var(--status-critical)' },
+  error:       { text: "Couldn't check — CORTX-side issue", color: 'var(--status-degraded)' },
+  unavailable: { text: "Not available — service doesn't publish its facilitator", color: 'var(--text-muted)' },
+  unknown:     { text: 'Not checked yet', color: 'var(--text-muted)' },
+};
+
+// Zero-cost check: the service's facilitator /verify accepts our signed payment
+// without settling it. See lib/check-runner/readiness.ts.
+function ReadinessCard({
+  status,
+  reason,
+  interval,
+  lastAt,
+}: {
+  status: string;
+  reason: string | null | undefined;
+  interval: string;
+  lastAt: string | null | undefined;
+}) {
+  const display = READINESS_DISPLAY[status] ?? READINESS_DISPLAY.unknown;
+  const showReason = reason && (status === 'not_ready' || status === 'error');
+  return (
+    <div style={{
+      background: 'var(--bg-surface)',
+      border: '1px solid var(--border-mid)',
+      borderRadius: 8,
+      padding: '12px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+    }}>
+      <span style={{
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        color: '#0f766e',
+        background: 'rgba(15,118,110,0.12)',
+        padding: '2px 7px',
+        borderRadius: 4,
+        flexShrink: 0,
+      }}>
+        free
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>Payment readiness</div>
+        <div style={{ fontSize: 11, color: display.color, marginTop: 2 }}>
+          {display.text}{showReason ? ` · ${reason}` : ''}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+          {status === 'unavailable' ? 'Rechecked daily' : interval} · last {lastAt ? formatRelative(lastAt) : 'never'}
         </div>
       </div>
     </div>

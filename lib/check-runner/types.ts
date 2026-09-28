@@ -1,10 +1,11 @@
-export type CheckType = 'lightweight' | 'canary' | 'full';
+export type CheckType = 'lightweight' | 'readiness' | 'canary' | 'full';
 
 export type StageName =
   | 'availability'
   | 'payment_terms'
   | 'price_check'
   | 'payment'
+  | 'facilitator_verify' // readiness checks only
   | 'delivery'
   | 'json_parse'
   | 'schema_validation';

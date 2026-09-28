@@ -1,73 +1,64 @@
 /**
- * Track 2 experiment — payment readiness check via facilitator /verify.
+ * Payment readiness check — zero settlement, no USDC moves.
  *
- * Calls the facilitator's /verify endpoint with a signed EIP-3009 authorization
- * to confirm that a payment WOULD succeed, without settling on-chain.
- * No USDC moves. Result is not persisted to the database.
+ * Probes the endpoint for its 402 payment terms, signs an EIP-3009
+ * authorization for the advertised price, and asks the service's own
+ * facilitator to /verify it (without /settle). A valid result means a real
+ * agent's payment would be accepted right now.
  *
- * This file is intentionally not imported from any production code path.
- * It exists to generate data for docs/track2-findings.md.
+ * Limits:
+ * - The x402 spec keeps the facilitator opaque to clients, so this only works
+ *   for services that publish their facilitator (e.g. Bankr). Others come back
+ *   `unavailable` and stay on the regular paid-check schedule.
+ * - It checks the payment path, not the delivered data. Delivery and schema
+ *   are only covered by paid checks.
+ *
+ * Facilitator /verify: https://github.com/x402-foundation/x402/blob/main/specs/x402-specification-v2.md
+ * (request { x402Version, paymentPayload, paymentRequirements } → { isValid, invalidReason })
+ * Track 2 experiment that validated this approach: docs/track2-findings.md
  */
 
-import { createPublicClient, http, parseUnits, formatUnits, getAddress } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { base } from 'viem/chains';
-import { preparePaymentHeader } from 'x402/client';
-// x402/verify is not imported — we call the facilitator /verify endpoint directly
-import type { X402PaymentTerms } from './types';
 import { StageError, validateAndResolveUrl } from './ssrf';
+import { assertSupportedMethod, getCheckAccount, resolveUsdcAsset, signExactAuthorization } from './payment';
+import {
+  atomicAmount,
+  findFacilitatorUrl,
+  isServiceSideVerifyRejection,
+  parsePaymentRequired,
+  priceToUsdc,
+  type ParsedPaymentRequired,
+  type PaymentOption,
+} from './x402';
+import type { CheckResult, StageName, StageResult } from './types';
 
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
-const USDC_DECIMALS = 6;
-const USDC_ABI = [
-  {
-    name: 'balanceOf',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-] as const;
-
-const DEFAULT_FACILITATOR = 'https://x402.org/facilitator';
 const REQUEST_TIMEOUT_MS = 10_000;
 const VERIFY_TIMEOUT_MS = 10_000;
 const RESPONSE_BODY_MAX_BYTES = 1_048_576;
+const USDC_BASE_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // lowercase
 
-// EIP-3009 TransferWithAuthorization typed-data types (mirrors x402 internals)
-const EIP3009_TYPES = {
-  TransferWithAuthorization: [
-    { name: 'from', type: 'address' },
-    { name: 'to', type: 'address' },
-    { name: 'value', type: 'uint256' },
-    { name: 'validAfter', type: 'uint256' },
-    { name: 'validBefore', type: 'uint256' },
-    { name: 'nonce', type: 'bytes32' },
-  ],
-} as const;
+const CAIP2_TO_X402: Record<string, string> = {
+  'eip155:8453':  'base',
+  'eip155:84532': 'base-sepolia',
+};
 
-const NETWORK_CHAIN_IDS: Record<string, number> = {
-  'base': 8453,
-  'base-sepolia': 84532,
+const NETWORK_ALIASES: Record<string, string[]> = {
+  mainnet: ['base', 'eip155:8453'],
+  testnet: ['base-sepolia', 'eip155:84532'],
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ReadinessStage =
-  | 'availability'
-  | 'payment_terms'
-  | 'price_check'
-  | 'facilitator_verify';
+export type ReadinessStage = Extract<StageName, 'availability' | 'payment_terms' | 'price_check' | 'facilitator_verify'>;
 
-export type ReadinessStageResult = {
-  stage: ReadinessStage;
-  passed: boolean | null;
-  duration_ms: number | null;
-  evidence: Record<string, unknown> | null;
-  error?: string;
-};
+export type ReadinessStageResult = StageResult & { stage: ReadinessStage };
 
-export type ReadinessStatus = 'ready' | 'not_ready' | 'error';
+/**
+ * ready       — the facilitator would accept a payment right now
+ * not_ready   — a real agent's payment would fail (service-side problem)
+ * unavailable — the service doesn't publish its facilitator; can't check
+ * error       — CORTX-side problem (wallet, our request, blocked URL); not the service's fault
+ */
+export type ReadinessStatus = 'ready' | 'not_ready' | 'unavailable' | 'error';
 
 export type ReadinessResult = {
   service_id: string;
@@ -78,32 +69,24 @@ export type ReadinessResult = {
   failure_stage: ReadinessStage | null;
   stages: ReadinessStageResult[];
   observed_price: string | null;
-  // Metadata for the experiment findings doc
   facilitator_url: string | null;
   facilitator_is_custom: boolean;
   facilitator_responded: boolean;
   verify_is_valid: boolean | null;
   verify_invalid_reason: string | null;
-  // Replay risk context
   authorization_ttl_seconds: number | null;
   error_message: string | null;
 };
 
+export type ReadinessConfig = {
+  service_id: string;
+  endpoint_url: string;
+  max_price: string;
+  environment: 'mainnet' | 'testnet';
+  test_input?: Record<string, unknown> | null;
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function stage(
-  s: ReadinessStage,
-  passed: boolean | null,
-  duration_ms: number | null,
-  evidence: Record<string, unknown> | null,
-  error?: string
-): ReadinessStageResult {
-  return { stage: s, passed, duration_ms, evidence, error };
-}
-
-function notReached(s: ReadinessStage): ReadinessStageResult {
-  return { stage: s, passed: null, duration_ms: null, evidence: null };
-}
 
 async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
   const ctrl = new AbortController();
@@ -148,60 +131,55 @@ async function readBodyCapped(res: Response): Promise<string> {
   return new TextDecoder().decode(merged);
 }
 
-function parseToPaymentTerms(raw: string): X402PaymentTerms | null {
-  if (!raw?.trim()) return null;
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (Array.isArray(parsed.accepts) && parsed.accepts.length > 0) {
-      const normalizedAccepts = (parsed.accepts as Record<string, unknown>[]).map((opt) => ({
-        ...opt,
-        payTo: String(opt.payTo ?? opt.recipient ?? ''),
-      }));
-      return { ...parsed, accepts: normalizedAccepts } as unknown as X402PaymentTerms;
-    }
-    if (parsed.network || parsed.maxAmountRequired) {
-      return {
-        accepts: [{
-          network: String(parsed.network ?? ''),
-          maxAmountRequired: String(parsed.maxAmountRequired ?? ''),
-          asset: String(parsed.asset ?? 'USDC'),
-          payTo: String(parsed.payTo ?? parsed.recipient ?? ''),
-        }],
-      };
-    }
-  } catch { /* ignore */ }
-  return null;
+function redactKey(msg: string): string {
+  return msg.replaceAll(process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__', '[REDACTED]');
 }
 
-const CAIP2_TO_X402: Record<string, string> = {
-  'eip155:8453':  'base',
-  'eip155:84532': 'base-sepolia',
-};
+// Builds the facilitator /verify request body for the service's protocol version.
+function buildVerifyRequest(
+  parsed: ParsedPaymentRequired,
+  option: PaymentOption,
+  asset: string,
+  endpointUrl: string,
+  signed: Awaited<ReturnType<typeof signExactAuthorization>>
+): Record<string, unknown> {
+  const payload = { signature: signed.signature, authorization: signed.authorization };
 
-const NETWORK_ALIASES: Record<string, string[]> = {
-  mainnet: ['base', 'eip155:8453'],
-  testnet: ['base-sepolia', 'eip155:84532'],
-};
-
-function getTestWalletKey(): `0x${string}` {
-  const key = process.env.CORTX_TEST_WALLET_KEY;
-  if (!key) throw new Error('CORTX_TEST_WALLET_KEY not set');
-  if (!key.startsWith('0x') || key.length !== 66) {
-    throw new Error('CORTX_TEST_WALLET_KEY must be a 0x-prefixed 32-byte hex string');
+  if (parsed.version === 2) {
+    return {
+      x402Version: 2,
+      paymentPayload: {
+        x402Version: 2,
+        resource: parsed.resource ?? { url: endpointUrl },
+        accepted: option.raw,
+        payload,
+      },
+      paymentRequirements: option.raw,
+    };
   }
-  return key as `0x${string}`;
+
+  // V1: requirements in the shape the x402 v1 facilitator expects. `resource`
+  // must be a valid URL, so fall back to the endpoint when the service omits it.
+  const network = CAIP2_TO_X402[option.network] ?? option.network;
+  return {
+    x402Version: 1,
+    paymentPayload: { x402Version: 1, scheme: option.scheme, network, payload },
+    paymentRequirements: {
+      scheme: option.scheme,
+      network,
+      maxAmountRequired: signed.authorization.value,
+      resource: option.resource ?? endpointUrl,
+      description: option.description ?? '',
+      mimeType: option.mimeType ?? 'application/json',
+      payTo: option.payTo,
+      maxTimeoutSeconds: option.maxTimeoutSeconds ?? 300,
+      asset,
+      extra: { name: 'USD Coin', version: '2', ...option.extra },
+    },
+  };
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-
-export type ReadinessConfig = {
-  service_id: string;
-  endpoint_url: string;
-  max_price: string;
-  environment: 'mainnet' | 'testnet';
-  test_input?: Record<string, unknown> | null;
-};
 
 export async function runReadinessCheck(config: ReadinessConfig): Promise<ReadinessResult> {
   const started_at = new Date();
@@ -209,43 +187,47 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
   let failure_stage: ReadinessStage | null = null;
   let observed_price: string | null = null;
   let facilitator_url: string | null = null;
-  let facilitator_is_custom = false;
   let facilitator_responded = false;
   let verify_is_valid: boolean | null = null;
   let verify_invalid_reason: string | null = null;
   let authorization_ttl_seconds: number | null = null;
 
-  const remaining: ReadinessStage[] = [
-    'availability', 'payment_terms', 'price_check', 'facilitator_verify',
-  ];
+  const remaining: ReadinessStage[] = ['availability', 'payment_terms', 'price_check', 'facilitator_verify'];
   const advance = (): ReadinessStage => remaining.shift()!;
-  const markRemaining = () => { for (const s of remaining) stages.push(notReached(s)); };
-
+  const markRemaining = () => {
+    for (const s of remaining.splice(0)) stages.push({ stage: s, passed: null, duration_ms: null, evidence: null });
+  };
+  const pass = (s: ReadinessStage, duration_ms: number, evidence: Record<string, unknown>) => {
+    stages.push({ stage: s, passed: true, duration_ms, evidence });
+  };
   const fail = (s: ReadinessStage, error: string, evidence: Record<string, unknown> | null, duration_ms: number) => {
-    stages.push(stage(s, false, duration_ms, evidence, error));
+    stages.push({ stage: s, passed: false, duration_ms, evidence, error });
     failure_stage = s;
   };
 
-  const done = (status: ReadinessStatus): ReadinessResult => ({
-    service_id: config.service_id,
-    endpoint_url: config.endpoint_url,
-    started_at,
-    completed_at: new Date(),
-    status,
-    failure_stage,
-    stages,
-    observed_price,
-    facilitator_url,
-    facilitator_is_custom,
-    facilitator_responded,
-    verify_is_valid,
-    verify_invalid_reason,
-    authorization_ttl_seconds,
-    error_message: null,
-  });
+  const done = (status: ReadinessStatus, error_message: string | null = null): ReadinessResult => {
+    markRemaining();
+    return {
+      service_id: config.service_id,
+      endpoint_url: config.endpoint_url,
+      started_at,
+      completed_at: new Date(),
+      status,
+      failure_stage,
+      stages,
+      observed_price,
+      facilitator_url,
+      facilitator_is_custom: facilitator_url != null,
+      facilitator_responded,
+      verify_is_valid,
+      verify_invalid_reason,
+      authorization_ttl_seconds,
+      error_message: error_message ? redactKey(error_message) : null,
+    };
+  };
 
   try {
-    // ── Stage 1: Availability — confirm endpoint returns 402 ──────────────────
+    // ── Stage 1: Availability — endpoint answers with 402 ──────────────────────
     const stageAvail = advance();
     let validatedUrl: URL;
     try {
@@ -253,374 +235,222 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
     } catch (err) {
       const code = err instanceof StageError ? err.code : 'INVALID_URL';
       fail(stageAvail, code, { url: config.endpoint_url }, 0);
-      markRemaining();
       return done('not_ready');
     }
 
     const t1 = Date.now();
     let response402: Response;
     let probeMethod: 'POST' | 'GET' = 'POST';
-
     try {
       response402 = await fetchWithTimeout(
         validatedUrl.toString(),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config.test_input ?? {}),
-        },
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config.test_input ?? {}) },
         REQUEST_TIMEOUT_MS
       );
     } catch (err) {
       const code = err instanceof StageError ? err.code : 'UNREACHABLE';
       fail(stageAvail, code, { url: config.endpoint_url }, Date.now() - t1);
-      markRemaining();
       return done('not_ready');
     }
 
     if (response402.status !== 402) {
-      // Try GET fallback (some endpoints only gate on GET)
+      // Some endpoints only gate on GET
       try {
         const getResp = await fetchWithTimeout(validatedUrl.toString(), { method: 'GET' }, REQUEST_TIMEOUT_MS);
         if (getResp.status === 402) { response402 = getResp; probeMethod = 'GET'; }
-      } catch { /* ignore */ }
+      } catch { /* keep the POST response */ }
     }
 
     const d1 = Date.now() - t1;
     if (response402.status !== 402) {
       fail(stageAvail, 'UNEXPECTED_STATUS', { http_status: response402.status, expected: 402 }, d1);
-      markRemaining();
       return done('not_ready');
     }
+    pass(stageAvail, d1, { http_status: 402, response_time_ms: d1, probe_method: probeMethod });
 
-    stages.push(stage(stageAvail, true, d1, { http_status: 402, probe_method: probeMethod }));
-
-    // ── Stage 2: Payment terms — parse 402 body/headers ──────────────────────
+    // ── Stage 2: Payment terms + facilitator discovery ─────────────────────────
     const stageTerms = advance();
     const t2 = Date.now();
-
     let rawBody: string;
     try {
       rawBody = await readBodyCapped(response402);
     } catch (err) {
       const code = err instanceof StageError ? err.code : 'INVALID_PAYMENT_TERMS';
       fail(stageTerms, code, { error: String(err) }, 0);
-      markRemaining();
       return done('not_ready');
     }
 
-    const v2Header = response402.headers.get('payment-required') ?? '';
-    const xPayHeader = response402.headers.get('x-payment-required') ?? '';
-    const paymentTerms = parseToPaymentTerms(rawBody) ?? parseToPaymentTerms(v2Header) ?? parseToPaymentTerms(xPayHeader);
-    const x402ProtocolVersion = v2Header ? 'v2' : xPayHeader ? 'v1_compat' : 'v1';
-
-    if (!paymentTerms || !paymentTerms.accepts?.length) {
+    const parsed = parsePaymentRequired(rawBody, response402.headers);
+    if (!parsed) {
       fail(stageTerms, 'INVALID_PAYMENT_TERMS', { body_preview: rawBody.slice(0, 200) }, Date.now() - t2);
-      markRemaining();
       return done('not_ready');
     }
 
-    const acceptedNetworks = NETWORK_ALIASES[config.environment] ?? ['base', 'eip155:8453'];
-    const matchingOption = paymentTerms.accepts.find(opt => acceptedNetworks.includes(opt.network));
+    const acceptedNetworks = NETWORK_ALIASES[config.environment] ?? NETWORK_ALIASES.mainnet;
+    const onNetwork = parsed.options.filter((o) => acceptedNetworks.includes(o.network));
+    const option = onNetwork.find((o) => ['usdc', USDC_BASE_ADDRESS].includes(o.asset.toLowerCase())) ?? onNetwork[0];
 
-    if (!matchingOption) {
+    if (!option) {
       fail(stageTerms, 'UNSUPPORTED_NETWORK', {
         expected: acceptedNetworks,
-        available: paymentTerms.accepts.map(o => o.network),
+        available: parsed.options.map((o) => o.network),
       }, Date.now() - t2);
-      markRemaining();
       return done('not_ready');
     }
 
-    if (!matchingOption.payTo || !matchingOption.maxAmountRequired || !matchingOption.network) {
-      fail(stageTerms, 'MISSING_FIELDS', { option: matchingOption }, Date.now() - t2);
-      markRemaining();
+    if (!option.payTo || !option.amount) {
+      fail(stageTerms, 'MISSING_FIELDS', { has_pay_to: Boolean(option.payTo), has_amount: Boolean(option.amount) }, Date.now() - t2);
       return done('not_ready');
     }
 
-    // Extract facilitator URL — check all levels of the 402 response:
-    // 1. matchingOption.extra.facilitator / facilitatorUrl  (most common in x402 v2)
-    // 2. matchingOption.facilitator / facilitatorUrl        (top-level of accept option)
-    // 3. paymentTerms root                                  (some implementations put it here)
-    const opt = matchingOption as Record<string, unknown>;
-    const terms = paymentTerms as unknown as Record<string, unknown>;
-    const candidateFacilitator =
-      matchingOption.extra?.['facilitator'] ??
-      matchingOption.extra?.['facilitatorUrl'] ??
-      opt['facilitator'] ??
-      opt['facilitatorUrl'] ??
-      terms['facilitator'] ??
-      terms['facilitatorUrl'];
-    if (typeof candidateFacilitator === 'string' && candidateFacilitator.startsWith('https://')) {
-      facilitator_url = candidateFacilitator;
-      facilitator_is_custom = true;
-    } else {
-      facilitator_url = DEFAULT_FACILITATOR;
-      facilitator_is_custom = false;
-    }
+    facilitator_url = findFacilitatorUrl(parsed, option);
+    authorization_ttl_seconds = option.maxTimeoutSeconds ?? 60;
 
-    authorization_ttl_seconds = matchingOption.maxTimeoutSeconds ?? 300;
-
-    const d2 = Date.now() - t2;
-    stages.push(stage(stageTerms, true, d2, {
-      network: matchingOption.network,
-      x402_protocol_version: x402ProtocolVersion,
+    const termsEvidence = {
+      network: option.network,
+      x402_protocol_version: `v${parsed.version}`,
+      terms_source: parsed.source,
       facilitator_url,
-      facilitator_is_custom,
-      authorization_ttl_seconds,
-    }));
+    };
 
-    // ── Stage 3: Price check — is this within our max_price? ─────────────────
+    if (!facilitator_url) {
+      // Not a failure — the service simply doesn't publish its facilitator.
+      pass(stageTerms, Date.now() - t2, { ...termsEvidence, readiness: 'unavailable' });
+      return done('unavailable');
+    }
+    pass(stageTerms, Date.now() - t2, termsEvidence);
+
+    // ── Stage 3: Price within the service's max ────────────────────────────────
     const stagePrice = advance();
-    const rawPrice = matchingOption.maxAmountRequired;
-    const rawNum = parseFloat(rawPrice);
-
-    if (isNaN(rawNum) || rawNum <= 0) {
-      fail(stagePrice, 'INVALID_PRICE', { raw_price: rawPrice }, 0);
-      markRemaining();
+    const price = priceToUsdc(option);
+    if (!price || price.usdc <= 0) {
+      fail(stagePrice, price ? 'ZERO_PRICE' : 'INVALID_PRICE_FORMAT', { raw_price_field: option.amount }, 0);
       return done('not_ready');
     }
-
-    const atomicUnits = rawNum >= 1 && Number.isInteger(rawNum);
-    const parsedPrice = atomicUnits ? rawNum / 1_000_000 : rawNum;
+    observed_price = price.usdc.toFixed(6);
     const maxPrice = parseFloat(config.max_price);
-    observed_price = parsedPrice.toFixed(6);
-
-    if (parsedPrice > maxPrice) {
-      fail(stagePrice, 'PRICE_EXCEEDS_MAXIMUM', {
-        observed_price,
-        max_price: config.max_price,
-      }, 0);
-      markRemaining();
+    if (price.usdc > maxPrice) {
+      fail(stagePrice, 'PRICE_EXCEEDS_MAXIMUM', { observed_price, max_price: config.max_price }, 0);
       return done('not_ready');
     }
+    pass(stagePrice, 0, { observed_price, max_price: config.max_price, atomic_units_detected: price.atomic });
 
-    stages.push(stage(stagePrice, true, 0, {
-      observed_price,
-      max_price: config.max_price,
-      atomic_units_detected: atomicUnits,
-    }));
-
-    // ── Stage 4: Facilitator /verify — no USDC moves ─────────────────────────
+    // ── Stage 4: Facilitator /verify — no USDC moves ───────────────────────────
     const stageVerify = advance();
     const t4 = Date.now();
 
+    // The facilitator URL comes from the service — apply the same SSRF rules
+    // as for endpoints before calling it.
+    let verifyUrl: URL;
     try {
-      const privateKey = getTestWalletKey();
-      const account = privateKeyToAccount(privateKey);
-
-      // Check we have enough balance to make the authorization meaningful.
-      // (We don't spend — but an authorization for more than we have should
-      //  always fail /verify, which is useful data for Q3 of the findings.)
-      const publicClient = createPublicClient({ chain: base, transport: http() });
-      const balance = await publicClient.readContract({
-        address: USDC_ADDRESS,
-        abi: USDC_ABI,
-        functionName: 'balanceOf',
-        args: [account.address],
-      }) as bigint;
-      const balanceUsdc = formatUnits(balance, USDC_DECIMALS);
-      const hasBalance = balance >= parseUnits(observed_price!, USDC_DECIMALS);
-
-      // Build the x402 payment requirements shape the library expects.
-      // PaymentRequirementsSchema at x402.org/facilitator requires `resource` to be a
-      // valid URL. Many services omit it from the 402 body, so fall back to the
-      // endpoint URL — which is always a valid URL and is the resource being paid for.
-      const network = CAIP2_TO_X402[matchingOption.network] ?? matchingOption.network;
-      const resourceUrl = (typeof matchingOption.resource === 'string' && matchingOption.resource)
-        ? matchingOption.resource
-        : config.endpoint_url;
-      const paymentRequirements = {
-        scheme:            matchingOption.scheme            ?? 'exact',
-        network,
-        maxAmountRequired: matchingOption.maxAmountRequired,
-        resource:          resourceUrl,
-        description:       matchingOption.description       ?? '',
-        mimeType:          matchingOption.mimeType          ?? 'application/json',
-        payTo:             matchingOption.payTo as string,
-        maxTimeoutSeconds: matchingOption.maxTimeoutSeconds ?? 300,
-        asset:             matchingOption.asset as string,
-        extra: {
-          name:    'USD Coin',
-          version: '2',
-          ...matchingOption.extra,
-        },
-      };
-
-      // Build unsigned EIP-3009 authorization payload
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const unsigned = preparePaymentHeader(account.address, 1, paymentRequirements as any);
-      const auth = unsigned.payload.authorization as Record<string, unknown>;
-
-      // Sign the authorization directly with viem (the exported signPaymentHeader from
-      // x402/client encodes to a base64 string internally, which verify() rejects as
-      // "Data is not an object" — we need the signed object, not the encoded string)
-      const chainId = NETWORK_CHAIN_IDS[paymentRequirements.network] ?? 8453;
-      const extra = paymentRequirements.extra as Record<string, unknown> | undefined;
-      const signature = await account.signTypedData({
-        types: EIP3009_TYPES,
-        domain: {
-          name: String(extra?.name ?? 'USD Coin'),
-          version: String(extra?.version ?? '2'),
-          chainId,
-          verifyingContract: getAddress(paymentRequirements.asset as `0x${string}`),
-        },
-        primaryType: 'TransferWithAuthorization',
-        message: {
-          from: getAddress(auth.from as string),
-          to: getAddress(auth.to as string),
-          value: BigInt(auth.value as string),
-          validAfter: BigInt(auth.validAfter as string),
-          validBefore: BigInt(auth.validBefore as string),
-          nonce: auth.nonce as `0x${string}`,
-        },
-      });
-
-      const signed = {
-        ...unsigned,
-        payload: { ...unsigned.payload, signature },
-      };
-
-      // Call facilitator /verify directly — bypass the x402 library's verify()
-      // so we can log the exact request body and raw HTTP response for debugging.
-      // toJsonSafe converts BigInts → strings (mirrors what the library does internally).
-      function toJsonSafe(data: unknown): unknown {
-        if (data === null || typeof data !== 'object') return data;
-        if (Array.isArray(data)) return data.map(toJsonSafe);
-        return Object.fromEntries(
-          Object.entries(data as Record<string, unknown>).map(([k, v]) => [
-            k,
-            typeof v === 'bigint' ? v.toString() : toJsonSafe(v),
-          ])
-        );
-      }
-
-      const requestBody = {
-        x402Version: signed.x402Version,
-        paymentPayload: toJsonSafe(signed),
-        paymentRequirements: toJsonSafe(paymentRequirements),
-      };
-
-      let verifyResult: { isValid: boolean; invalidReason?: string };
-      let rawStatus: number | null = null;
-      let rawResponseBody: string | null = null;
-
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), VERIFY_TIMEOUT_MS);
-        let verifyRes: Response;
-        try {
-          verifyRes = await fetch(`${facilitator_url}/verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-            signal: ctrl.signal,
-          });
-        } finally {
-          clearTimeout(timer);
-        }
-
-        rawStatus = verifyRes.status;
-        rawResponseBody = await verifyRes.text().catch(() => null);
-
-        let parsed: Record<string, unknown> = {};
-        try { parsed = JSON.parse(rawResponseBody ?? '{}'); } catch { /* ignore */ }
-
-        if (typeof parsed.isValid !== 'boolean') {
-          throw new Error(`Unexpected facilitator response: ${rawStatus} ${rawResponseBody?.slice(0, 200)}`);
-        }
-
-        verifyResult = {
-          isValid: parsed.isValid as boolean,
-          invalidReason: parsed.invalidReason as string | undefined,
-        };
-        facilitator_responded = true;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const isTimeout = err instanceof Error && err.name === 'AbortError';
-        const d4 = Date.now() - t4;
-        fail(stageVerify, isTimeout ? 'VERIFY_TIMEOUT' : 'VERIFY_ERROR', {
-          facilitator_url,
-          error: msg,
-          raw_status: rawStatus,
-          raw_response: rawResponseBody?.slice(0, 500),
-          request_body_preview: JSON.stringify(requestBody).slice(0, 500),
-          wallet_balance_usdc: balanceUsdc,
-          has_sufficient_balance: hasBalance,
-        }, d4);
-        return done('error');
-      }
-
-      verify_is_valid = verifyResult.isValid;
-      verify_invalid_reason = verifyResult.invalidReason ?? null;
-
-      const d4 = Date.now() - t4;
-
-      if (!verifyResult.isValid) {
-        // HTTP 500 "No facilitator registered for scheme/network" means x402.org doesn't know
-        // this service's payTo address — the service uses a different (possibly self-hosted)
-        // facilitator that wasn't discovered from the 402 response. Distinguish this case so
-        // CORTX doesn't treat it the same as an actual payment validity failure.
-        const rawMsg: string = (() => {
-          try { return (JSON.parse(rawResponseBody ?? '{}') as Record<string, unknown>).invalidMessage as string ?? ''; }
-          catch { return ''; }
-        })();
-        const isNotRegistered = rawStatus === 500 && rawMsg.toLowerCase().includes('no facilitator registered');
-        const errorCode = isNotRegistered ? 'FACILITATOR_NOT_REGISTERED' : 'VERIFY_REJECTED';
-        fail(stageVerify, errorCode, {
-          facilitator_url,
-          is_valid: false,
-          invalid_reason: verifyResult.invalidReason,
-          facilitator_message: rawMsg || undefined,
-          raw_status: rawStatus,
-          hint: isNotRegistered
-            ? 'Service uses a facilitator other than x402.org. Discover the correct facilitator URL from the 402 response.'
-            : undefined,
-          wallet_balance_usdc: balanceUsdc,
-          has_sufficient_balance: hasBalance,
-          authorization_ttl_seconds,
-        }, d4);
-        return done('not_ready');
-      }
-
-      stages.push(stage(stageVerify, true, d4, {
-        facilitator_url,
-        is_valid: true,
-        wallet_balance_usdc: balanceUsdc,
-        has_sufficient_balance: hasBalance,
-        authorization_ttl_seconds,
-      }));
-
+      verifyUrl = await validateAndResolveUrl(`${facilitator_url}/verify`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const walletKey = process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__';
-      fail(stageVerify, 'WALLET_ERROR', {
-        error: msg.replaceAll(walletKey, '[REDACTED]'),
+      fail(stageVerify, 'FACILITATOR_URL_BLOCKED', {
         facilitator_url,
+        reason: err instanceof StageError ? err.code : 'INVALID_URL',
+        cortx_side: true,
       }, Date.now() - t4);
-      return done('error');
+      return done('error', 'Facilitator URL failed CORTX safety checks');
     }
 
-    return done('ready');
+    let requestBody: Record<string, unknown>;
+    try {
+      const asset = resolveUsdcAsset(option);          // NO_USDC_OPTION → service-side
+      assertSupportedMethod(option);                   // UNSUPPORTED_PAYMENT_METHOD → CORTX-side
+      const account = getCheckAccount();               // WALLET_NOT_CONFIGURED → CORTX-side
+      if (atomicAmount(option) == null) throw new StageError('INVALID_PRICE_FORMAT', 'Unreadable amount');
+      const signed = await signExactAuthorization(account, option, asset); // PAYMENT_SIGNING_FAILED → service-side
+      requestBody = buildVerifyRequest(parsed, option, asset, config.endpoint_url, signed);
+    } catch (err) {
+      const code = err instanceof StageError ? err.code : 'PAYMENT_SIGNING_FAILED';
+      const msg = redactKey(err instanceof Error ? err.message : String(err));
+      const cortxSide = code === 'WALLET_NOT_CONFIGURED' || code === 'UNSUPPORTED_PAYMENT_METHOD';
+      fail(stageVerify, code, { facilitator_url, error: msg, ...(cortxSide ? { cortx_side: true } : {}) }, Date.now() - t4);
+      return cortxSide ? done('error', msg) : done('not_ready');
+    }
 
+    let rawStatus: number;
+    let parsedResponse: Record<string, unknown> = {};
+    try {
+      const res = await fetchWithTimeout(verifyUrl.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        redirect: 'error', // never follow the facilitator somewhere we didn't validate
+      }, VERIFY_TIMEOUT_MS);
+      rawStatus = res.status;
+      const text = await res.text().catch(() => '');
+      try { parsedResponse = JSON.parse(text) as Record<string, unknown>; } catch { /* not JSON */ }
+    } catch (err) {
+      // The service's own facilitator is down or slow: real payments would fail too.
+      const code = err instanceof StageError && err.code === 'TIMEOUT' ? 'FACILITATOR_TIMEOUT' : 'FACILITATOR_UNREACHABLE';
+      fail(stageVerify, code, { facilitator_url, error: String(err) }, Date.now() - t4);
+      return done('not_ready');
+    }
+
+    const d4 = Date.now() - t4;
+
+    if (typeof parsedResponse.isValid !== 'boolean') {
+      if (rawStatus >= 500) {
+        fail(stageVerify, 'FACILITATOR_ERROR', { facilitator_url, http_status: rawStatus }, d4);
+        return done('not_ready');
+      }
+      // A 4xx without a verdict most likely means the facilitator didn't accept
+      // how CORTX built the request — don't blame the service for that.
+      fail(stageVerify, 'VERIFY_REQUEST_REJECTED', { facilitator_url, http_status: rawStatus, cortx_side: true }, d4);
+      return done('error', `Facilitator returned HTTP ${rawStatus} without a verdict`);
+    }
+
+    facilitator_responded = true;
+    verify_is_valid = parsedResponse.isValid;
+    verify_invalid_reason = typeof parsedResponse.invalidReason === 'string' ? parsedResponse.invalidReason : null;
+
+    if (!verify_is_valid) {
+      const serviceSide = isServiceSideVerifyRejection(verify_invalid_reason);
+      fail(stageVerify, serviceSide ? 'VERIFY_REJECTED' : 'VERIFY_REJECTED_CORTX_SIDE', {
+        facilitator_url,
+        is_valid: false,
+        invalid_reason: verify_invalid_reason,
+        http_status: rawStatus,
+        ...(serviceSide ? {} : { cortx_side: true }),
+      }, d4);
+      return serviceSide
+        ? done('not_ready')
+        : done('error', `Facilitator rejected CORTX's authorization: ${verify_invalid_reason ?? 'no reason given'}`);
+    }
+
+    pass(stageVerify, d4, { facilitator_url, is_valid: true, authorization_ttl_seconds });
+    return done('ready');
   } catch (err) {
-    const walletKey = process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__';
-    return {
-      service_id: config.service_id,
-      endpoint_url: config.endpoint_url,
-      started_at,
-      completed_at: new Date(),
-      status: 'error',
-      failure_stage,
-      stages,
-      observed_price,
-      facilitator_url,
-      facilitator_is_custom,
-      facilitator_responded,
-      verify_is_valid,
-      verify_invalid_reason,
-      authorization_ttl_seconds,
-      error_message: String(err).replaceAll(process.env.CORTX_TEST_WALLET_KEY ?? '__NEVER__', '[REDACTED]'),
-    };
+    return done('error', err instanceof Error ? err.message : String(err));
   }
+}
+
+// Converts a readiness result into a check row. `unavailable` produces no row —
+// the service just keeps its regular paid schedule.
+export function readinessToCheckResult(r: ReadinessResult): CheckResult | null {
+  if (r.status === 'unavailable') return null;
+  return {
+    service_id: r.service_id,
+    started_at: r.started_at,
+    completed_at: r.completed_at,
+    latency_ms: r.completed_at ? r.completed_at.getTime() - r.started_at.getTime() : null,
+    status: r.status === 'ready' ? 'passed' : r.status === 'not_ready' ? 'failed' : 'error',
+    failure_stage: r.failure_stage,
+    stages: r.stages,
+    // Price lives in stage evidence; observed_price stays null so readiness
+    // checks never count as spend (nothing is paid).
+    observed_price: null,
+    error_message: r.error_message,
+    check_type: 'readiness',
+  };
+}
+
+// Human-readable reason for the service page.
+export function readinessReason(r: ReadinessResult): string | null {
+  if (r.status === 'ready') return null;
+  if (r.status === 'unavailable') return 'Service does not publish its facilitator';
+  const failed = r.stages.find((s) => s.passed === false);
+  if (r.verify_invalid_reason) return `Facilitator: ${r.verify_invalid_reason}`;
+  return failed?.error ?? r.error_message ?? null;
 }

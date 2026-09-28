@@ -28,6 +28,7 @@ const CHECK_COLOR: Record<string, string> = {
 
 const TYPE_CHIP: Record<string, { label: string; color: string; bg: string }> = {
   lightweight: { label: 'ping',   color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+  readiness:   { label: 'readiness', color: '#0f766e', bg: 'rgba(15,118,110,0.12)'  },
   canary:      { label: 'canary', color: '#d97706', bg: 'rgba(217,119,6,0.12)'   },
   full:        { label: 'full',   color: '#2563eb', bg: 'rgba(37,99,235,0.12)'   },
 };
