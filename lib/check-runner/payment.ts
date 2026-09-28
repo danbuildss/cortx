@@ -10,7 +10,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { createPaymentHeader } from 'x402/client';
 import { StageError } from './ssrf';
-import { atomicAmount, buildV2PaymentHeader, chainIdFor, type Eip3009Authorization, type PaymentOption, type X402Version } from './x402';
+import { atomicAmount, buildV2PaymentHeader, chainIdFor, isUsdcAsset, type Eip3009Authorization, type PaymentOption, type X402Version } from './x402';
 
 const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
 const USDC_DECIMALS = 6;
@@ -70,11 +70,6 @@ export type SignedPayment = {
   walletAddress: string;
   amountPaid: string;
 };
-
-function isUsdcAsset(asset: string): boolean {
-  const a = asset.toLowerCase();
-  return a === USDC_ADDRESS.toLowerCase() || a === 'usdc';
-}
 
 // Contract address to sign against. Throws NO_USDC_OPTION for non-USDC assets.
 // Bankr's flat format names the asset "USDC" instead of the contract address.

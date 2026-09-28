@@ -6,13 +6,12 @@ import { StageError, validateAndResolveUrl } from './ssrf';
 import { executePayment, type SignedPayment } from './payment';
 import { classifyStatus, isCortxSidePaymentFailure } from './classify';
 import type { ServiceConfig, CanaryConfig, CheckResult, StageResult, StageName } from './types';
-import { parsePaymentRequired, priceToUsdc, readSettlement } from './x402';
+import { NETWORK_ALIASES, parsePaymentRequired, priceToUsdc, readSettlement, selectPaymentOption } from './x402';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const DELIVERY_TIMEOUT_MS = 15_000;
 const PAYMENT_TIMEOUT_MS = 30_000;
 const RESPONSE_BODY_MAX_BYTES = 1_048_576; // 1 MB cap on any remote response body
-const USDC_BASE_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // lowercase
 
 async function fetchWithTimeout(
   url: string,
@@ -264,16 +263,8 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    // Accept both short names ("base") and CAIP-2 format ("eip155:8453")
-    const NETWORK_ALIASES: Record<string, string[]> = {
-      mainnet: ['base', 'eip155:8453'],
-      testnet: ['base-sepolia', 'eip155:84532'],
-    };
-    const acceptedNetworks = NETWORK_ALIASES[config.environment] ?? ['base', 'eip155:8453'];
-    const onNetwork = parsed402.options.filter((opt) => acceptedNetworks.includes(opt.network));
-    // Prefer the USDC option when a service offers several assets on the same network
-    const matchingOption =
-      onNetwork.find((opt) => ['usdc', USDC_BASE_ADDRESS].includes(opt.asset.toLowerCase())) ?? onNetwork[0];
+    const acceptedNetworks = NETWORK_ALIASES[config.environment] ?? NETWORK_ALIASES.mainnet;
+    const matchingOption = selectPaymentOption(parsed402.options, config.environment);
 
     if (!matchingOption) {
       fail(stageTerms, 'UNSUPPORTED_NETWORK', {

@@ -1,31 +1,7 @@
 import { lookup } from 'dns/promises';
-import ipaddr from 'ipaddr.js';
+import { BLOCKED_PORTS, isPrivateIP } from '../net/ip';
 
-const BLOCKED_PORTS = new Set([22, 25, 465, 587, 3306, 5432, 6379, 27017]);
-
-function isPrivateIP(address: string): boolean {
-  try {
-    const ip = ipaddr.parse(address);
-    const range = ip.range();
-    // Allow only unicast public addresses
-    const blockedRanges = [
-      'private',
-      'loopback',
-      'linkLocal',
-      'uniqueLocal',
-      'reserved',
-      'benchmarking',
-      'carrierGradeNat',
-      'broadcast',
-      'unspecified',
-    ];
-    return blockedRanges.includes(range);
-  } catch {
-    // If we can't parse the IP, treat as blocked
-    return true;
-  }
-}
-
+// Shared with lib/net/safe-fetch.ts (Cori): one definition of "public address".
 export class StageError extends Error {
   constructor(
     public readonly code: string,

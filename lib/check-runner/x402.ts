@@ -197,6 +197,32 @@ export function isServiceSideVerifyRejection(reason: string | null | undefined):
   return reason != null && SERVICE_SIDE_VERIFY_REASONS.has(reason);
 }
 
+// ─── Option selection (shared by the runner, readiness and Cori Scout) ──────
+
+export const USDC_BASE_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // lowercase
+
+// Accept both short names ("base") and CAIP-2 ("eip155:8453")
+export const NETWORK_ALIASES: Record<'mainnet' | 'testnet', string[]> = {
+  mainnet: ['base', 'eip155:8453'],
+  testnet: ['base-sepolia', 'eip155:84532'],
+};
+
+export function isUsdcAsset(asset: string): boolean {
+  const a = asset.toLowerCase();
+  return a === 'usdc' || a === USDC_BASE_ADDRESS;
+}
+
+// The option CORTX would pay: on the environment's Base network, preferring USDC
+// when a service offers several assets there.
+export function selectPaymentOption(
+  options: PaymentOption[],
+  environment: 'mainnet' | 'testnet' = 'mainnet'
+): PaymentOption | undefined {
+  const accepted = NETWORK_ALIASES[environment] ?? NETWORK_ALIASES.mainnet;
+  const onNetwork = options.filter((o) => accepted.includes(o.network));
+  return onNetwork.find((o) => isUsdcAsset(o.asset)) ?? onNetwork[0];
+}
+
 // ─── Networks ───────────────────────────────────────────────────────────────
 
 const CHAIN_IDS: Record<string, number> = {
