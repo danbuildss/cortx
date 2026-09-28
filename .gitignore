@@ -16,3 +16,6 @@ tsconfig.tsbuildinfo
 # Vercel
 .vercel
 .gstack/
+
+# Cori build output
+agent/cori/dist/
