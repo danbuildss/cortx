@@ -684,6 +684,10 @@ Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builder
 - Regression test: `lib/check-runner/runner.e2e.test.ts` runs the real `runFullCheck` against a local fake x402 service (V1 + V2, pass, no receipt, paid-not-delivered, schema fail, bad JSON, price over max) and asserts exact stage names + settlement. Confirmed it fails (7/7) against the old runner. Test-only hooks in `test/` stub SSRF (localhost) and the wallet balance read; `npm test` = 30 tests.
 - Migration 022 repairs history: rebuilds shifted stages (verified on Postgres against real old-runner output — 10/10 scenarios match the fixed runner), fixes `failure_stage` on checks + incidents, re-runs the 020 wallet cleanup. Run AFTER merging. Historical public paid-delivery % may drop — the repaired numbers are the true ones.
 
+**Production repair results (Sep 28, migration 022 + false_positive constraint fix):** 389 paid checks re-labelled with correct stage names; 8 wallet failures reclassified as CORTX-side errors (the ones 020 missed); 1 false incident closed (Aug 28, Bankr service, logged as "delivery failed" — was the CORTX wallet). Production had an undocumented `incidents_resolution_type_check` constraint rejecting `false_positive` — widened in step 0 of 020/022 (PR #113).
+
+**Days 1–3 status: COMPLETE.** Open founder items: set Contents (Exa) test input to a real request; run a check on it to confirm V2 payment + settlement card against a non-Bankr service; share /admin numbers to decide Days 4–5 vs outreach.
+
 ### Day 3 details (what shipped)
 
 - `lib/check-runner/readiness.ts` rewritten for production on the shared x402 code (V1 + V2). Probe 402 → parse terms → find facilitator → price ≤ max → sign EIP-3009 → facilitator `/verify` (never `/settle`).
