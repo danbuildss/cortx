@@ -663,6 +663,19 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
+## Proposal: Autonomous Reliability Network / "Cori" agent (Sep 28, 2026) — UNDER DISCUSSION
+
+Idea (inspired by Aeon's proof-of-work engine): CORTX stops waiting for builders to submit endpoints and independently watches the x402 ecosystem. Loop: DISCOVER → OBSERVE → VERIFY → INVESTIGATE → REMEMBER → WARN. Components (internal, one process): Scout (discovery), Observer (free probes + baselines), Verifier (paid checks under policy), Investigator (anomaly → reproduce → incident → recovery proof), Memory (longitudinal history). Surfaces: builders (monitoring), humans (public CORTX Reliability Index + weekly findings), agents (preflight API/MCP). Principle: **the checker is open, the network (observation history) is the moat.** Proposed to run as a long-lived agent ("Cori") on a separate Hetzner VPS in its own project.
+
+**Assessment (Claude, Sep 28):** direction is right and fits "Open Tools, Paid Network", but five corrections from this week's facts:
+1. **/verify experiment is finished and readiness is blocked in practice** — Bankr's facilitator now requires a bearer token; the x402 spec keeps facilitators opaque. The Observer can't rely on "payment readiness: verified". Observer = free 402 probes + change detection; truth comes from periodic cheap paid checks.
+2. **The breadth version already exists.** ScoutScore: 2,079 domains, 20,662 endpoints, 198 paid-verified, MCP + SDK. Don't race for the biggest index number. Differentiate on depth: investigated incidents with stage-level + settlement evidence, longitudinal memory, recovery proof, builder loop.
+3. **Wallet key stays on Vercel** (founder rule: never expose the key). VPS agent does only free work and writes paid-check *requests* to a DB queue; Vercel cron executes them under a deterministic policy. No key on the VPS.
+4. **False-positive risk when publishing about third parties.** This week CORTX was wrong three ways (stage-name bug, wallet false incidents, Exa $0 from empty input). Discovered endpoints lack known-good inputs. Rule: no public failure claim about a third party until reproduced + human-confirmed (initially) + provider notified. Keep Observed vs Verified separate.
+5. **Deterministic core.** V0 needs no LLM; policy rules control money. LLM later for incident write-ups / weekly report (fits Cori's original memory/incident-response design).
+
+Phased build on existing primitives: (1) Scout v0 — Bazaar `/discovery/resources` + other lists, free probe via `x402.ts`, dedupe, into the existing admin review queue (`endpoint_submissions` / `registry_seeds`); runs on Vercel, no spending, no VPS. (2) Observer + Memory — baselines + change events; this is where the VPS starts paying off. (3) Policy + Verifier queue. (4) Investigator. (5) Public Reliability Index + weekly report, then preflight API/MCP. Economics: ~50 services × 1 paid/day × $0.002 ≈ $3/month; ~150 × $0.005 ≈ $22/month + triggers — caps (today $1/day, $10/month) must be raised deliberately.
+
 ## Sep 2026 Reboot — Days 1–3 plan (approved Sep 28)
 
 Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builders vs build" decision are deferred until the founder is back with /admin numbers.
