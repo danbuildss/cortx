@@ -1,6 +1,6 @@
 # Cori Scout v0 — Technical Spec
 
-**Status:** APPROVED with defaults (Sep 28, 2026) · Phase A built
+**Status:** APPROVED with defaults (Sep 28, 2026) · Phases A + B built
 **Scope:** discovery only. Zero USDC. No public claims. No LLM.
 
 ---
@@ -374,3 +374,18 @@ Estimated: A–C about a week of build; D a day with the founder; E one week of 
 - `lib/cori/normalize.ts`, `lib/cori/classify.ts`, `lib/cori/bazaar.ts`: pure pipeline pieces.
 - `selectPaymentOption` / `NETWORK_ALIASES` / `isUsdcAsset` moved into `lib/check-runner/x402.ts`, so the runner, readiness and Scout share one rule.
 - Tests: 61 total (31 new: normalization, full classification matrix, Bazaar V1/V2 parsing and caps, IP rules, safe-fetch against a real local HTTPS server incl. DNS rebinding).
+
+## Phase B status (built)
+
+- `agent/cori/`: the Cori process (README inside): Bazaar client, pipeline, free probe, queue, per-host limiter, Postgres and in-memory stores, advisory lock, dry-run and `--once` modes, heartbeat, graceful shutdown. Built with esbuild into one file (`npm run build:cori`). New dependencies: `postgres` (runtime), `esbuild` (dev).
+- Behavior decisions made while building:
+  - A failed source is retried after 30 minutes, not every tick.
+  - Idle ticks write no run rows; liveness comes from a heartbeat row every 5 minutes.
+  - A service becomes `unreachable` only after 3 consecutive failed probes (backoff 1 h, 6 h, 24 h).
+  - **Rejected candidates are never re-queued automatically in v0.** The spec allowed re-queueing after a material change; that needs `reviewed_at`, which `cori_agent` can't read. Conservative for now; revisit with Phase C.
+  - The pay-to fingerprint is a SHA-256 prefix of the lower-cased address.
+- Tests (69 total):
+  - The full pipeline against a fake Bazaar and fake x402 services (15 listings covering every class, pagination, dedupe, daily cap across days, listing/price changes, 3-strike unreachable, denylist, failing-source isolation and backoff) asserts **no payment header was ever sent**.
+  - The same pipeline on real Postgres **as `cori_agent`** (production-shaped schema, migrations 023/024) confirms permissions are sufficient and still restrictive.
+- Smoke-tested the built bundle: dry run writes nothing but `dry:*` run rows; a second instance exits on the lock; SIGTERM stops cleanly.
+- The real Bazaar is unreachable from the build container (egress filter), so its live field names get confirmed on the first dry run on the VPS (Phase D).
