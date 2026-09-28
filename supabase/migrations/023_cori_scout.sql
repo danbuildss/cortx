@@ -178,11 +178,32 @@ grant select, update (last_run_at) on public.cori_sources to cori_agent;
 grant select on public.cori_denylist to cori_agent;
 grant usage, select on sequence public.discovery_events_id_seq, public.cori_runs_id_seq to cori_agent;
 
-grant select (id, endpoint_url, deleted_at) on public.services to cori_agent;
-grant select (id, endpoint_url) on public.registry_seeds to cori_agent;
-grant select (id, endpoint_url, status, source, discovered_service_id) on public.endpoint_submissions to cori_agent;
-grant insert (endpoint_url, name, description, website_url, category, source, discovered_service_id, candidate_metadata)
-  on public.endpoint_submissions to cori_agent;
+-- Column grants on existing tables. Production columns can differ from the
+-- migration files (e.g. endpoint_submissions has no `description` in prod), so
+-- grant only the wanted columns that actually exist.
+do $$
+declare
+  spec record;
+  cols text;
+begin
+  for spec in
+    select * from (values
+      ('select', 'services',             array['id', 'endpoint_url', 'deleted_at']),
+      ('select', 'registry_seeds',       array['id', 'endpoint_url']),
+      ('select', 'endpoint_submissions', array['id', 'endpoint_url', 'status', 'source', 'discovered_service_id']),
+      ('insert', 'endpoint_submissions', array['endpoint_url', 'name', 'description', 'website_url', 'category',
+                                               'source', 'discovered_service_id', 'candidate_metadata'])
+    ) as t(privilege, tbl, wanted)
+  loop
+    select string_agg(quote_ident(c.column_name), ', ' order by c.ordinal_position) into cols
+    from information_schema.columns c
+    where c.table_schema = 'public' and c.table_name = spec.tbl and c.column_name = any (spec.wanted);
+
+    if cols is not null then
+      execute format('grant %s (%s) on public.%I to cori_agent', spec.privilege, cols, spec.tbl);
+    end if;
+  end loop;
+end $$;
 
 -- Single-instance lock (pg_try_advisory_lock) needs no extra grant.
 
