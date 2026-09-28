@@ -670,8 +670,18 @@ Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builder
 | Day | Scope | Status |
 |---|---|---|
 | 1 | Wallet/budget failures → `error` (never blame builders); spend-cap pause only lifts after cap resets; timing-safe cron secret; migration 020 cleanup of false incidents | ✅ Built — PR open, **run migration 020 after merge** |
-| 2 | x402 V2 payments (`amount` field, V2 payment header, read official docs first); record real on-chain settlement from the receipt header | Not started |
+| 2 | x402 V2 payments (`amount` field, V2 payment header, read official docs first); record real on-chain settlement from the receipt header | ✅ Built — PR open, no migration. After merge: click Run check on a V2 service (e.g. Exa) to confirm end to end |
 | 3 | Wire zero-cost readiness (/verify) into cron: readiness every 15 min, paid check daily + on anomaly; readiness failures count toward incidents, only paid checks resolve; "Payment readiness" line on service page; one migration | Not started |
+
+### Day 2 details (what shipped)
+
+- `lib/check-runner/x402.ts` — shared parser: 402 body (V1), base64 `PAYMENT-REQUIRED` (V2), `X-PAYMENT-REQUIRED` (Bankr flat). Reads V2 `amount` (always atomic) and CAIP-2 networks. Found while building: V2 header-only services were already failing at `payment_terms` because the base64 header was parsed as plain JSON.
+- V2 payments: same EIP-3009 authorization wrapped in the V2 PaymentPayload, sent as `PAYMENT-SIGNATURE`. Built by hand from the official spec (no new dependency). Verified with a throwaway key that the signature recovers to the signer. V1 services unchanged (`X-PAYMENT` via x402 v1 client).
+- Settlement proof: delivery stage stores `settlement` (confirmed/failed/unconfirmed, tx hash, Basescan link) on every outcome — makes "paid but not delivered" provable. Payment stage now says `signed: true`, not `confirmed: true`.
+- Decision (founder, Sep 28): show the settlement tx hash with a "View on Basescan" link on the service page. Reveals the CORTX wallet address, never the key.
+- `UNSUPPORTED_PAYMENT_METHOD` (e.g. Permit2) is CORTX-side → `error`, not a builder failure.
+- `readiness.ts` still has its own parser — switch it to `x402.ts` on Day 3.
+- Tests: 17 passing (`npm test`).
 
 ### Day 1 details (what shipped)
 
