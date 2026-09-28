@@ -15,6 +15,7 @@ const CORTX_SIDE_PAYMENT_CODES = new Set<string>([
   'DAILY_SPEND_CAP_EXCEEDED',
   'MONTHLY_SPEND_CAP_EXCEEDED',
   'PAYMENT_TIMEOUT',
+  'UNSUPPORTED_PAYMENT_METHOD', // a payment scheme CORTX can't sign yet (e.g. Permit2)
 ]);
 
 export function isCortxSidePaymentFailure(code: string | null | undefined): boolean {

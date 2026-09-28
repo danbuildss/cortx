@@ -12,6 +12,7 @@ test('wallet and budget failures are CORTX-side', () => {
     'DAILY_SPEND_CAP_EXCEEDED',
     'MONTHLY_SPEND_CAP_EXCEEDED',
     'PAYMENT_TIMEOUT',
+    'UNSUPPORTED_PAYMENT_METHOD',
   ]) {
     assert.equal(isCortxSidePaymentFailure(code), true, code);
   }

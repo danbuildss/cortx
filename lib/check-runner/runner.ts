@@ -3,14 +3,16 @@ import addFormats from 'ajv-formats';
 import { createHash } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { StageError, validateAndResolveUrl } from './ssrf';
-import { executePayment, getWalletAddress, getWalletBalance } from './payment';
+import { executePayment, type SignedPayment } from './payment';
 import { classifyStatus, isCortxSidePaymentFailure } from './classify';
-import type { ServiceConfig, CanaryConfig, CheckResult, StageResult, StageName, X402PaymentTerms } from './types';
+import type { ServiceConfig, CanaryConfig, CheckResult, StageResult, StageName } from './types';
+import { parsePaymentRequired, priceToUsdc, readSettlement } from './x402';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const DELIVERY_TIMEOUT_MS = 15_000;
 const PAYMENT_TIMEOUT_MS = 30_000;
 const RESPONSE_BODY_MAX_BYTES = 1_048_576; // 1 MB cap on any remote response body
+const USDC_BASE_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // lowercase
 
 async function fetchWithTimeout(
   url: string,
@@ -29,38 +31,6 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
-}
-
-// Parses raw JSON string into normalized X402PaymentTerms.
-// Handles x402v1 { accepts: [] } envelope and Bankr flat format from body or header.
-// Maps recipient → payTo for gateways that use the Bankr field name.
-function parseToPaymentTerms(raw: string): X402PaymentTerms | null {
-  if (!raw?.trim()) return null;
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (Array.isArray(parsed.accepts) && parsed.accepts.length > 0) {
-      const normalizedAccepts = (parsed.accepts as Record<string, unknown>[]).map((opt) => ({
-        ...opt,
-        payTo: String(opt.payTo ?? opt.recipient ?? ''),
-      }));
-      return { ...parsed, accepts: normalizedAccepts } as unknown as X402PaymentTerms;
-    }
-    // Flat format: { network, maxAmountRequired, recipient|payTo, asset, ... }
-    if (parsed.network || parsed.maxAmountRequired) {
-      return {
-        accepts: [{
-          network: String(parsed.network ?? ''),
-          maxAmountRequired: String(parsed.maxAmountRequired ?? ''),
-          asset: String(parsed.asset ?? 'USDC'),
-          payTo: String(parsed.payTo ?? parsed.recipient ?? ''),
-          description: parsed.description ? String(parsed.description) : undefined,
-          resource: parsed.resource ? String(parsed.resource) : undefined,
-        }],
-      };
-    }
-  } catch { /* ignore */ }
-  return null;
 }
 
 async function readBodyCapped(response: Response, maxBytes = RESPONSE_BODY_MAX_BYTES): Promise<string> {
@@ -265,7 +235,6 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     // ── Stage 4: Inspect Payment Requirements ─────────────────────────────
     const stageTerms = advance();
     const t4 = performance.now();
-    let paymentTerms: X402PaymentTerms;
     let rawBody: string;
 
     try {
@@ -278,26 +247,14 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    // Parse body first; fall back to payment-required (x402 V2 spec) then x-payment-required (Bankr/V1 compat)
-    const v2Header = response402.headers.get('payment-required') ?? '';
-    const xPayHeader = response402.headers.get('x-payment-required') ?? '';
-    const parsed402 = parseToPaymentTerms(rawBody) ?? parseToPaymentTerms(v2Header) ?? parseToPaymentTerms(xPayHeader);
-    // Record which x402 protocol version this endpoint spoke
-    const x402ProtocolVersion = v2Header ? 'v2' : xPayHeader ? 'v1_compat' : 'v1';
+    // Shared x402 parser: body (V1), PAYMENT-REQUIRED header (V2, base64), X-PAYMENT-REQUIRED (Bankr)
+    const parsed402 = parsePaymentRequired(rawBody, response402.headers);
 
     if (!parsed402) {
       fail(stageTerms, 'INVALID_PAYMENT_TERMS', {
-        error: 'Could not parse payment terms from body or X-Payment-Required header',
+        error: 'Could not parse payment terms from the body, PAYMENT-REQUIRED or X-PAYMENT-REQUIRED header',
         body_preview: rawBody.slice(0, 200),
       }, Math.round(performance.now() - t4));
-      markRemaining();
-      return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
-    }
-
-    paymentTerms = parsed402;
-
-    if (!paymentTerms.accepts || paymentTerms.accepts.length === 0) {
-      fail(stageTerms, 'NO_PAYMENT_OPTIONS', { raw: paymentTerms }, Math.round(performance.now() - t4));
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
@@ -308,21 +265,26 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       testnet: ['base-sepolia', 'eip155:84532'],
     };
     const acceptedNetworks = NETWORK_ALIASES[config.environment] ?? ['base', 'eip155:8453'];
-    const matchingOption = paymentTerms.accepts.find(
-      (opt) => acceptedNetworks.includes(opt.network)
-    );
+    const onNetwork = parsed402.options.filter((opt) => acceptedNetworks.includes(opt.network));
+    // Prefer the USDC option when a service offers several assets on the same network
+    const matchingOption =
+      onNetwork.find((opt) => ['usdc', USDC_BASE_ADDRESS].includes(opt.asset.toLowerCase())) ?? onNetwork[0];
 
     if (!matchingOption) {
       fail(stageTerms, 'UNSUPPORTED_NETWORK', {
         expected_network: acceptedNetworks.join(' | '),
-        available_networks: paymentTerms.accepts.map((o) => o.network),
+        available_networks: parsed402.options.map((o) => o.network),
       }, Math.round(performance.now() - t4));
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    if (!matchingOption.payTo || !matchingOption.maxAmountRequired || !matchingOption.network) {
-      fail(stageTerms, 'MISSING_FIELDS', { option: matchingOption }, Math.round(performance.now() - t4));
+    if (!matchingOption.payTo || !matchingOption.amount || !matchingOption.network) {
+      fail(stageTerms, 'MISSING_FIELDS', {
+        has_pay_to: Boolean(matchingOption.payTo),
+        has_amount: Boolean(matchingOption.amount),
+        network: matchingOption.network || null,
+      }, Math.round(performance.now() - t4));
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
@@ -333,46 +295,37 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       accepted_tokens: ['USDC'],
       network: matchingOption.network,
       payee_address: '[REDACTED]',
-      raw_payment_terms: { accepts_count: paymentTerms.accepts.length, network: matchingOption.network },
-      x402_protocol_version: x402ProtocolVersion,
-      payment_scheme: 'x402',
+      raw_payment_terms: { accepts_count: parsed402.options.length, network: matchingOption.network },
+      x402_protocol_version: `v${parsed402.version}`,
+      terms_source: parsed402.source,
+      payment_scheme: matchingOption.scheme,
     }));
 
     // ── Stage 5: Parse Observed Price ─────────────────────────────────────
     const stagePrice = advance();
-    const rawPrice = matchingOption.maxAmountRequired;
+    const rawPrice = matchingOption.amount;
+    const price = priceToUsdc(matchingOption);
 
-    if (!rawPrice) {
-      fail(stagePrice, 'MISSING_PRICE', { option: matchingOption }, 0);
-      markRemaining();
-      return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
-    }
-
-    const rawNum = parseFloat(rawPrice);
-
-    if (isNaN(rawNum)) {
+    if (!price) {
       fail(stagePrice, 'INVALID_PRICE_FORMAT', { raw_price_field: rawPrice }, 0);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    if (rawNum <= 0) {
-      fail(stagePrice, 'ZERO_PRICE', { raw_price_field: rawPrice, parsed_price: rawNum }, 0);
+    if (price.usdc <= 0) {
+      fail(stagePrice, 'ZERO_PRICE', { raw_price_field: rawPrice, parsed_price: price.usdc }, 0);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
 
-    // x402v2 sends maxAmountRequired in atomic USDC units (6 decimals), e.g. "1000" = $0.001
-    // x402v1 / some implementations send decimal USDC, e.g. "0.001"
-    const atomicUnitsDetected = rawNum >= 1 && Number.isInteger(rawNum);
-    const parsedPrice = atomicUnitsDetected ? rawNum / 1_000_000 : rawNum;
-
+    const parsedPrice = price.usdc;
     observed_price = parsedPrice.toFixed(6);
     stages.push(makeStage(stagePrice, true, 0, {
       raw_price_field: rawPrice,
+      price_field_name: matchingOption.amountField,
       parsed_price: observed_price,
       unit: 'USDC',
-      atomic_units_detected: atomicUnitsDetected,
+      atomic_units_detected: price.atomic,
     }));
 
     // ── Stage 6: Compare Price Against Expected and Maximum ───────────────
@@ -426,12 +379,9 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     const stagePayment = advance();
     const t7 = performance.now();
 
-    let txHash: string;
-    let walletAddress: string;
+    let signedPayment: SignedPayment;
 
     try {
-      const walletAddr = getWalletAddress();
-
       // Atomically reserve spend budget before payment (prevents concurrent overspend)
       const { dailyCap, monthlyCap } = getSpendCaps();
       const reserveResult = await reserveSpend(config.id, parsedPrice, dailyCap, monthlyCap);
@@ -444,21 +394,22 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
         );
       }
 
-      let paymentSucceeded = false;
       try {
-        const result = await Promise.race([
-          executePayment(paymentTerms, observed_price),
-          sleep(PAYMENT_TIMEOUT_MS).then(() => { throw new StageError('PAYMENT_TIMEOUT', 'Payment confirmation timed out'); }),
-        ]) as { txHash: string; walletAddress: string; amountPaid: string };
-        paymentSucceeded = true;
-        txHash = result.txHash;
-        walletAddress = result.walletAddress;
+        signedPayment = await Promise.race([
+          executePayment({
+            option: matchingOption,
+            version: parsed402.version,
+            resource: parsed402.resource,
+            endpointUrl: validatedUrl.toString(),
+            observedPrice: observed_price,
+          }),
+          sleep(PAYMENT_TIMEOUT_MS).then((): never => { throw new StageError('PAYMENT_TIMEOUT', 'Payment signing timed out'); }),
+        ]);
       } catch (innerErr) {
         // Release the reservation on payment failure so budget is not consumed
         await releaseSpendReservation(config.id).catch(() => {});
         throw innerErr;
       }
-      void paymentSucceeded; // used only for the release guard above
     } catch (err) {
       const code = err instanceof StageError ? err.code : 'PAYMENT_SIGNING_FAILED';
       const rawMsg = err instanceof Error ? err.message : String(err);
@@ -479,12 +430,15 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     }
 
     const d7 = Math.round(performance.now() - t7);
+    // Signed only: the service's facilitator settles when we retry with the
+    // payment header. Proof of settlement is read from the delivery response.
     stages.push(makeStage(stagePayment, true, d7, {
-      tx_hash: '[REDACTED]',
+      signed: true,
       amount_paid: observed_price,
-      network: 'base',
+      network: matchingOption.network,
+      x402_version: parsed402.version,
+      payment_header: signedPayment.headerName,
       wallet_address: '[REDACTED]',
-      confirmed: true,
       verification_cost_usdc: observed_price,
       recipient_fingerprint: createHash('sha256').update(matchingOption.payTo).digest('hex').slice(0, 16),
     }));
@@ -496,11 +450,12 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
 
     try {
       // Use the same method (GET/POST) that produced the 402 on the probe request
+      const paymentHeaders = { [signedPayment.headerName]: signedPayment.headerValue };
       const deliveryInit: RequestInit = probeMethod === 'GET'
-        ? { method: 'GET', headers: { 'X-Payment': txHash } }
+        ? { method: 'GET', headers: paymentHeaders }
         : {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Payment': txHash },
+            headers: { 'Content-Type': 'application/json', ...paymentHeaders },
             body: JSON.stringify(config.test_input),
           };
       deliveryResponse = await fetchWithTimeout(
@@ -518,11 +473,15 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     const d8 = Math.round(performance.now() - t8);
     const deliveryHeaders: Record<string, string> = {};
     deliveryResponse.headers.forEach((v, k) => { deliveryHeaders[k] = v; });
+    // Settlement receipt — recorded on every outcome, so "paid but not
+    // delivered" is provable when the service settles and then fails.
+    const settlement = readSettlement(deliveryResponse.headers);
 
     if (!deliveryResponse.ok) {
       fail(stageDelivery, 'UNEXPECTED_STATUS', {
         http_status: deliveryResponse.status,
         response_headers: deliveryHeaders,
+        settlement,
       }, d8);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
@@ -534,7 +493,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     } catch (err) {
       const code = err instanceof StageError ? err.code : 'NO_RESPONSE';
       const msg = err instanceof StageError ? err.message : 'Could not read response body';
-      fail(stageDelivery, code, { http_status: deliveryResponse.status, error: msg }, d8);
+      fail(stageDelivery, code, { http_status: deliveryResponse.status, error: msg, settlement }, d8);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
     }
@@ -544,6 +503,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
         http_status: deliveryResponse.status,
         body_received: false,
         error: 'Empty response body',
+        settlement,
       }, d8);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
@@ -557,6 +517,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
       body_received: true,
       body_length_bytes: bodyBytes,
       response_body_preview: bodyPreview,
+      settlement,
     }));
 
     // ── Stage 9: Parse JSON ───────────────────────────────────────────────

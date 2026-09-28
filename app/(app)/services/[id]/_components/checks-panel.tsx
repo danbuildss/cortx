@@ -48,8 +48,29 @@ function SummaryCard({ label, children }: { label: string; children: ReactNode }
   );
 }
 
+type Settlement = {
+  status: 'confirmed' | 'failed' | 'unconfirmed';
+  tx_hash: string | null;
+  explorer_url: string | null;
+  error_reason: string | null;
+};
+
+const SETTLEMENT_LABEL: Record<Settlement['status'], { text: string; color: string }> = {
+  confirmed:   { text: 'Confirmed on-chain', color: 'var(--status-operational)' },
+  unconfirmed: { text: 'No receipt from service', color: 'var(--status-degraded)' },
+  failed:      { text: 'Settlement failed', color: 'var(--status-critical)' },
+};
+
+// Proof of payment, read from the service's settlement receipt (Day 2+ checks only)
+function getSettlement(stages: StageRow[]): Settlement | null {
+  const delivery = stages.find((s) => s.stage === 'delivery');
+  const settlement = delivery?.evidence?.settlement as Settlement | undefined;
+  return settlement && SETTLEMENT_LABEL[settlement.status] ? settlement : null;
+}
+
 function StageBreakdown({ check }: { check: CheckRecord }) {
   const stages = (check.stages as StageRow[] | null) ?? [];
+  const settlement = getSettlement(stages);
 
   return (
     <div>
@@ -75,6 +96,28 @@ function StageBreakdown({ check }: { check: CheckRecord }) {
             {check.latency_ms != null ? `${check.latency_ms}ms` : '—'}
           </span>
         </SummaryCard>
+        {settlement && (
+          <SummaryCard label="Payment settlement">
+            <span style={{ fontSize: 12, fontWeight: 600, color: SETTLEMENT_LABEL[settlement.status].color }}>
+              {SETTLEMENT_LABEL[settlement.status].text}
+            </span>
+            {settlement.explorer_url && (
+              <a
+                href={settlement.explorer_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}
+              >
+                View on Basescan ↗
+              </a>
+            )}
+            {settlement.status === 'failed' && settlement.error_reason && (
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                {settlement.error_reason}
+              </span>
+            )}
+          </SummaryCard>
+        )}
         {check.failure_stage && (
           <SummaryCard label="Failed stage">
             <span style={{ fontSize: 13, color: 'var(--status-critical)', fontFamily: 'var(--font-geist-mono)' }}>

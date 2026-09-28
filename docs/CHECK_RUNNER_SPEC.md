@@ -290,6 +290,11 @@ CORTX-side (recorded as check status `error` — never change service status, op
 Service-side (recorded as `failed`):
 - `NO_USDC_OPTION` — payment terms offer no USDC option
 - `PAYMENT_SIGNING_FAILED` — the service's payment requirements could not be signed (bad payTo, amount, or asset)
+- `UNSUPPORTED_PAYMENT_METHOD` (CORTX-side) — a scheme CORTX can't sign yet, e.g. Permit2
+
+**x402 V1 and V2 (Sep 2026):** payment terms are read by `lib/check-runner/x402.ts` from the 402 body (V1), the base64 `PAYMENT-REQUIRED` header (V2) or `X-PAYMENT-REQUIRED` (Bankr). V2 prices use `amount` (always atomic units) and CAIP-2 networks. V1 services are paid with the official x402 v1 client via `X-PAYMENT`; V2 services get the same EIP-3009 authorization wrapped in the V2 PaymentPayload (`x402Version`, `resource`, `accepted`, `payload`) via `PAYMENT-SIGNATURE`. The payment stage records `signed: true` — nothing settles until the service's facilitator processes the retried request.
+
+**Settlement proof:** the delivery stage reads `PAYMENT-RESPONSE` (V2) or `X-PAYMENT-RESPONSE` (V1) on every outcome and stores `settlement: { status: confirmed | failed | unconfirmed, tx_hash, network, explorer_url, error_reason, receipt_header }`. `unconfirmed` = no readable receipt; the check can still pass if valid data arrived. The service page shows a "View on Basescan" link for confirmed settlements.
 
 **Evidence stored:**
 ```json
