@@ -663,7 +663,18 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
-## Proposal: Autonomous Reliability Network / "Cori" agent (Sep 28, 2026) — UNDER DISCUSSION
+## Cori — LOCKED DIRECTION (Sep 28, 2026)
+
+**Cori is the autonomous reliability agent for CORTX.** Not a bigger x402 scanner or another trust score (ScoutScore owns breadth). Differentiation = depth of evidence and incident investigation. The question CORTX answers: *"What exactly happened to this machine payment/service interaction, and can we prove it?"*
+
+- Loop (eventual): discover → observe → detect anomaly → reproduce → trace failing stage → payment/settlement/delivery evidence → incident → notify provider → watch recovery → paid recovery verification → close → preserve history.
+- Evidence states kept separate: **Observed → Reproduced → Confirmed → Resolved.** Nothing about a third-party service becomes a public failure automatically; human confirmation stays in the loop.
+- Infra: Cori gets its **own Hetzner VPS in a separate CORTX project from Phase 1**. VPS = discovery, free probes, baselines, anomaly detection, investigation orchestration. **No wallet key on the VPS**; paid checks go DB queue → existing Vercel payment path. Spending is deterministic (price cap, global daily/monthly budget, per-service limits, cooldowns, known-good input). **No AI controls spending.**
+- Content style: specific, reproducible incident evidence + recovery — not dramatic ecosystem-wide percentages.
+- Thesis: **the checker can be open; the network and accumulated evidence are the moat.**
+- **Now building: Scout v0 only** — spec at `docs/CORI_SCOUT_V0_SPEC.md` (awaiting approval). Discovery only, zero USDC, no public claims, no LLM, candidates into the existing admin review queue.
+
+## Proposal: Autonomous Reliability Network / "Cori" agent (Sep 28, 2026) — superseded by LOCKED DIRECTION above
 
 Idea (inspired by Aeon's proof-of-work engine): CORTX stops waiting for builders to submit endpoints and independently watches the x402 ecosystem. Loop: DISCOVER → OBSERVE → VERIFY → INVESTIGATE → REMEMBER → WARN. Components (internal, one process): Scout (discovery), Observer (free probes + baselines), Verifier (paid checks under policy), Investigator (anomaly → reproduce → incident → recovery proof), Memory (longitudinal history). Surfaces: builders (monitoring), humans (public CORTX Reliability Index + weekly findings), agents (preflight API/MCP). Principle: **the checker is open, the network (observation history) is the moat.** Proposed to run as a long-lived agent ("Cori") on a separate Hetzner VPS in its own project.
 
