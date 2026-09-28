@@ -188,6 +188,33 @@ begin
 end $$;
 
 
+-- ═══ 0. Allow resolution_type = 'false_positive' ═════════════════════════════
+-- Allow resolution_type = 'false_positive', keeping every value the existing
+-- production constraint already allows (it isn't defined in a migration).
+do $$
+declare
+  def text;
+  vals text[];
+begin
+  select pg_get_constraintdef(oid) into def
+  from pg_constraint
+  where conrelid = 'public.incidents'::regclass
+    and conname = 'incidents_resolution_type_check';
+
+  if def is not null and def not like '%false_positive%' then
+    select array_agg(distinct m[1]) into vals
+    from regexp_matches(def, '''([^'']+)''', 'g') as m;
+    vals := array_append(coalesce(vals, '{}'), 'false_positive');
+
+    alter table public.incidents drop constraint incidents_resolution_type_check;
+    execute format(
+      'alter table public.incidents add constraint incidents_resolution_type_check check (resolution_type is null or resolution_type = any (%L::text[]))',
+      vals
+    );
+  end if;
+end $$;
+
+
 -- ═══ Parts 2–4: data cleanup ══════════════════════════════════════════════════
 -- No temp tables or explicit transaction: the Supabase SQL editor may run each
 -- statement on its own. Order matters instead — incidents and service status
