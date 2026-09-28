@@ -178,6 +178,8 @@ export default function PartnerIntegrationPage() {
                   { field: 'median_latency_ms',        type: 'number | null', desc: 'Median full round-trip latency in ms. Null if no data.' },
                   { field: 'last_verified_at',         type: 'string | null', desc: 'ISO 8601 timestamp of the most recent check.' },
                   { field: 'active_incident',          type: 'object | null', desc: 'Null if healthy. Object with id, severity, failure_stage, opened_at if incident is open.' },
+                  { field: 'evidence_spec_version',    type: 'string',       desc: 'Version of the open x402 Reliability Spec used for latest_paid_evidence (github.com/danbuildss/x402-reliability-spec).' },
+                  { field: 'latest_paid_evidence',     type: 'object | null', desc: 'The most recent paid check as a spec evidence record: outcome, the 7 stages with error codes, and the settlement receipt (tx hash only when the service sent one). outcome "checker_error" means a CORTX-side problem that does not count against the service. Null if no paid check yet.' },
                 ].map((r, i) => (
                   <tr key={r.field} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}>
                     <td style={{ padding: '9px 12px' }}>

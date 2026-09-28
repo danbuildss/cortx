@@ -471,6 +471,23 @@ CORTX → fires webhook on incident
 | Base only (not Virtuals) | x1.15 guaranteed via existing x402. Virtuals adds complexity for +0.10. Solo builder. |
 | Python not TypeScript | Sibyl Memory CLI is Python-native. Faster to wire. |
 
+## Open source audit (Sep 28, 2026)
+
+Checked all public repos while paused before Phase D.
+- **Secrets: clean.** Full history scanned (cortx 370 commits / 7 branches, spec 10, cori 2): no wallet keys, Supabase keys, cron secret, API keys or bot tokens; `.env.example` files are placeholders only.
+- **`cortx` is public but has no LICENSE file** (README says "MIT") → legally all-rights-reserved until the file is added. Recommendation: add MIT (code isn't the moat; evidence network is).
+- **`x402-reliability-spec` v0.2 is behind reality:** V1-only (a conforming checker would fail all Bankr V2 services); tells implementers to fall back to `x402.org` facilitator (CORTX no longer does; x402 keeps facilitators opaque); no "facilitator requires auth → unavailable"; no checker-side error concept; stage-5 `tx_hash` source unspecified (CORTX reads PAYMENT-RESPONSE, confirmed/failed/unconfirmed); $0 price = fail without known-good input note; test vectors still "planned for v0.3". Stale merged branch `spec/v0.2-payment-readiness`.
+- **CORTX (the "reference implementation") doesn't emit spec-shaped records:** different stage names (`price_check`/`payment` vs `price_validity`/`payment_processing`, no separate `402_response`), no `spec_version`.
+- **`danbuildss/cori` is a stale Aug 19 Python scaffold** (2 commits): README describes token price/whale alerts, and its design has `X402_PRIVATE_KEY` on the agent server — contradicts the locked no-key-on-server rule. Real Cori = `cortx/agent/cori`.
+- **`@cortx/check` not on npm** (name free).
+- **Approved Sep 28 ("I approve the open source work"), MIT by default. Built:**
+  - OS-1: MIT `LICENSE` in cortx.
+  - OS-2: `danbuildss/cori` PR #1 — README "moved to cortx/agent/cori" notice, `X402_PRIVATE_KEY` → `X402_PAY_TO_ADDRESS`. Founder archives the repo after merge.
+  - OS-3: spec **v0.3** PR on `x402-reliability-spec`: x402 V1+V2 section, Checker-Side Errors (`outcome: checker_error`, `fault`), Test Input (`input_source`), stage-5 settlement receipt rules (`settlement_status`, receipt-only `tx_hash`), Error Codes, no x402.org facilitator fallback, stage 5 doesn't call a facilitator, readiness `unavailable` + new codes, BLOCKED_ADDRESS, conformance 7–10, **8 test vectors** + CI validation.
+  - OS-4: cortx `lib/check-runner/spec-record.ts` (`toSpecRecord`), vendored vectors in `test/spec-vectors/`, `spec-conformance.test.ts` runs all 8 through the real runner — **CORTX passes all 8**. Public API `/api/v1/reliability/[id]` adds `evidence_spec_version` + `latest_paid_evidence` (checker-side error text redacted). Partner docs updated.
+  - OS-5 (npm `@cortx/check`) later.
+- Original proposal: A) MIT LICENSE in cortx; B) cori README → "moved to cortx/agent/cori", drop the key var, founder archives the repo; C) spec v0.3 (V2, checker-side errors, facilitator auth = unavailable, no x402.org fallback, receipt rules, known-good input, first test vectors from our e2e fakes); D) CORTX exports spec-conformant evidence records with `spec_version`, validated against the spec schema; E) publish `@cortx/check` after C+D.
+
 ## Open Source Strategy — "Open Tools. Paid Network." (Aug 18, 2026)
 
 Decision locked: CORTX's OSS philosophy is Open Tools, Paid Network. Open the standard and client tooling; close the monitoring network, accumulated reliability data, and V2–V4 features.
@@ -687,6 +704,7 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
   - Note: postgrest-js `.contains(col, [obj])` builds a Postgres array literal (`{[object Object]}`) — pass JSON text for jsonb.
 - **Spend caps in production are $5/day and $50/month** (Vercel env `CORTX_DAILY_SPEND_CAP_USDC=5`, `CORTX_MONTHLY_SPEND_CAP_USDC=50`; code defaults are $1/$10). Founder did not set them this session. Recommended lowering to 1 / 10 in Vercel; wallet balance ($3.84) is the real ceiling today.
 - **Exa "Contents" test service** (`api.exa.ai/contents`, open incident since ~Aug 24): founder's own test endpoint that never worked; **left as is on purpose**. Its failures (ZERO_PRICE at `price_check`) are real and stay in the stats.
+- **Status Sep 28 (end of session): Phases A, B, C all merged (#114–#117). Paused by founder until they're home.** Resume with: founder checks /admin (USDC Verified real number, 24h uptime ~91%), optionally lowers Vercel caps to 1/10 and redeploys, then says "approve D".
 - Next: Phase D (VPS go-live together: Hetzner CORTX project + server, `cori_agent` password, first **dry run** to confirm live Bazaar fields, then live), then E (observe a week).
 
 ## Proposal: Autonomous Reliability Network / "Cori" agent (Sep 28, 2026) — superseded by LOCKED DIRECTION above
