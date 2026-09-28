@@ -281,7 +281,7 @@ const READINESS_DISPLAY: Record<string, { text: string; color: string }> = {
   ready:       { text: 'Ready — a payment would be accepted', color: 'var(--status-operational)' },
   not_ready:   { text: 'Not ready', color: 'var(--status-critical)' },
   error:       { text: "Couldn't check — CORTX-side issue", color: 'var(--status-degraded)' },
-  unavailable: { text: "Not available — service doesn't publish its facilitator", color: 'var(--text-muted)' },
+  unavailable: { text: 'Not available', color: 'var(--text-muted)' },
   unknown:     { text: 'Not checked yet', color: 'var(--text-muted)' },
 };
 
@@ -299,7 +299,7 @@ function ReadinessCard({
   lastAt: string | null | undefined;
 }) {
   const display = READINESS_DISPLAY[status] ?? READINESS_DISPLAY.unknown;
-  const showReason = reason && (status === 'not_ready' || status === 'error');
+  const showReason = reason && (status === 'not_ready' || status === 'error' || status === 'unavailable');
   return (
     <div style={{
       background: 'var(--bg-surface)',

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --experimental-strip-types --no-warnings=ExperimentalWarning lib/**/*.test.ts"
+    "test": "node --test --experimental-strip-types --no-warnings --import ./test/register.mjs lib/**/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
