@@ -663,6 +663,30 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
+## Cori — LOCKED DIRECTION (Sep 28, 2026)
+
+**Cori is the autonomous reliability agent for CORTX.** Not a bigger x402 scanner or another trust score (ScoutScore owns breadth). Differentiation = depth of evidence and incident investigation. The question CORTX answers: *"What exactly happened to this machine payment/service interaction, and can we prove it?"*
+
+- Loop (eventual): discover → observe → detect anomaly → reproduce → trace failing stage → payment/settlement/delivery evidence → incident → notify provider → watch recovery → paid recovery verification → close → preserve history.
+- Evidence states kept separate: **Observed → Reproduced → Confirmed → Resolved.** Nothing about a third-party service becomes a public failure automatically; human confirmation stays in the loop.
+- Infra: Cori gets its **own Hetzner VPS in a separate CORTX project from Phase 1**. VPS = discovery, free probes, baselines, anomaly detection, investigation orchestration. **No wallet key on the VPS**; paid checks go DB queue → existing Vercel payment path. Spending is deterministic (price cap, global daily/monthly budget, per-service limits, cooldowns, known-good input). **No AI controls spending.**
+- Content style: specific, reproducible incident evidence + recovery — not dramatic ecosystem-wide percentages.
+- Thesis: **the checker can be open; the network and accumulated evidence are the moat.**
+- **Now building: Scout v0 only** — spec at `docs/CORI_SCOUT_V0_SPEC.md` (awaiting approval). Discovery only, zero USDC, no public claims, no LLM, candidates into the existing admin review queue.
+
+## Proposal: Autonomous Reliability Network / "Cori" agent (Sep 28, 2026) — superseded by LOCKED DIRECTION above
+
+Idea (inspired by Aeon's proof-of-work engine): CORTX stops waiting for builders to submit endpoints and independently watches the x402 ecosystem. Loop: DISCOVER → OBSERVE → VERIFY → INVESTIGATE → REMEMBER → WARN. Components (internal, one process): Scout (discovery), Observer (free probes + baselines), Verifier (paid checks under policy), Investigator (anomaly → reproduce → incident → recovery proof), Memory (longitudinal history). Surfaces: builders (monitoring), humans (public CORTX Reliability Index + weekly findings), agents (preflight API/MCP). Principle: **the checker is open, the network (observation history) is the moat.** Proposed to run as a long-lived agent ("Cori") on a separate Hetzner VPS in its own project.
+
+**Assessment (Claude, Sep 28):** direction is right and fits "Open Tools, Paid Network", but five corrections from this week's facts:
+1. **/verify experiment is finished and readiness is blocked in practice** — Bankr's facilitator now requires a bearer token; the x402 spec keeps facilitators opaque. The Observer can't rely on "payment readiness: verified". Observer = free 402 probes + change detection; truth comes from periodic cheap paid checks.
+2. **The breadth version already exists.** ScoutScore: 2,079 domains, 20,662 endpoints, 198 paid-verified, MCP + SDK. Don't race for the biggest index number. Differentiate on depth: investigated incidents with stage-level + settlement evidence, longitudinal memory, recovery proof, builder loop.
+3. **Wallet key stays on Vercel** (founder rule: never expose the key). VPS agent does only free work and writes paid-check *requests* to a DB queue; Vercel cron executes them under a deterministic policy. No key on the VPS.
+4. **False-positive risk when publishing about third parties.** This week CORTX was wrong three ways (stage-name bug, wallet false incidents, Exa $0 from empty input). Discovered endpoints lack known-good inputs. Rule: no public failure claim about a third party until reproduced + human-confirmed (initially) + provider notified. Keep Observed vs Verified separate.
+5. **Deterministic core.** V0 needs no LLM; policy rules control money. LLM later for incident write-ups / weekly report (fits Cori's original memory/incident-response design).
+
+Phased build on existing primitives: (1) Scout v0 — Bazaar `/discovery/resources` + other lists, free probe via `x402.ts`, dedupe, into the existing admin review queue (`endpoint_submissions` / `registry_seeds`); runs on Vercel, no spending, no VPS. (2) Observer + Memory — baselines + change events; this is where the VPS starts paying off. (3) Policy + Verifier queue. (4) Investigator. (5) Public Reliability Index + weekly report, then preflight API/MCP. Economics: ~50 services × 1 paid/day × $0.002 ≈ $3/month; ~150 × $0.005 ≈ $22/month + triggers — caps (today $1/day, $10/month) must be raised deliberately.
+
 ## Sep 2026 Reboot — Days 1–3 plan (approved Sep 28)
 
 Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builders vs build" decision are deferred until the founder is back with /admin numbers.
@@ -683,6 +707,10 @@ Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builder
 - Fix: parse + compare are one `price_check` stage; `advance()` now throws if called too often.
 - Regression test: `lib/check-runner/runner.e2e.test.ts` runs the real `runFullCheck` against a local fake x402 service (V1 + V2, pass, no receipt, paid-not-delivered, schema fail, bad JSON, price over max) and asserts exact stage names + settlement. Confirmed it fails (7/7) against the old runner. Test-only hooks in `test/` stub SSRF (localhost) and the wallet balance read; `npm test` = 30 tests.
 - Migration 022 repairs history: rebuilds shifted stages (verified on Postgres against real old-runner output — 10/10 scenarios match the fixed runner), fixes `failure_stage` on checks + incidents, re-runs the 020 wallet cleanup. Run AFTER merging. Historical public paid-delivery % may drop — the repaired numbers are the true ones.
+
+**Production repair results (Sep 28, migration 022 + false_positive constraint fix):** 389 paid checks re-labelled with correct stage names; 8 wallet failures reclassified as CORTX-side errors (the ones 020 missed); 1 false incident closed (Aug 28, Bankr service, logged as "delivery failed" — was the CORTX wallet). Production had an undocumented `incidents_resolution_type_check` constraint rejecting `false_positive` — widened in step 0 of 020/022 (PR #113).
+
+**Days 1–3 status: COMPLETE.** Open founder items: set Contents (Exa) test input to a real request; run a check on it to confirm V2 payment + settlement card against a non-Bankr service; share /admin numbers to decide Days 4–5 vs outreach.
 
 ### Day 3 details (what shipped)
 
