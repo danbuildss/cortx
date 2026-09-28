@@ -671,7 +671,20 @@ Days 4–5 (/report hardening, paid preflight endpoint) and the "talk to builder
 |---|---|---|
 | 1 | Wallet/budget failures → `error` (never blame builders); spend-cap pause only lifts after cap resets; timing-safe cron secret; migration 020 cleanup of false incidents | ✅ Built — PR open, **run migration 020 after merge** |
 | 2 | x402 V2 payments (`amount` field, V2 payment header, read official docs first); record real on-chain settlement from the receipt header | ✅ Built — PR open, no migration. After merge: click Run check on a V2 service (e.g. Exa) to confirm end to end |
-| 3 | Wire zero-cost readiness (/verify) into cron: readiness every 15 min, paid check daily + on anomaly; readiness failures count toward incidents, only paid checks resolve; "Payment readiness" line on service page; one migration | Not started |
+| 3 | Wire zero-cost readiness (/verify) into cron: readiness every 15 min, paid check daily + on anomaly; readiness failures count toward incidents; "Payment readiness" card on service page; one migration | ✅ Built — PR open. **Run migration 021 BEFORE merging** (the service page and cron read the new columns) |
+
+### Day 3 details (what shipped)
+
+- `lib/check-runner/readiness.ts` rewritten for production on the shared x402 code (V1 + V2). Probe 402 → parse terms → find facilitator → price ≤ max → sign EIP-3009 → facilitator `/verify` (never `/settle`).
+- **Only works for services that publish their facilitator** (the x402 spec keeps it opaque — confirmed in the V2 spec, no discovery field). Others → `unavailable`, no check row, re-probed daily, stay on the 4h paid schedule.
+- Status mapping: `ready` → check passed; `not_ready` (service-side: 402 broken, price over max, facilitator down/5xx, rejection reasons `invalid_network`, `invalid_scheme`, `unsupported_scheme`, `invalid_payment_requirements`, `recipient_mismatch`) → check failed; `error` (CORTX-side: `insufficient_funds`, signature/amount/timing rejections, unknown reasons, 4xx without verdict, blocked facilitator URL, missing wallet key) → check error, never blames the builder.
+- Facilitator URL is SSRF-checked like endpoints; redirects refused.
+- Schedule: readiness every 15 min. Paid checks move to daily only after a passing paid check on a readiness-`ready` service; a failing paid check keeps the 4h interval so incidents still open within hours (`lib/check-runner/schedule.ts`).
+- Incidents: readiness has its own failure counter (`readiness_consecutive_failures`) — 2 in a row opens an incident. Tiers: lightweight 0, readiness 1, canary 2, full 3; a pass resolves incidents of its tier or lower. Readiness failure never downgrades a worse paid status; readiness pass only restores "operational" when paid checks agree and no higher-tier incident is open.
+- Readiness rows store `observed_price: null` so they never count as spend.
+- Service page: "Payment readiness" card (Ready / Not ready + reason / Couldn't check / Not available). Paid card shows the effective interval.
+- Verified: 23 unit tests; end-to-end against a local fake service + fake facilitator that verifies signatures (V1 body, V2 header, rejections, CORTX-side errors, facilitator down, no facilitator, price over max, no 402) — all 9 scenarios as designed; migration 021 tested on Postgres 16 (re-runnable, constraints enforced).
+- Not built (deferred): parallel cron, readiness-triggered paid checks, /report changes.
 
 ### Day 2 details (what shipped)
 

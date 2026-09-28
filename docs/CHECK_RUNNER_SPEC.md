@@ -501,3 +501,16 @@ function classifyStatus(stages: StageResult[], latency_ms: number, config: Servi
    - Log the error
 
 Consecutive failure count: count of the most recent checks in sequence with `status = 'failed'`, stopping at the first `status = 'passed'`.
+
+
+---
+
+## Payment readiness check (Sep 2026)
+
+Zero-settlement check in `lib/check-runner/readiness.ts`, run every 15 minutes by the cron. Stages: `availability` → `payment_terms` → `price_check` → `facilitator_verify`. It signs an EIP-3009 authorization for the advertised price and calls the service's own facilitator `POST {facilitator}/verify` with `{ x402Version, paymentPayload, paymentRequirements }`. It never calls `/settle`, so no USDC moves.
+
+- Requires the service to publish its facilitator (`accepts[].extra.facilitator`, `accepts[].facilitator`, or root `facilitator` / `facilitatorUrl`). Otherwise the result is `unavailable`: no check row is written, and the service is re-probed daily.
+- Result → check status: `ready` = passed, `not_ready` = failed (service-side), `error` = CORTX-side (see `isServiceSideVerifyRejection` in `x402.ts`).
+- Check rows use `check_type = 'readiness'` and `observed_price = null`.
+- Readiness failures use their own streak (`readiness_consecutive_failures`) and open incidents after 2 in a row. A readiness pass only resolves incidents opened by readiness.
+- Services whose readiness is `ready` get paid checks once a day after a passing paid check (`paidIntervalMinutes` in `schedule.ts`).

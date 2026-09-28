@@ -1,6 +1,6 @@
 import type { StageResult, CheckStatus, ServiceStatus, ClassifyResult, StageName } from './types';
 
-const CRITICAL_STAGES = new Set<StageName>(['payment', 'delivery', 'json_parse', 'schema_validation']);
+const CRITICAL_STAGES = new Set<StageName>(['payment', 'facilitator_verify', 'delivery', 'json_parse', 'schema_validation']);
 
 // Payment-stage failures caused by CORTX's own wallet or verification budget,
 // not by the monitored service. The payment stage never contacts the service

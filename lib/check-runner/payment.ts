@@ -10,7 +10,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { createPaymentHeader } from 'x402/client';
 import { StageError } from './ssrf';
-import { buildV2PaymentHeader, chainIdFor, type Eip3009Authorization, type PaymentOption, type X402Version } from './x402';
+import { atomicAmount, buildV2PaymentHeader, chainIdFor, type Eip3009Authorization, type PaymentOption, type X402Version } from './x402';
 
 const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
 const USDC_DECIMALS = 6;
@@ -38,6 +38,13 @@ function getTestWalletKey(): `0x${string}` {
     throw new StageError('WALLET_NOT_CONFIGURED', 'CORTX_TEST_WALLET_KEY must be a 0x-prefixed 32-byte hex string');
   }
   return key as `0x${string}`;
+}
+
+export type LocalAccount = ReturnType<typeof privateKeyToAccount>;
+
+// The CORTX verification wallet. The key only ever lives in the server env.
+export function getCheckAccount(): LocalAccount {
+  return privateKeyToAccount(getTestWalletKey());
 }
 
 export function getWalletAddress(): `0x${string}` {
@@ -69,6 +76,27 @@ function isUsdcAsset(asset: string): boolean {
   return a === USDC_ADDRESS.toLowerCase() || a === 'usdc';
 }
 
+// Contract address to sign against. Throws NO_USDC_OPTION for non-USDC assets.
+// Bankr's flat format names the asset "USDC" instead of the contract address.
+export function resolveUsdcAsset(option: PaymentOption): string {
+  if (!isUsdcAsset(option.asset)) {
+    throw new StageError('NO_USDC_OPTION', 'No USDC payment option found in payment terms');
+  }
+  return option.asset.toLowerCase() === 'usdc' ? USDC_ADDRESS : option.asset;
+}
+
+// CORTX only implements the `exact` scheme with EIP-3009 — anything else is
+// CORTX's gap, not the service's fault.
+export function assertSupportedMethod(option: PaymentOption): void {
+  const transferMethod = option.extra?.assetTransferMethod;
+  if (option.scheme !== 'exact' || (transferMethod != null && transferMethod !== 'eip3009')) {
+    throw new StageError(
+      'UNSUPPORTED_PAYMENT_METHOD',
+      `CORTX does not support scheme "${option.scheme}"${transferMethod ? ` with ${String(transferMethod)}` : ''} yet`
+    );
+  }
+}
+
 /**
  * Signs an x402 `exact` payment (EIP-3009 transferWithAuthorization) for the
  * chosen payment option. Nothing is sent on-chain here: the service's
@@ -88,23 +116,9 @@ export async function executePayment(args: {
   observedPrice: string;
 }): Promise<SignedPayment> {
   const { option, version, observedPrice } = args;
-  const privateKey = getTestWalletKey();
-  const account = privateKeyToAccount(privateKey);
-
-  if (!isUsdcAsset(option.asset)) {
-    throw new StageError('NO_USDC_OPTION', 'No USDC payment option found in payment terms');
-  }
-  // Bankr's flat format names the asset "USDC" instead of the contract address
-  const asset = option.asset.toLowerCase() === 'usdc' ? USDC_ADDRESS : option.asset;
-
-  const transferMethod = option.extra?.assetTransferMethod;
-  if (option.scheme !== 'exact' || (transferMethod != null && transferMethod !== 'eip3009')) {
-    // CORTX only implements exact/EIP-3009 — not the service's fault
-    throw new StageError(
-      'UNSUPPORTED_PAYMENT_METHOD',
-      `CORTX does not support scheme "${option.scheme}"${transferMethod ? ` with ${String(transferMethod)}` : ''} yet`
-    );
-  }
+  const account = getCheckAccount();
+  const asset = resolveUsdcAsset(option);
+  assertSupportedMethod(option);
 
   // Check balance before signing
   const publicClient = createPublicClient({ chain: base, transport: http() });
@@ -139,8 +153,6 @@ export async function executePayment(args: {
     amountPaid: observedPrice,
   };
 }
-
-type LocalAccount = ReturnType<typeof privateKeyToAccount>;
 
 async function signV1(account: LocalAccount, option: PaymentOption, asset: string): Promise<string> {
   // Normalize CAIP-2 → x402 short name ("eip155:8453" → "base")
@@ -187,22 +199,24 @@ const EIP3009_TYPES = {
   ],
 } as const;
 
-// Exported for verification scripts; production callers use executePayment.
-export async function signV2(
+// Signs an EIP-3009 transferWithAuthorization for the option's exact amount.
+// Used for real payments (V2) and for readiness /verify checks (V1 + V2).
+export async function signExactAuthorization(
   account: LocalAccount,
   option: PaymentOption,
-  asset: string,
-  resource: Record<string, unknown>
-): Promise<string> {
+  asset: string
+): Promise<{ authorization: Eip3009Authorization; signature: string }> {
   try {
     const chainId = chainIdFor(option.network);
     if (chainId == null) throw new Error(`Unknown network ${option.network}`);
+    const value = atomicAmount(option);
+    if (value == null) throw new Error(`Invalid amount ${option.amount}`);
 
     const now = Math.floor(Date.now() / 1000);
     const authorization: Eip3009Authorization = {
       from: account.address,
       to: getAddress(option.payTo),
-      value: BigInt(option.amount).toString(),
+      value: value.toString(),
       validAfter: String(now - 600), // clock-skew buffer, same as the v1 client
       validBefore: String(now + (option.maxTimeoutSeconds ?? 60)),
       nonce: `0x${randomBytes(32).toString('hex')}`,
@@ -227,8 +241,19 @@ export async function signV2(
       },
     });
 
-    return buildV2PaymentHeader({ resource, accepted: option.raw, signature, authorization });
+    return { authorization, signature };
   } catch (err) {
     throw new StageError('PAYMENT_SIGNING_FAILED', err instanceof Error ? err.message : String(err));
   }
+}
+
+// Exported for verification scripts; production callers use executePayment.
+export async function signV2(
+  account: LocalAccount,
+  option: PaymentOption,
+  asset: string,
+  resource: Record<string, unknown>
+): Promise<string> {
+  const { authorization, signature } = await signExactAuthorization(account, option, asset);
+  return buildV2PaymentHeader({ resource, accepted: option.raw, signature, authorization });
 }

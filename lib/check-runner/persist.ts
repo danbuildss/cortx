@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { classifyStatus } from './classify';
 import { sendTelegramAlert } from '../telegram';
 import { sendDiscordAlert } from '../discord';
+import { canResolveIncident, paidIntervalMinutes, READINESS_INTERVAL_MINUTES, worseStatus } from './schedule';
 import type { CheckResult, CheckType } from './types';
 
 function serviceRoleClient() {
@@ -21,29 +22,28 @@ type ServiceRow = {
   latency_threshold_ms: number;
   paid_verification_interval_minutes?: number;
   lightweight_check_interval_minutes?: number;
+  // Readiness (migration 021) — optional so callers that don't select them still work
+  readiness_status?: string | null;
+  readiness_consecutive_failures?: number | null;
+  readiness_check_interval_minutes?: number | null;
 };
-
-// Incident resolution hierarchy: a passing check only resolves incidents triggered
-// by the same tier or lower. Lightweight never resolves; canary resolves canary;
-// full resolves everything.
-const CHECK_TIER: Record<CheckType, number> = {
-  lightweight: 0,
-  canary: 1,
-  full: 2,
-};
-
-function canResolveIncident(passingType: CheckType, triggerType: CheckType): boolean {
-  return CHECK_TIER[passingType] >= CHECK_TIER[triggerType];
-}
 
 export type TriggerSource = 'scheduled' | 'anomaly_recovery' | 'anomaly_latency';
+
+const READINESS_STATUS_FOR: Record<CheckResult['status'], string> = {
+  passed: 'ready',
+  failed: 'not_ready',
+  error: 'error',
+};
 
 export async function persistCheckResult(
   svc: ServiceRow,
   result: CheckResult,
-  triggerSource: TriggerSource = 'scheduled'
+  triggerSource: TriggerSource = 'scheduled',
+  opts: { readinessReason?: string | null } = {}
 ): Promise<void> {
   const db = serviceRoleClient();
+  const isReadiness = result.check_type === 'readiness';
 
   // 1. Insert check record
   const { data: check, error: insertErr } = await db
@@ -72,48 +72,53 @@ export async function persistCheckResult(
 
   // 2. Build service update — freshness tracking per tier
   const now = new Date().toISOString();
-  const freshnessUpdate: Record<string, string> = {
+  const serviceUpdate: Record<string, string | number | null> = {
     last_checked_at: now,
   };
 
   if (result.check_type === 'lightweight') {
-    freshnessUpdate.last_lightweight_check_at = now;
-    freshnessUpdate.next_check_at = nextCheckAt(svc.lightweight_check_interval_minutes ?? svc.check_interval_minutes);
+    serviceUpdate.last_lightweight_check_at = now;
+    serviceUpdate.next_check_at = nextCheckAt(svc.lightweight_check_interval_minutes ?? svc.check_interval_minutes);
+  } else if (isReadiness) {
+    serviceUpdate.last_readiness_check_at = now;
+    serviceUpdate.next_readiness_check_at = nextCheckAt(svc.readiness_check_interval_minutes ?? READINESS_INTERVAL_MINUTES);
+    serviceUpdate.readiness_status = READINESS_STATUS_FOR[result.status];
+    serviceUpdate.readiness_reason = opts.readinessReason ?? null;
   } else {
-    freshnessUpdate.last_paid_verification_at = now;
-    freshnessUpdate.next_paid_verification_at = nextCheckAt(svc.paid_verification_interval_minutes ?? svc.check_interval_minutes);
+    serviceUpdate.last_paid_verification_at = now;
+    serviceUpdate.next_paid_verification_at = nextCheckAt(paidIntervalMinutes(
+      svc.paid_verification_interval_minutes ?? svc.check_interval_minutes,
+      svc.readiness_status,
+      result.status === 'passed'
+    ));
     if (result.check_type === 'full') {
-      freshnessUpdate.last_full_verification_at = now;
+      serviceUpdate.last_full_verification_at = now;
     }
   }
 
-  // 3. Errors don't update service status or incidents
-  if (result.status === 'error') {
-    await db.from('services').update(freshnessUpdate).eq('id', svc.id);
+  // 3. Errors (CORTX-side) and lightweight pings never change status or incidents
+  if (result.status === 'error' || result.check_type === 'lightweight') {
+    await db.from('services').update(serviceUpdate).eq('id', svc.id);
     return;
   }
 
-  // 4. Derive service status (only paid checks affect the displayed status)
-  if (result.check_type === 'lightweight') {
-    // Lightweight only updates the scheduler timestamp and freshness
-    await db.from('services').update(freshnessUpdate).eq('id', svc.id);
-    return;
+  // 4. Failure streaks. Paid and readiness checks keep separate counters, so a
+  //    passing readiness check never hides a failing paid check (or vice versa).
+  const failed = result.status === 'failed';
+  let failuresForIncident: number;
+  if (isReadiness) {
+    failuresForIncident = failed ? (svc.readiness_consecutive_failures ?? 0) + 1 : 0;
+    serviceUpdate.readiness_consecutive_failures = failuresForIncident;
+  } else {
+    failuresForIncident = failed ? svc.consecutive_failures + 1 : 0;
+    serviceUpdate.consecutive_failures = failuresForIncident;
   }
 
   const { service_status } = classifyStatus(
     result.stages,
     result.latency_ms ?? 0,
-    svc.latency_threshold_ms
+    isReadiness ? undefined : svc.latency_threshold_ms
   );
-
-  const newConsecutiveFailures =
-    result.status === 'failed' ? svc.consecutive_failures + 1 : 0;
-
-  await db.from('services').update({
-    ...freshnessUpdate,
-    status: service_status,
-    consecutive_failures: newConsecutiveFailures,
-  }).eq('id', svc.id);
 
   // 5. Fetch user alert connections
   const { data: telegramConn } = await db
@@ -129,15 +134,17 @@ export async function persistCheckResult(
     .eq('user_id', svc.user_id)
     .maybeSingle();
 
-  // 6. Incident logic
-  if (result.status === 'failed' && newConsecutiveFailures >= 2) {
-    const { data: existing } = await db
-      .from('incidents')
-      .select('id, severity, timeline, trigger_check_type')
-      .eq('service_id', svc.id)
-      .in('status', ['open', 'acknowledged'])
-      .maybeSingle();
+  const { data: existing } = await db
+    .from('incidents')
+    .select('id, severity, timeline, trigger_check_type')
+    .eq('service_id', svc.id)
+    .in('status', ['open', 'acknowledged'])
+    .maybeSingle();
 
+  // 6. Incident logic
+  let incidentStillOpen = existing != null;
+
+  if (failed && failuresForIncident >= 2) {
     const newSeverity = service_status === 'critical' ? 'critical' : 'degraded';
 
     if (!existing) {
@@ -152,9 +159,10 @@ export async function persistCheckResult(
           event: 'opened',
           at: now,
           actor: 'system',
-          note: `${result.failure_stage} failed (${newConsecutiveFailures} consecutive) via ${result.check_type} check`,
+          note: `${result.failure_stage} failed (${failuresForIncident} consecutive) via ${result.check_type} check`,
         }],
       }).select('id').single();
+      incidentStillOpen = incident != null;
 
       if (incident && telegramConn?.on_open) {
         await sendTelegramAlert(
@@ -196,44 +204,50 @@ export async function persistCheckResult(
         );
       }
     }
-  } else if (result.status === 'passed') {
-    const { data: open } = await db
-      .from('incidents')
-      .select('id, timeline, trigger_check_type')
-      .eq('service_id', svc.id)
-      .in('status', ['open', 'acknowledged'])
-      .maybeSingle();
+  } else if (!failed && existing) {
+    const triggerType = (existing.trigger_check_type ?? 'full') as CheckType;
 
-    if (open) {
-      const triggerType = (open.trigger_check_type ?? 'full') as CheckType;
+    // Only resolve if this check tier is >= the tier that opened the incident
+    if (canResolveIncident(result.check_type, triggerType)) {
+      await db.from('incidents').update({
+        status: 'resolved',
+        resolved_at: now,
+        resolution_type: 'auto',
+        timeline: [
+          ...existing.timeline,
+          { event: 'resolved', at: now, actor: 'system', note: `Check passed (${result.check_type})` },
+        ],
+      }).eq('id', existing.id);
+      incidentStillOpen = false;
 
-      // Only resolve if this check tier is >= the tier that opened the incident
-      if (canResolveIncident(result.check_type, triggerType)) {
-        await db.from('incidents').update({
-          status: 'resolved',
-          resolved_at: now,
-          resolution_type: 'auto',
-          timeline: [
-            ...open.timeline,
-            { event: 'resolved', at: now, actor: 'system', note: `Check passed (${result.check_type})` },
-          ],
-        }).eq('id', open.id);
-
-        if (telegramConn?.on_resolve) {
-          await sendTelegramAlert(
-            telegramConn.chat_id,
-            `✅ <b>Incident resolved</b> — ${svc.name}\nService is operational again`
-          );
-        }
-        if (discordConn?.on_resolve) {
-          await sendDiscordAlert(
-            discordConn.webhook_url,
-            `✅ **Incident resolved** — ${svc.name}\nService is operational again`
-          );
-        }
+      if (telegramConn?.on_resolve) {
+        await sendTelegramAlert(
+          telegramConn.chat_id,
+          `✅ <b>Incident resolved</b> — ${svc.name}\nService is operational again`
+        );
+      }
+      if (discordConn?.on_resolve) {
+        await sendDiscordAlert(
+          discordConn.webhook_url,
+          `✅ **Incident resolved** — ${svc.name}\nService is operational again`
+        );
       }
     }
   }
+
+  // 7. Service status
+  if (!isReadiness) {
+    // Paid checks see the full pipeline — they set status directly (as before)
+    serviceUpdate.status = service_status;
+  } else if (failed) {
+    // Readiness failure: never downgrade a worse status found by a paid check
+    serviceUpdate.status = worseStatus(svc.status, service_status);
+  } else if (!incidentStillOpen && svc.consecutive_failures === 0) {
+    // Readiness pass only restores "operational" when paid checks agree
+    serviceUpdate.status = 'operational';
+  }
+
+  await db.from('services').update(serviceUpdate).eq('id', svc.id);
 }
 
 function nextCheckAt(intervalMinutes: number): string {
