@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { randomBytes } from 'crypto';
 import { validateAndResolveUrl } from '@/lib/check-runner/ssrf';
+import { checkedFetch } from '@/lib/net/checked-fetch';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 // POST /api/services/verify
@@ -62,14 +63,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Endpoint URL failed security validation.' }, { status: 422 });
       }
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
-      const res = await fetch(validatedUrl.toString(), {
+      // Address re-checked at connect time and on every redirect
+      const res = await checkedFetch(validatedUrl.toString(), {
         method: 'GET',
-        signal: controller.signal,
         headers: { 'User-Agent': 'CORTX-Verify/1.0' },
-      });
-      clearTimeout(timeout);
+      }, { timeoutMs: 10_000, maxBytes: 1_048_576 });
 
       // Check headers
       const headerVal = res.headers.get('x-cortx-verify') ?? res.headers.get('x-cortx-verification');

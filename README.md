@@ -143,7 +143,7 @@ Postgres on Supabase with Row Level Security on every table. The main groups:
 
 - The test wallet key lives only in the app host's secret store, is redacted from every error and log path, and never reaches Cori
 - Every paid check reserves budget atomically against the daily and monthly caps first
-- SSRF protection: checks only call HTTPS URLs that resolve to public addresses; Cori's fetcher also pins the address at connect time and re-validates every redirect
+- SSRF protection: every request to a service or facilitator address (checks, readiness, service detection, ownership verification, Cori) goes to HTTPS only, and the address is checked when the connection is made and again on every redirect, so a service can't send CORTX to a private or internal address
 - Response bodies capped at 1 MB
 - Cron and webhook secrets compared in constant time; Telegram link tokens are single-use and expire after 10 minutes
 - The service role key is used only on the server; Cori connects as a least-privilege Postgres role
