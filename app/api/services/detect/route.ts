@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { validateAndResolveUrl } from '@/lib/check-runner/ssrf';
+import { checkedFetch, type CheckedFetchInit } from '@/lib/net/checked-fetch';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 export const maxDuration = 20;
@@ -148,31 +149,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12_000);
+    // Address re-checked at connect time and on every redirect
+    const call = (init: CheckedFetchInit) =>
+      checkedFetch(validatedUrl.toString(), init, { timeoutMs: 6_000, maxBytes: 1_048_576 });
     let response: Response;
-    try {
+    {
       // Try POST first; if it doesn't return 402 fall back to GET — some x402
       // endpoints (e.g. Bankr price-quote style) only gate on GET requests.
       const baseHeaders = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
-      response = await fetch(validatedUrl.toString(), {
+      response = await call({
         method: 'POST',
         headers: baseHeaders,
         body: JSON.stringify({}),
-        signal: controller.signal,
       });
       if (response.status !== 402) {
-        const getResp = await fetch(validatedUrl.toString(), {
+        const getResp = await call({
           method: 'GET',
           headers: baseHeaders,
-          signal: controller.signal,
         });
         if (getResp.status === 402) response = getResp;
       }
       // OpenAI-compatible inference endpoints (e.g. Surplus Intelligence) require a
       // valid request body to surface the 402 — empty POST and bare GET both return 400.
       if (response.status !== 402) {
-        const llmResp = await fetch(validatedUrl.toString(), {
+        const llmResp = await call({
           method: 'POST',
           headers: baseHeaders,
           body: JSON.stringify({
@@ -180,12 +180,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             messages: [{ role: 'user', content: 'ping' }],
             max_tokens: 1,
           }),
-          signal: controller.signal,
         });
         if (llmResp.status === 402) response = llmResp;
       }
-    } finally {
-      clearTimeout(timer);
     }
 
     _debugStatus = response.status;

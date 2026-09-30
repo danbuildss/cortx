@@ -16,6 +16,9 @@ export async function resolve(specifier, context, nextResolve) {
       if (candidate.pathname.endsWith('/lib/check-runner/ssrf.ts')) {
         return { url: new URL('ssrf.ts', STUBS).href, shortCircuit: true };
       }
+      if (candidate.pathname.endsWith('/lib/check-runner/fetch-endpoint.ts')) {
+        return { url: new URL('fetch-endpoint.ts', STUBS).href, shortCircuit: true };
+      }
       return { url: candidate.href, shortCircuit: true };
     }
   }

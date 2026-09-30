@@ -19,6 +19,7 @@
  */
 
 import { StageError, validateAndResolveUrl } from './ssrf';
+import { fetchEndpoint, RESPONSE_BODY_MAX_BYTES, type CheckedFetchInit } from './fetch-endpoint';
 import { assertSupportedMethod, getCheckAccount, resolveUsdcAsset, signExactAuthorization } from './payment';
 import {
   atomicAmount,
@@ -35,7 +36,6 @@ import type { CheckResult, StageName, StageResult } from './types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const VERIFY_TIMEOUT_MS = 10_000;
-const RESPONSE_BODY_MAX_BYTES = 1_048_576;
 
 const CAIP2_TO_X402: Record<string, string> = {
   'eip155:8453':  'base',
@@ -86,19 +86,10 @@ export type ReadinessConfig = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new StageError('TIMEOUT', `Request timed out after ${ms}ms`);
-    }
-    throw new StageError('UNREACHABLE', `Network error: ${err}`);
-  } finally {
-    clearTimeout(timer);
-  }
+// Service and facilitator requests go through fetchEndpoint: the address is
+// checked at connect time and on every redirect.
+function fetchWithTimeout(url: string, init: CheckedFetchInit, ms: number, maxRedirects?: number): Promise<Response> {
+  return fetchEndpoint(url, init, ms, { maxRedirects });
 }
 
 async function readBodyCapped(res: Response): Promise<string> {
@@ -374,8 +365,7 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
-        redirect: 'error', // never follow the facilitator somewhere we didn't validate
-      }, VERIFY_TIMEOUT_MS);
+      }, VERIFY_TIMEOUT_MS, 0); // never follow the facilitator to another address
       rawStatus = res.status;
       const text = await res.text().catch(() => '');
       responseExcerpt = text.slice(0, 300);

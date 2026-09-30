@@ -9,6 +9,8 @@ export type MemorySeed = {
   sources?: SourceRow[];
   denylist?: string[];
   known?: KnownRecords;
+  /** Clock for event and submission timestamps (the database uses now()); tests pass their fake clock */
+  now?: () => Date;
 };
 
 export class MemoryStore implements Store {
@@ -20,8 +22,10 @@ export class MemoryStore implements Store {
   events: Array<{ serviceId: string; event: DiscoveryEvent; at: Date; details?: Record<string, unknown> }> = [];
   submissions: Array<NewSubmission & { id: string; status: string; source: string; submitted_at: Date }> = [];
   runs: Array<{ id: number; kind: string; ok?: boolean; stats?: Record<string, unknown>; error?: string | null }> = [];
+  private readonly now: () => Date;
 
   constructor(seed: MemorySeed = {}) {
+    this.now = seed.now ?? (() => new Date());
     this.sources = seed.sources ?? [];
     this.denylist = new Set(seed.denylist ?? []);
     this.known = seed.known ?? { services: [], seeds: [], submissions: [] };
@@ -84,7 +88,7 @@ export class MemoryStore implements Store {
   }
 
   async addEvent(serviceId: string, event: DiscoveryEvent, details?: Record<string, unknown>) {
-    this.events.push({ serviceId, event, at: new Date(), details });
+    this.events.push({ serviceId, event, at: this.now(), details });
   }
 
   async dueProbes(now: Date, limit: number) {
@@ -112,7 +116,7 @@ export class MemoryStore implements Store {
   async insertSubmission(s: NewSubmission) {
     if (this.submissions.some((x) => x.discovered_service_id === s.discovered_service_id && x.status === 'pending')) return null;
     const id = randomUUID();
-    this.submissions.push({ ...s, id, status: 'pending', source: 'cori_scout', submitted_at: new Date() });
+    this.submissions.push({ ...s, id, status: 'pending', source: 'cori_scout', submitted_at: this.now() });
     return id;
   }
 

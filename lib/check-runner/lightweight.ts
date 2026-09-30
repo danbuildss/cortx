@@ -1,4 +1,10 @@
 import type { CheckResult } from './types';
+import { fetchEndpoint } from './fetch-endpoint';
+import { StageError } from './ssrf';
+
+const TIMEOUT_MS = 5_000; // per request; HEAD then GET stays within the old 10 s
+// Codes that mean CORTX won't call this address at all (not a HEAD problem)
+const REFUSED = new Set(['SSRF_BLOCKED', 'NON_HTTPS', 'BLOCKED_PORT', 'INVALID_URL', 'CREDENTIALS_IN_URL']);
 
 export async function runLightweightCheck(
   serviceId: string,
@@ -7,31 +13,21 @@ export async function runLightweightCheck(
   const started_at = new Date();
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
-
     let status: number;
     let latency_ms: number;
 
     try {
       const t0 = Date.now();
-      const res = await fetch(endpointUrl, {
-        method: 'HEAD',
-        signal: controller.signal,
-      });
+      const res = await fetchEndpoint(endpointUrl, { method: 'HEAD' }, TIMEOUT_MS);
       latency_ms = Date.now() - t0;
       status = res.status;
-    } catch {
-      // HEAD not supported; fall back to GET
+    } catch (err) {
+      // A refused address is final; anything else may just mean HEAD isn't supported
+      if (err instanceof StageError && REFUSED.has(err.code)) throw err;
       const t0 = Date.now();
-      const res = await fetch(endpointUrl, {
-        method: 'GET',
-        signal: controller.signal,
-      });
+      const res = await fetchEndpoint(endpointUrl, { method: 'GET' }, TIMEOUT_MS);
       latency_ms = Date.now() - t0;
       status = res.status;
-    } finally {
-      clearTimeout(timeout);
     }
 
     const reachable = status < 500;

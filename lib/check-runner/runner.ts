@@ -3,6 +3,7 @@ import addFormats from 'ajv-formats';
 import { createHash } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { StageError, validateAndResolveUrl } from './ssrf';
+import { fetchEndpoint, RESPONSE_BODY_MAX_BYTES, type CheckedFetchInit } from './fetch-endpoint';
 import { executePayment, type SignedPayment } from './payment';
 import { classifyStatus, isCortxSidePaymentFailure } from './classify';
 import type { ServiceConfig, CanaryConfig, CheckResult, StageResult, StageName } from './types';
@@ -11,25 +12,11 @@ import { NETWORK_ALIASES, parsePaymentRequired, priceToUsdc, readSettlement, sel
 const REQUEST_TIMEOUT_MS = 10_000;
 const DELIVERY_TIMEOUT_MS = 15_000;
 const PAYMENT_TIMEOUT_MS = 30_000;
-const RESPONSE_BODY_MAX_BYTES = 1_048_576; // 1 MB cap on any remote response body
 
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new StageError('TIMEOUT', `Request timed out after ${timeoutMs}ms`);
-    }
-    throw new StageError('UNREACHABLE', `Network error: ${err}`);
-  } finally {
-    clearTimeout(timer);
-  }
+// Endpoint requests go through fetchEndpoint: the address is checked at
+// connect time and on every redirect, not just once before the request.
+function fetchWithTimeout(url: string, init: CheckedFetchInit, timeoutMs: number): Promise<Response> {
+  return fetchEndpoint(url, init, timeoutMs);
 }
 
 async function readBodyCapped(response: Response, maxBytes = RESPONSE_BODY_MAX_BYTES): Promise<string> {
@@ -453,7 +440,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     try {
       // Use the same method (GET/POST) that produced the 402 on the probe request
       const paymentHeaders = { [signedPayment.headerName]: signedPayment.headerValue };
-      const deliveryInit: RequestInit = probeMethod === 'GET'
+      const deliveryInit: CheckedFetchInit = probeMethod === 'GET'
         ? { method: 'GET', headers: paymentHeaders }
         : {
             method: 'POST',

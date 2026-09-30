@@ -17,7 +17,9 @@ after(() => eco.close());
 function setup(overrides: { cap?: number } = {}) {
   eco.items = standardListings(eco);
   eco.hits.length = 0;
+  let clock = new Date('2026-09-28T10:00:00Z');
   const store = new MemoryStore({
+    now: () => clock,
     sources: [{ id: 'cdp_bazaar', url: eco.bazaarUrl, enabled: true, interval_minutes: 360, last_run_at: null }],
     known: {
       services: [{ id: 'svc-1', endpoint_url: eco.url('svc.test', '/svc/monitored') }],
@@ -25,7 +27,6 @@ function setup(overrides: { cap?: number } = {}) {
       submissions: [{ id: 'sub-1', endpoint_url: eco.url('svc.test', '/svc/submitted'), status: 'pending', source: 'public', discovered_service_id: null }],
     },
   });
-  let clock = new Date('2026-09-28T10:00:00Z');
   const deps: Deps = {
     store,
     config: defaultConfig({ dailyQueueCap: overrides.cap ?? 25, bazaarPageLimit: 5, perHostMinIntervalMs: 0 }),
