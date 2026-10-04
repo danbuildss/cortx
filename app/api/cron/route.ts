@@ -11,6 +11,7 @@ import type { TriggerSource } from '@/lib/check-runner/persist';
 import { getWalletAddress, getWalletBalance } from '@/lib/check-runner/payment';
 import { sendTelegramAlert } from '@/lib/telegram';
 import type { CanaryConfig, CheckResult } from '@/lib/check-runner/types';
+import { runPool } from '@/lib/cron/pool';
 
 const SPEND_CAP_CODES = new Set(['DAILY_SPEND_CAP_EXCEEDED', 'MONTHLY_SPEND_CAP_EXCEEDED']);
 
@@ -18,6 +19,13 @@ const SPEND_CAP_CODES = new Set(['DAILY_SPEND_CAP_EXCEEDED', 'MONTHLY_SPEND_CAP_
 const ANOMALY_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
 export const maxDuration = 60;
+
+// Each loop runs several services at once and stops STARTING new checks at its
+// cut-off (ms after the request began), leaving room for checks already
+// running to finish inside maxDuration. Services not started stay due and are
+// picked up by the next tick, most overdue first.
+const CONCURRENCY = { lightweight: 5, readiness: 3, paid: 3 };
+const START_CUTOFF_MS = { lightweight: 15_000, readiness: 25_000, paid: 30_000 };
 
 // GET /api/cron — called by cron-job.org on schedule
 // Requires: Authorization: Bearer {CRON_SECRET}
@@ -34,7 +42,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const now = new Date().toISOString();
+  const startedAt = Date.now();
+  const now = new Date(startedAt).toISOString();
 
   // ── Wallet balance check (admin alert) ────────────────────────────────────
   await checkWalletBalance();
@@ -47,7 +56,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .from('services')
     .select('id, user_id, name, endpoint_url, check_interval_minutes, status, consecutive_failures, latency_threshold_ms, lightweight_check_interval_minutes, last_anomaly_triggered_at, paid_verification_mode, monitoring_paused_reason')
     .is('deleted_at', null)
-    .lte('next_check_at', now);
+    .lte('next_check_at', now)
+    .order('next_check_at', { ascending: true });
 
   if (lwErr) {
     return NextResponse.json({ error: lwErr.message }, { status: 500 });
@@ -56,7 +66,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const lightweightResults: Array<{ id: string; status: string; triggered?: string }> = [];
   const triggeredServiceIds: string[] = [];
 
-  for (const svc of lightweightDue ?? []) {
+  const lightweightRun = await runPool(lightweightDue ?? [], {
+    concurrency: CONCURRENCY.lightweight,
+    startBefore: startedAt + START_CUTOFF_MS.lightweight,
+  }, async (svc) => {
     try {
       const result = await runLightweightCheck(svc.id, svc.endpoint_url);
       await persistCheckResult(svc, result);
@@ -80,10 +93,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       console.error(`Lightweight check failed for service ${svc.id}:`, err);
       lightweightResults.push({ id: svc.id, status: 'error' });
     }
-  }
+  });
 
   // ── Loop 1b: Payment readiness (facilitator /verify, no USDC moves) ───────
-  const readinessResults = await runReadinessLoop(db, now);
+  const readinessResults = await runReadinessLoop(db, now, startedAt + START_CUTOFF_MS.readiness);
 
   // ── Loop 2: Paid verifications ────────────────────────────────────────────
   // Auto-unpause services paused by a spend cap, but only once that cap has reset
@@ -95,7 +108,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .is('deleted_at', null)
     .is('monitoring_paused_reason', null)
     .lte('next_paid_verification_at', now)
-    .neq('paid_verification_mode', 'disabled');
+    .neq('paid_verification_mode', 'disabled')
+    .order('next_paid_verification_at', { ascending: true });
 
   if (paidErr) {
     return NextResponse.json({ error: paidErr.message }, { status: 500 });
@@ -103,7 +117,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const paidResults: Array<{ id: string; status: string; type: string; trigger: string }> = [];
 
-  for (const svc of paidDue ?? []) {
+  // Concurrent paid checks are safe: each reserves budget atomically
+  // (reserve_spend holds an advisory lock), so the caps hold.
+  const paidRun = await runPool(paidDue ?? [], {
+    concurrency: CONCURRENCY.paid,
+    startBefore: startedAt + START_CUTOFF_MS.paid,
+  }, async (svc) => {
     // Determine whether this paid check was anomaly-triggered or scheduled
     const triggerSource: TriggerSource = triggeredServiceIds.includes(svc.id)
       ? (lightweightResults.find(r => r.id === svc.id)?.triggered as TriggerSource ?? 'scheduled')
@@ -174,16 +193,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       console.error(`Paid check failed for service ${svc.id}:`, err);
       paidResults.push({ id: svc.id, status: 'error', type: svc.paid_verification_mode, trigger: triggerSource });
     }
-  }
+  });
 
   return NextResponse.json({
-    lightweight: { processed: (lightweightDue ?? []).length, results: lightweightResults },
+    lightweight: { processed: lightweightRun.results.length, deferred: lightweightRun.deferred.length, results: lightweightResults },
     readiness: readinessResults,
     paid: {
-      processed: (paidDue ?? []).length,
+      processed: paidRun.results.length,
+      deferred: paidRun.deferred.length,
       results: paidResults,
       anomaly_triggered: triggeredServiceIds.length,
     },
+    duration_ms: Date.now() - startedAt,
   });
 }
 
@@ -192,13 +213,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 // never break the rest of the cron — e.g. before migration 021 is applied.
 async function runReadinessLoop(
   db: SupabaseClient,
-  now: string
-): Promise<{ processed: number; results: Array<{ id: string; status: string }>; skipped_reason?: string }> {
+  now: string,
+  startBefore: number
+): Promise<{ processed: number; deferred?: number; results: Array<{ id: string; status: string }>; skipped_reason?: string }> {
   const { data: due, error } = await db
     .from('services')
     .select('id, user_id, name, endpoint_url, environment, test_input, max_price, status, consecutive_failures, latency_threshold_ms, check_interval_minutes, paid_verification_interval_minutes, readiness_status, readiness_consecutive_failures, readiness_check_interval_minutes')
     .is('deleted_at', null)
-    .lte('next_readiness_check_at', now);
+    .lte('next_readiness_check_at', now)
+    .order('next_readiness_check_at', { ascending: true });
 
   if (error) {
     console.warn('Readiness loop skipped:', error.message);
@@ -206,7 +229,7 @@ async function runReadinessLoop(
   }
 
   const results: Array<{ id: string; status: string }> = [];
-  for (const svc of due ?? []) {
+  const run = await runPool(due ?? [], { concurrency: CONCURRENCY.readiness, startBefore }, async (svc) => {
     try {
       const readiness = await runReadinessCheck({
         service_id: svc.id,
@@ -233,8 +256,8 @@ async function runReadinessLoop(
       console.error(`Readiness check failed for service ${svc.id}:`, err);
       results.push({ id: svc.id, status: 'error' });
     }
-  }
-  return { processed: (due ?? []).length, results };
+  });
+  return { processed: run.results.length, deferred: run.deferred.length, results };
 }
 
 function isValidCronSecret(provided: string, expected: string | undefined): boolean {

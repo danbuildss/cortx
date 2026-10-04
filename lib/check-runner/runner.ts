@@ -319,7 +319,11 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     const maxPrice = parseFloat(config.max_price);
     const priceMatch = expectedPrice == null || Math.abs(parsedPrice - expectedPrice) < 0.000001;
 
-    if (parsedPrice > maxPrice) {
+    // With a payment gate, affordability is the gate's decision: a price above
+    // what this checker will pay is not a failure of the service.
+    const gated = config.payment_gate != null;
+
+    if (!gated && parsedPrice > maxPrice) {
       fail(stagePriceCheck, 'PRICE_EXCEEDS_MAXIMUM', {
         ...parsedPriceEvidence,
         expected_price: config.expected_price,
@@ -332,7 +336,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     }
 
     const betaCap = parseFloat(process.env.BETA_MAX_ENDPOINT_PRICE_USDC ?? '1.00');
-    if (parsedPrice > betaCap) {
+    if (!gated && parsedPrice > betaCap) {
       fail(stagePriceCheck, 'BETA_PRICE_CAP_EXCEEDED', {
         ...parsedPriceEvidence,
         observed_price,
@@ -368,12 +372,31 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     const stagePayment = advance();
     const t7 = performance.now();
 
+    if (config.payment_gate) {
+      let decision: Awaited<ReturnType<NonNullable<ServiceConfig['payment_gate']>>>;
+      try {
+        decision = await config.payment_gate(parsedPrice);
+      } catch {
+        // Fail closed: if the budget can't be checked, don't pay
+        decision = { pay: false, reason: 'budget_unavailable', message: 'The paid part could not be scheduled right now.' };
+      }
+      if (!decision.pay) {
+        stages.push(makeStage(stagePayment, null, null, { skipped: true, reason: decision.reason }));
+        markRemaining();
+        return {
+          ...buildResult(config.id, started_at, stages, null, observed_price, 'passed'),
+          paid_skipped: { reason: decision.reason, message: decision.message },
+        };
+      }
+    }
+
     let signedPayment: SignedPayment;
 
     try {
       // Atomically reserve spend budget before payment (prevents concurrent overspend)
       const { dailyCap, monthlyCap } = getSpendCaps();
-      const reserveResult = await reserveSpend(config.id, parsedPrice, dailyCap, monthlyCap);
+      // A payment gate has already reserved from its own budget
+      const reserveResult = gated ? 'ok' : await reserveSpend(config.id, parsedPrice, dailyCap, monthlyCap);
       if (reserveResult !== 'ok') {
         throw new StageError(
           reserveResult as 'DAILY_SPEND_CAP_EXCEEDED' | 'MONTHLY_SPEND_CAP_EXCEEDED',
@@ -396,7 +419,8 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
         ]);
       } catch (innerErr) {
         // Release the reservation on payment failure so budget is not consumed
-        await releaseSpendReservation(config.id).catch(() => {});
+        // (a payment gate's caller releases its own)
+        if (!gated) await releaseSpendReservation(config.id).catch(() => {});
         throw innerErr;
       }
     } catch (err) {

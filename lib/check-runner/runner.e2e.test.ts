@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { verifyTypedData } from 'viem';
-import type { CheckResult, StageName } from './types.ts';
+import type { CheckResult, PaymentGate, StageName } from './types.ts';
 
 const key = generatePrivateKey();
 process.env.CORTX_TEST_WALLET_KEY = key;
@@ -40,6 +40,11 @@ const SCENARIOS: Record<string, Scenario> = {
   'schema-fail':  { version: 1, body: '{"wrong":true}' },
   'bad-json':     { version: 2, body: 'not json' },
   'too-expensive': { version: 2, price: '5000000' },
+  // Payment gate (free /report): same service, different gate decisions
+  'gate-no':      { version: 2 },
+  'gate-yes':     { version: 2 },
+  'gate-throws':  { version: 2 },
+  'gate-pricey':  { version: 2, price: '5000000' },
 };
 
 const received: Record<string, { header: string; payload: Record<string, unknown> }> = {};
@@ -89,8 +94,9 @@ before(async () => {
 
 after(() => server.close());
 
-function run(name: string): Promise<CheckResult> {
+function run(name: string, payment_gate?: PaymentGate): Promise<CheckResult> {
   return runFullCheck({
+    payment_gate,
     id: name,
     user_id: 'test',
     endpoint_url: `${base}/${name}`,
@@ -198,4 +204,46 @@ test('price above max: fails at price_check and never pays', async () => {
   assert.equal(stage(r, 'price_check').error, 'PRICE_EXCEEDS_MAXIMUM');
   assert.equal(stage(r, 'payment').passed, null);
   assert.equal(received['too-expensive'], undefined, 'no payment was sent');
+});
+
+// ── Payment gate (used by the free /report) ─────────────────────────────────
+
+test('gate says no: free stages pass, nothing is paid, the reason is reported', async () => {
+  const seen: number[] = [];
+  const r = await run('gate-no', async (price) => { seen.push(price); return { pay: false, reason: 'report_budget_used', message: 'Budget used up.' }; });
+  assert.deepEqual(seen, [0.001], 'the gate sees the parsed price');
+  assert.equal(r.status, 'passed', 'the service did nothing wrong');
+  assertCanonicalStages(r);
+  assert.equal(r.failure_stage, null);
+  assert.deepEqual(r.paid_skipped, { reason: 'report_budget_used', message: 'Budget used up.' });
+  assert.equal(stage(r, 'price_check').passed, true);
+  assert.equal(stage(r, 'payment').passed, null);
+  assert.equal(stage(r, 'payment').evidence?.skipped, true);
+  assert.equal(stage(r, 'delivery').passed, null);
+  assert.equal(received['gate-no'], undefined, 'no payment was sent');
+});
+
+test('gate says yes: the check pays and completes as usual', async () => {
+  const r = await run('gate-yes', async () => ({ pay: true }));
+  assert.equal(r.status, 'passed', JSON.stringify(r.stages));
+  assertCanonicalStages(r);
+  assert.equal(r.paid_skipped, undefined);
+  assert.equal(received['gate-yes'].header, 'PAYMENT-SIGNATURE');
+});
+
+test('gate crashes: fails closed, nothing is paid', async () => {
+  const r = await run('gate-throws', async () => { throw new Error('db down'); });
+  assert.equal(r.status, 'passed');
+  assert.equal(r.paid_skipped?.reason, 'budget_unavailable');
+  assert.equal(received['gate-throws'], undefined, 'no payment was sent');
+});
+
+test('with a gate, a price above the max is the gate\'s call, not a service failure', async () => {
+  const r = await run('gate-pricey', async (price) => (price > 0.01
+    ? { pay: false, reason: 'price_above_report_limit', message: 'Too expensive for the free report.' }
+    : { pay: true }));
+  assert.equal(r.status, 'passed');
+  assert.equal(stage(r, 'price_check').passed, true);
+  assert.equal(r.paid_skipped?.reason, 'price_above_report_limit');
+  assert.equal(received['gate-pricey'], undefined, 'no payment was sent');
 });

@@ -694,6 +694,11 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 **Open risks:** (1) `/report` pays up to $0.10 to any URL, limited only per email/IP — with $5/day caps someone rotating emails/IPs can drain ~$5/day to their own endpoint (audit #5, still open). (2) Cron is serial within a 60 s limit (audit #6) — fine for 6 services, not for dozens. (3) Readiness can't run for Bankr services without a verify-only key.
 
+**Oct 4 — approved "1, 4" (founder SQL: only one /report ever, Aug 24, stopped at payment_terms → no money ever left through /report):**
+- **#1 /report hardening (migration 025):** free stages always run; paid part only for services ≤ $0.01 (`REPORT_MAX_PRICE_USDC`) within a $0.25/day report budget (`REPORT_DAILY_BUDGET_USDC`), reserved by `reserve_report_spend()` under the same advisory lock as `reserve_spend()`; report spend stored in `reliability_report_requests.paid_usdc` and **added to `get_spend_totals()`** (so caps, cron pause/unpause and admin spend cards count it). Released if no payment was sent. Runner gained an optional `payment_gate` (types.ts) — monitoring checks unchanged. A price above the report limit is no longer reported as a service failure. Email HTML now escapes the URL and error text (was an HTML-injection vector from reports@usecortx.dev). Report URL must be public https. Fail closed: if the RPC is missing (025 not run), the paid part simply doesn't run. Migration tested on Postgres 16 (budget, platform caps, monitoring sees report spend, release, day rollover, anon can't execute).
+- **#4 parallel cron:** `lib/cron/pool.ts` (tested) — lightweight 5 / readiness 3 / paid 3 at once; stop starting new checks at 15 s / 25 s / 30 s; unstarted services stay due, most overdue first next tick. Response adds `deferred` counts + `duration_ms`. No SQL.
+- 110 tests.
+
 **Left to build (proposed order):** /report hardening → Phase D (Cori server, with founder) → Phase E (watch a week, review Cori's queue) → cron scaling → `@cortx/check` npm → later Cori phases (Observer/Memory, Verifier queue via DB → Vercel, Investigator, public Reliability Index / weekly report, preflight API/MCP). Biggest non-code gap: outside builders (Phase 1 target 10).
 
 ## Cori — LOCKED DIRECTION (Sep 28, 2026)
