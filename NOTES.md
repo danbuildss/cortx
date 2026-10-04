@@ -684,6 +684,18 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 
 ---
 
+## Status snapshot (Oct 4, 2026)
+
+**All merged:** cortx #108–#119, spec #6–#7, cori #1 (repo archived). Nothing open.
+
+**Built since the Sep 28 reboot:** honest failures (CORTX-side `error`), x402 V2 payments + settlement receipts, readiness (blocked in practice: Bankr facilitator needs a bearer token), stage-name bug fixed + history repaired, admin numbers fixed, Cori Scout v0 (code done, **not running** — needs Phase D server), Cori admin page + watchdog, MIT licence, spec v0.3 + 8 test vectors, CORTX passes all 8, public API returns spec evidence, READMEs aligned, SSRF redirect fix (incl. lightweight check). ~100 tests.
+
+**Live numbers (last seen Sep 28 /admin):** 4 signups, **0 outside builders with a service**; 6 services, all the founder's (5 Bankr + Exa test); ~2,900 checks; wallet $3.84; caps in Vercel $5/day, $50/month.
+
+**Open risks:** (1) `/report` pays up to $0.10 to any URL, limited only per email/IP — with $5/day caps someone rotating emails/IPs can drain ~$5/day to their own endpoint (audit #5, still open). (2) Cron is serial within a 60 s limit (audit #6) — fine for 6 services, not for dozens. (3) Readiness can't run for Bankr services without a verify-only key.
+
+**Left to build (proposed order):** /report hardening → Phase D (Cori server, with founder) → Phase E (watch a week, review Cori's queue) → cron scaling → `@cortx/check` npm → later Cori phases (Observer/Memory, Verifier queue via DB → Vercel, Investigator, public Reliability Index / weekly report, preflight API/MCP). Biggest non-code gap: outside builders (Phase 1 target 10).
+
 ## Cori — LOCKED DIRECTION (Sep 28, 2026)
 
 **Cori is the autonomous reliability agent for CORTX.** Not a bigger x402 scanner or another trust score (ScoutScore owns breadth). Differentiation = depth of evidence and incident investigation. The question CORTX answers: *"What exactly happened to this machine payment/service interaction, and can we prove it?"*
