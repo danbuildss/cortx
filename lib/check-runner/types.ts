@@ -31,7 +31,18 @@ export type CheckResult = {
   observed_price: string | null;
   error_message: string | null;
   check_type: CheckType;
+  /** Set when a payment gate decided not to pay: the free stages ran, the paid ones did not */
+  paid_skipped?: { reason: string; message: string };
 };
+
+/**
+ * Decides, just before paying, whether this check may spend money. Used by
+ * the free /report (its own small budget); monitoring checks don't set one and
+ * reserve from the platform budget as before. When a gate says yes it has
+ * already reserved the budget, so the runner doesn't reserve again.
+ */
+export type PaymentGateDecision = { pay: true } | { pay: false; reason: string; message: string };
+export type PaymentGate = (priceUsdc: number) => Promise<PaymentGateDecision>;
 
 export type ServiceConfig = {
   id: string;
@@ -43,6 +54,8 @@ export type ServiceConfig = {
   max_price: string;
   latency_threshold_ms: number | null;
   environment: 'mainnet' | 'testnet';
+  /** Optional: replaces the max-price checks and the platform budget reservation (see PaymentGate) */
+  payment_gate?: PaymentGate;
 };
 
 export type CanaryConfig = {

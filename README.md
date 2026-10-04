@@ -42,7 +42,7 @@ Two failed checks in a row open an incident; a passing check of the same tier or
 - **Badge** — `/api/badge/[serviceId]`
 - **Reliability API** — `GET /api/v1/reliability/[serviceId]`: 30-day uptime, paid delivery, schema validity, latency, the open incident, and the latest paid check as an [x402 Reliability Spec](https://github.com/danbuildss/x402-reliability-spec) evidence record. Docs: [usecortx.dev/docs/partner-integration](https://usecortx.dev/docs/partner-integration)
 - **Registry** — [usecortx.dev/registry](https://usecortx.dev/registry): monitored and observed x402 services
-- **Free reliability report** — [usecortx.dev/report](https://usecortx.dev/report)
+- **Free reliability report** — [usecortx.dev/report](https://usecortx.dev/report): the free stages for any public x402 URL, plus the paid stages for services up to $0.01 while the report's small daily budget lasts
 
 ---
 
@@ -68,7 +68,7 @@ Cori is CORTX's autonomous reliability agent. Today (Scout v0) it discovers paid
 | App | Next.js 16 (App Router, React Server Components) on Vercel |
 | Database | Supabase — Postgres, Auth, Row Level Security |
 | Payments | viem (EIP-3009, x402 V2) and `x402/client` (V1), Base mainnet USDC |
-| Scheduling | cron-job.org calls `/api/cron` every 15 minutes |
+| Scheduling | cron-job.org calls `/api/cron` every 15 minutes; each run checks several services at once and carries over what doesn't fit |
 | Alerts | Telegram Bot API, Discord webhooks; email reports via Resend |
 | Cori | Node process on its own server, Postgres as a least-privilege role |
 
@@ -98,6 +98,8 @@ npm test                     # unit, end-to-end and spec-conformance tests
 | `CORTX_MONTHLY_SPEND_CAP_USDC` | no (10.00) | Platform-wide monthly spend cap |
 | `CORTX_WALLET_LOW_BALANCE_THRESHOLD_USDC` | no (0.05) | Admin alert when the test wallet drops below this |
 | `BETA_MAX_ENDPOINT_PRICE_USDC` | no (1.00) | Highest per-call price CORTX will pay |
+| `REPORT_DAILY_BUDGET_USDC` | no (0.25) | Daily budget for the paid part of the free `/report` (also counts toward the caps above) |
+| `REPORT_MAX_PRICE_USDC` | no (0.01) | Highest per-call price the free `/report` will pay |
 | `TELEGRAM_BOT_TOKEN` | for alerts | Telegram bot token |
 | `TELEGRAM_BOT_USERNAME` | for alerts | Bot username without `@`, for deep links |
 | `TELEGRAM_WEBHOOK_SECRET` | for alerts | Verifies Telegram webhook calls |

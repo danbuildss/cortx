@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { Resend } from 'resend';
-import { runFullCheck } from '@/lib/check-runner/runner';
-import type { ServiceConfig } from '@/lib/check-runner/types';
+import { getSpendCaps, runFullCheck } from '@/lib/check-runner/runner';
+import { validateAndResolveUrl } from '@/lib/check-runner/ssrf';
+import type { PaymentGate, ServiceConfig } from '@/lib/check-runner/types';
 
 export const maxDuration = 65;
 
-const MAX_PRICE_USDC = '0.10';
+// The free report has its own small budget (migration 025). The free stages
+// always run; the paid part only for cheap services while the budget lasts,
+// and its spend counts toward the platform caps.
+const REPORT_MAX_PRICE_USDC = parseFloat(process.env.REPORT_MAX_PRICE_USDC ?? '0.01');
+const REPORT_DAILY_BUDGET_USDC = parseFloat(process.env.REPORT_DAILY_BUDGET_USDC ?? '0.25');
 const RATE_LIMIT_PER_EMAIL_24H = 5;
 const RATE_LIMIT_SAME_URL_EMAIL_24H = 1;
 
@@ -20,6 +25,12 @@ function db() {
 
 function hashIp(ip: string): string {
   return createHash('sha256').update(ip + (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '')).digest('hex').slice(0, 16);
+}
+
+// Everything user-supplied (URL) or service-supplied (errors) is escaped
+// before it goes into the email HTML.
+function esc(v: unknown): string {
+  return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
 function stageIcon(passed: boolean | null): string {
@@ -37,14 +48,17 @@ function stageColor(passed: boolean | null): string {
 function buildEmailHtml(endpoint_url: string, result: Awaited<ReturnType<typeof runFullCheck>>): string {
   const overall = result.status;
   const overallColor = overall === 'passed' ? '#22c55e' : overall === 'failed' ? '#ef4444' : '#f59e0b';
-  const overallLabel = overall === 'passed' ? 'All stages passed' : overall === 'failed' ? `Failed at ${result.failure_stage ?? 'unknown stage'}` : 'Error';
+  const skipped = result.paid_skipped;
+  const overallLabel = overall === 'passed'
+    ? (skipped ? 'Free checks passed' : 'All stages passed')
+    : overall === 'failed' ? `Failed at ${esc(result.failure_stage ?? 'unknown stage')}` : 'Error';
 
   const stageRows = (result.stages ?? []).map(s => `
     <tr>
       <td style="padding:8px 12px;font-size:13px;font-family:monospace;color:${stageColor(s.passed)};width:20px">${stageIcon(s.passed)}</td>
-      <td style="padding:8px 12px;font-size:13px;font-family:monospace;color:#f0f1f3">${s.stage}</td>
+      <td style="padding:8px 12px;font-size:13px;font-family:monospace;color:#f0f1f3">${esc(s.stage)}</td>
       <td style="padding:8px 12px;font-size:12px;color:#6b7280;text-align:right">${s.duration_ms != null ? `${s.duration_ms}ms` : '—'}</td>
-      <td style="padding:8px 12px;font-size:11px;color:${s.passed === false ? '#ef4444' : '#9ca3af'};max-width:300px">${s.error ?? (s.passed === null ? 'not reached' : '')}</td>
+      <td style="padding:8px 12px;font-size:11px;color:${s.passed === false ? '#ef4444' : '#9ca3af'};max-width:300px">${esc(s.error ?? (s.passed === null ? (s.evidence?.skipped ? 'not run' : 'not reached') : ''))}</td>
     </tr>
   `).join('');
 
@@ -67,7 +81,7 @@ function buildEmailHtml(endpoint_url: string, result: Awaited<ReturnType<typeof 
         <div style="width:8px;height:8px;border-radius:50%;background:${overallColor}"></div>
         <span style="font-size:16px;font-weight:600;color:${overallColor}">${overallLabel}</span>
       </div>
-      <div style="font-size:12px;color:#4b5563;font-family:monospace;word-break:break-all;margin-bottom:16px">${endpoint_url}</div>
+      <div style="font-size:12px;color:#4b5563;font-family:monospace;word-break:break-all;margin-bottom:16px">${esc(endpoint_url)}</div>
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div>
           <div style="font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Total latency</div>
@@ -90,11 +104,18 @@ function buildEmailHtml(endpoint_url: string, result: Awaited<ReturnType<typeof 
       </table>
     </div>
 
-    ${overall !== 'passed' ? `
+    ${skipped && overall === 'passed' ? `
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;padding:16px;margin-bottom:32px">
+      <div style="font-size:13px;font-weight:600;color:#f59e0b;margin-bottom:6px">Paid part not run</div>
+      <div style="font-size:13px;color:#9ca3af;line-height:1.6">
+        Your endpoint is reachable, asks for payment and publishes valid terms. ${esc(skipped.message)}
+        Monitor it with CORTX to verify payment, delivery and the response.
+      </div>
+    </div>` : overall !== 'passed' ? `
     <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:16px;margin-bottom:32px">
       <div style="font-size:13px;font-weight:600;color:#ef4444;margin-bottom:6px">What this means</div>
       <div style="font-size:13px;color:#9ca3af;line-height:1.6">
-        Your x402 endpoint failed at the <strong style="color:#f0f1f3">${result.failure_stage}</strong> stage.
+        Your x402 endpoint failed at the <strong style="color:#f0f1f3">${esc(result.failure_stage)}</strong> stage.
         Users attempting to pay may encounter errors or silent failures.
         Set up continuous monitoring to catch regressions before your users do.
       </div>
@@ -116,7 +137,7 @@ function buildEmailHtml(endpoint_url: string, result: Awaited<ReturnType<typeof 
     <div style="border-top:1px solid #1e2028;padding-top:20px;text-align:center">
       <a href="https://usecortx.dev" style="font-size:12px;color:#4b5563;text-decoration:none">usecortx.dev</a>
       <span style="color:#2a2d35;margin:0 8px">·</span>
-      <span style="font-size:12px;color:#2a2d35">This report was generated by a real synthetic payment check on Base mainnet.</span>
+      <span style="font-size:12px;color:#2a2d35">${skipped ? 'This report covers the free checks only.' : 'This report was generated by a real synthetic payment check on Base mainnet.'}</span>
     </div>
 
   </div>
@@ -138,18 +159,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
   }
 
-  let parsedUrl: URL;
+  // https only, and it must resolve to a public address (the checker re-checks
+  // on every connection and redirect)
   try {
-    parsedUrl = new URL(endpoint_url);
-    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') throw new Error('bad protocol');
+    await validateAndResolveUrl(endpoint_url);
   } catch {
-    return NextResponse.json({ error: 'endpoint_url must be a valid URL' }, { status: 400 });
-  }
-
-  // Block private/reserved IP ranges
-  const host = parsedUrl.hostname;
-  if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0|localhost|::1)/i.test(host)) {
-    return NextResponse.json({ error: 'Private or reserved URLs are not allowed' }, { status: 400 });
+    return NextResponse.json({ error: 'endpoint_url must be a public https URL' }, { status: 400 });
   }
 
   const supabase = db();
@@ -206,6 +221,39 @@ export async function POST(req: NextRequest) {
 
   const reportId = record.id as string;
 
+  // Decides whether this report may pay, and reserves from the report budget
+  let reserved = false;
+  const paymentGate: PaymentGate = async (price) => {
+    if (price > REPORT_MAX_PRICE_USDC) {
+      return {
+        pay: false,
+        reason: 'price_above_report_limit',
+        message: `This service costs $${price} per call; the free report only pays for services up to $${REPORT_MAX_PRICE_USDC}.`,
+      };
+    }
+    const { dailyCap, monthlyCap } = getSpendCaps();
+    const { data, error } = await supabase.rpc('reserve_report_spend', {
+      p_report_id: reportId,
+      p_amount: price,
+      p_report_daily_cap: REPORT_DAILY_BUDGET_USDC,
+      p_daily_cap: dailyCap,
+      p_monthly_cap: monthlyCap,
+    });
+    if (error) {
+      console.error('[reliability-report] reserve error:', error.message);
+      return { pay: false, reason: 'budget_unavailable', message: 'The paid part could not be scheduled right now.' };
+    }
+    if (data === 'ok') {
+      reserved = true;
+      return { pay: true };
+    }
+    return {
+      pay: false,
+      reason: data === 'REPORT_BUDGET_EXHAUSTED' ? 'report_budget_used' : 'platform_budget_used',
+      message: "Today's budget for free paid checks is used up; the paid part is available again after midnight UTC.",
+    };
+  };
+
   // Run the check
   const config: ServiceConfig = {
     id: reportId,
@@ -214,9 +262,10 @@ export async function POST(req: NextRequest) {
     test_input: {},
     expected_schema: null,
     expected_price: null,
-    max_price: MAX_PRICE_USDC,
+    max_price: String(REPORT_MAX_PRICE_USDC),
     latency_threshold_ms: null,
     environment: 'mainnet',
+    payment_gate: paymentGate,
   };
 
   let checkResult: Awaited<ReturnType<typeof runFullCheck>>;
@@ -229,6 +278,12 @@ export async function POST(req: NextRequest) {
     const rawMsg = err instanceof Error ? err.message : String(err);
     checkError = rawMsg.replaceAll(walletKey, '[REDACTED]');
     console.error('[reliability-report] check error:', checkError);
+  }
+
+  // Release the reservation if no payment was sent (a payment that went
+  // through stays counted, even if delivery then failed)
+  if (reserved && !checkError && checkResult!.stages.find((s) => s.stage === 'payment')?.passed !== true) {
+    await supabase.from('reliability_report_requests').update({ paid_usdc: null }).eq('id', reportId);
   }
 
   // Update record with result
@@ -256,7 +311,7 @@ export async function POST(req: NextRequest) {
     try {
       const resend = new Resend(resendKey);
       const subject = checkResult!.status === 'passed'
-        ? `✓ Your x402 endpoint is healthy — CORTX report`
+        ? (checkResult!.paid_skipped ? `Your x402 endpoint passed the free checks — CORTX report` : `✓ Your x402 endpoint is healthy — CORTX report`)
         : `✗ Issues found in your x402 endpoint — CORTX report`;
 
       await resend.emails.send({
@@ -277,6 +332,7 @@ export async function POST(req: NextRequest) {
     latency_ms: checkResult!.latency_ms ?? null,
     observed_price: checkResult!.observed_price ?? null,
     stages: checkResult!.stages,
+    paid_skipped: checkResult!.paid_skipped ?? null,
     email_sent: !!resendKey,
   });
 }

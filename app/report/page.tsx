@@ -16,6 +16,7 @@ type ReportResult = {
   latency_ms: number | null;
   observed_price: string | null;
   stages: StageResult[];
+  paid_skipped: { reason: string; message: string } | null;
   email_sent: boolean;
 };
 
@@ -68,7 +69,8 @@ export default function ReportPage() {
     : result?.status === 'failed' ? 'var(--status-critical)'
     : 'var(--status-degraded)';
 
-  const statusLabel = result?.status === 'passed' ? 'All stages passed'
+  const statusLabel = result?.status === 'passed'
+    ? (result.paid_skipped ? 'Free checks passed' : 'All stages passed')
     : result?.status === 'failed' ? `Failed at ${result.failure_stage}`
     : 'Error';
 
@@ -87,9 +89,10 @@ export default function ReportPage() {
           Free x402 reliability check
         </h1>
         <p style={{ fontSize: 15, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 40 }}>
-          Paste your x402 endpoint URL. We&apos;ll run a real end-to-end check — availability,
-          payment terms, an actual EIP-3009 USDC payment on Base mainnet, delivery, and JSON validity —
-          and email you the full stage-by-stage report. No signup required.
+          Paste your x402 endpoint URL. We&apos;ll check availability and payment terms, and — for
+          services priced up to $0.01, while today&apos;s budget lasts — make a real USDC payment on Base
+          mainnet and check delivery and the JSON response. You get the full stage-by-stage report by
+          email. No signup required.
         </p>
 
         {/* Form */}
@@ -180,7 +183,7 @@ export default function ReportPage() {
             </button>
 
             <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 10, textAlign: 'center' }}>
-              A real USDC payment (up to $0.10) is made to your endpoint on Base mainnet.
+              The paid part makes one real USDC payment (up to $0.01) to your endpoint on Base mainnet.
               Limit: 1 check per URL per 24 hours.
             </p>
           </form>
@@ -222,6 +225,23 @@ export default function ReportPage() {
               </div>
             </div>
 
+            {result.paid_skipped && (
+              <div style={{
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-mid)',
+                borderLeft: '3px solid var(--status-degraded)',
+                borderRadius: 8,
+                padding: '14px 16px',
+                marginBottom: 16,
+                fontSize: 13,
+                lineHeight: 1.6,
+                color: 'var(--text-secondary)',
+              }}>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Paid part not run</div>
+                {result.paid_skipped.message} Monitor this endpoint to verify payment, delivery and the response.
+              </div>
+            )}
+
             {/* Stage breakdown */}
             <div style={{
               background: 'var(--bg-surface)',
@@ -245,6 +265,9 @@ export default function ReportPage() {
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontFamily: 'var(--font-geist-mono)', flex: 1 }}>
                         {STAGE_LABELS[s.stage] ?? s.stage}
                       </span>
+                      {s.passed === null && s.evidence?.skipped === true && (
+                        <span style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'right' }}>not run</span>
+                      )}
                       {s.error && (
                         <span style={{ fontSize: 11, color: 'var(--status-critical)', maxWidth: 200, textAlign: 'right' }}>{s.error}</span>
                       )}
