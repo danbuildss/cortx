@@ -21,10 +21,10 @@ Cori's server is a small Hetzner VPS in its own **CORTX** project, separate from
 2. Add Server:
    - **Location:** nearest to your Supabase project's region. Supabase → Project Settings → General shows the region, e.g. `eu-central-1` → Falkenstein or Nuremberg; `us-east-1` → Ashburn.
    - **Image:** Ubuntu 24.04.
-   - **Type:** the smallest shared vCPU, 2 vCPU / 4 GB (x86 or Arm both work).
+   - **Type:** CX23 (Cost-Optimized x86, 2 vCPU / 4 GB): the same as the Luca server.
    - **Networking:** keep **IPv4 and IPv6** on.
    - **SSH key:** add your public key.
-   - **Name:** `cori`.
+   - **Name:** `cori-prod-01`.
 3. Note the server's IPv4 address.
 
 ## 2. Set up the server

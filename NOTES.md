@@ -760,6 +760,7 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
     - Node 22 from nodejs.org, SHA-256 verified
   - Dry-run unit forces `CORI_DRY_RUN=1` on the command line, because an EnvironmentFile overrides `Environment=`.
   - Deploy rehearsed in a fresh clone: `npm ci --ignore-scripts` (~1 min, node_modules 1.3 GB), `test:cori` 74 tests (73 pass, 1 DB-gated skip), build OK.
+- **Oct 5 — PR #125 merged. Server choice (founder):** same as Luca: **Hetzner CX23** (Cost-Optimized x86, 2 vCPU / 4 GB), Ubuntu 24.04, Falkenstein, about $7.09/month incl. IPv4. Name **`cori-prod-01`**, in a **separate Hetzner project "CORTX"** (not inside Luca's project). Falkenstein is right only if Supabase is in the EU; asked the founder for the Supabase region. The 027 check row was still not pasted (only "success").
 
 ## Proposal: Autonomous Reliability Network / "Cori" agent (Sep 28, 2026) — superseded by LOCKED DIRECTION above
 
