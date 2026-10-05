@@ -1,411 +1,419 @@
-# Cori Scout v0 — Technical Spec
+# Cori Scout V0 — Technical Spec (v2, re-audited against the canonical brief)
 
-**Status:** APPROVED with defaults (Sep 28, 2026) · Phases A, B + C built
-**Scope:** discovery only. Zero USDC. No public claims. No LLM.
+**Status:** v2 PROPOSED Oct 5, 2026, **waiting for founder approval**. v1 was approved Sep 28 and is built (Phases A–C, merged #114–#117). Nothing is running yet (Phase D, the server, comes next).
+**Source of truth:** [`CORI_BRIEF.md`](CORI_BRIEF.md) (canonical brief, Oct 5) + [`DATA_COMPOUNDS.md`](DATA_COMPOUNDS.md).
+**Scope:** discovery only. Zero USDC. No public failure claims. No LLM.
 
----
-
-## 0. Product thesis this serves
-
-Cori is the autonomous reliability agent for CORTX. It is **not** a bigger x402 scanner or another trust score (ScoutScore already covers breadth: 2,000+ domains, paid probes, SDK/MCP). Cori's destination is **autonomous incident investigation**: for any machine payment that went wrong, answer *"what exactly happened, and can we prove it?"*
-
-```
-discover → observe → detect anomaly → reproduce → trace failing stage →
-collect payment/settlement/delivery evidence → open incident → notify provider →
-watch recovery → paid recovery verification → close → preserve history
-```
-
-Evidence states (kept separate everywhere, from day one): **Observed → Reproduced → Confirmed → Resolved.** Nothing about a third-party service becomes a public failure automatically; a human confirms until Cori has earned trust.
-
-> The checker can be open. The network and the accumulated evidence are the moat.
-
-**Scout is only how Cori starts seeing the ecosystem.** Scout v0 answers one question: *how many real, cheaply verifiable x402 services exist on Base, and where do they come from?*
+Legend used throughout: ✅ built and stays · 🔧 change proposed before go-live (Phase B2) · ⏳ later phase, not Scout V0.
 
 ---
 
-## 1. Architecture
+## Summary
 
-```
-                 ┌──────────────────────── CORI VPS (Hetzner, CORTX project) ─────────────┐
- Bazaar /        │  cori (one Node process, systemd)                                        │
- facilitator  ──►│   scheduler ─► sources ─► normalize ─► dedupe ─► probe ─► classify ─► queue │
- discovery APIs  │                                     (free, no payment, no wallet)          │
-                 └──────────────────────────────┬───────────────────────────────────────────┘
-                                                │ Postgres (least-privilege role `cori_agent`)
-                                                ▼
-                         ┌────────────── Supabase Postgres ──────────────┐
-                         │ discovered_services  discovery_sources_seen    │
-                         │ discovery_events     cori_runs                 │
-                         │ endpoint_submissions (source = 'cori_scout') ──┼──► existing admin review
-                         └───────────────────────────────────────────────┘        │ approve
-                                                ▲                                   ▼
-                              CORTX app on Vercel (unchanged wallet/payment path)  registry_seeds
-                              - /admin: Cori panel + candidate metadata
-                              - cron watchdog: alert if Cori heartbeat is stale
-```
+Scout V0 is **already specified, built and tested** (Sep 28, including a full pipeline run against a fake Bazaar and fake x402 services, and a run on real Postgres as the least-privilege role). It reads the Coinbase (CDP) Bazaar, classifies listings with fixed rules, sends free probes that can never pay, and puts up to 25 candidates a day into the existing admin review (`/admin/cori`).
 
-Key boundaries:
-- **The VPS never holds money.** No wallet key, no Supabase service-role key, no Telegram token. Scout never signs anything.
-- **The admin review queue is the only path to the public registry.** Scout writes *candidates*; only a human approval creates a `registry_seeds` row (the existing flow).
-- **Reuse, don't fork:** payment-terms parsing, pricing and facilitator discovery come from `lib/check-runner/x402.ts` (Day 2/3). URL safety comes from `lib/check-runner/ssrf.ts`, tightened for Cori (§10).
+I re-audited the built code against the brief. Most of it holds, but it falls short of the brief in **memory** and in four smaller places. It also has two security details to tighten and one wrong assumption about the Bazaar. I recommend fixing these **before** Cori goes live, because history that isn't recorded from day one can't be recovered later:
 
----
+| # | Gap found | Brief / principle | Fix (Phase B2) |
+|---|---|---|---|
+| G1 | Each probe **overwrites** `last_probe`. Only "something changed" events survive, so there is no history of latency, failures or terms between changes. | §14 Memory, V0 item 14, DATA COMPOUNDS "append, don't overwrite", "record couldn't check" | New append-only `discovery_observations`: one row per probe, failures included |
+| G2 | Each listing **overwrites** the stored listing (`accepts`, metadata, description). A `listing_changed` event says *that* it changed, not *what* changed. | §12 provenance, DATA COMPOUNDS | New `discovery_listings`: a new row only when the listing's content changes (content-addressed, cheap) |
+| G3 | `discovery_events` and `discovery_sources_seen` are `on delete cascade` from `discovered_services` | DATA COMPOUNDS "never hard-delete evidence" | Change to `restrict` (like migration 026 did for checks) |
+| G4 | The Bazaar spec has **dynamic routes** (`routeTemplate`, e.g. `/users/:id`) and methods we don't handle (HEAD, DELETE, PUT, PATCH). A DELETE-only endpoint gets a GET probe and is wrongly classed `not_x402`. | §12 normalize/dedupe, §7 false positives | Identity uses `routeTemplate` when present. New class `unsupported_method` (never probed, never sent). |
+| G5 | A POST probe forwards the **listing's example body**, which a third party controls (the Bazaar spec itself warns that listings can be poisoned), to whatever URL the listing names | §27 SSRF / abuse | POST probes send `{}` only. Never forward third-party bodies. |
+| G6 | Ports: any public port except 8 blocked ones is allowed | §27 "unusual ports" | Cori probes port **443 only**. Anything else is classed `blocked` with reason `port`. |
+| G7 | The Bazaar is read from offset 0 every pass with a fixed page cap. If it grows past 20k items, the tail is never seen. | §12 discovery | Paginate to the reported `total`, with a hard cap of 50k items; the stats record any truncation |
+| G8 | The `disappeared` event exists but is never written. Listing-level classes (e.g. `unsupported_network`) can never become `gone`. | §12 "how long has CORTX observed it" | A daily sweep writes `disappeared` (and later `reappeared`) from `last_seen_at` |
+| G9 | Runs and observations don't record **which Cori code** produced them | DATA COMPOUNDS "reconstructable" | `cori_version` (git SHA) on every run and observation |
+| G10 | The v1 spec says Bazaar lists a service "only after a successful mainnet payment". **The x402 spec doesn't say that.** A facilitator catalogs a listing when it *receives a payment payload*. | §7, §G below | Corrected here. A listing is a lead, never evidence that a service works. |
+| G11 | The v1 firewall plan allowed outbound 443/53/123 only, but Cori talks to Supabase Postgres on **5432 / 6543** | §26 deployment | The Phase D firewall allows those ports, to the Supabase host only |
 
-## 2. Discovery sources
+Phase B2 is about one PR: migration `027`, about 300 lines of code and tests. It doesn't change Phases A–C or the admin pages.
 
-| # | Source | How | Trust | v0 |
-|---|---|---|---|---|
-| S1 | **CDP Bazaar** (Coinbase facilitator) | `GET {CDP facilitator}/discovery/resources?type=http&limit=&offset=` (paginate). Filterable by `network`, `scheme`, `payTo`. Items: `resource`, `type`, `x402Version`, `accepts[]`, `lastUpdated`, `description`, `mimeType`, `serviceName`, `tags`, `iconUrl`, `extensions` (Bazaar input/output metadata). Listed only after a successful mainnet payment, so a production facilitator is configured (confirmed by the x402 team on X, Aug 29). | High | ✅ |
-| S2 | **Other facilitators' Bazaar endpoints** | Same `/discovery/resources` contract (Bazaar extension, v1 + v2). Configured list in `cori_sources`; each can be switched off. | Medium | ✅ configurable, starts with S1 only |
-| S3 | **CORTX's own records** | `services`, `registry_seeds`, `endpoint_submissions`. Used for dedupe/linking, never re-queued. | Internal | ✅ read-only |
-| S4 | **Merchant expansion** | For an eligible service, query S1 with `payTo=<merchant>` to find the merchant's other resources. | High (same source) | ✅ capped |
-| — | ScoutScore API, x402 directory websites, on-chain settlement crawling | Not used in v0: competitor data dependency / scraping terms / cost. Revisit with permission or an official API. | — | ❌ |
-
-**Confirmed in Phase A:** `GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources`. Bazaar discovery is **public: no CDP API key needed**. About **16,170 resources** were indexed as of Sep 2026 (per coinbase/cdp-sdk#806). **Still to confirm on the first dry run** (not reachable from the build container): rate limits, and the exact field names of the Bazaar input/output metadata inside `extensions`. `lib/cori/bazaar.ts` reads them leniently.
+**Decisions I need from you** (my recommendation first):
+1. **Do B2 before go-live** (recommended, about a day), or go live now and add memory after. The cost of waiting: the first days of observations are lost for good.
+2. **Store the raw pay-to address** of discovered services (recommended). It's public on-chain data and the 402 response already shows it. The Investigator will need it to trace settlement. Today Cori keeps only a fingerprint (the earlier "no raw address in logs" rule was about logs).
+3. **POST probes never forward third-party bodies** (recommended, G5). Services that price by request body then land in `needs_input` for a human to look at.
+4. **Port 443 only** (recommended, G6). Phase E counts how many listings this excludes.
 
 ---
 
-## 3. Discovery / normalization pipeline
+## Answers to the brief's questions A–H
 
-One **cycle** per source (default every 6 h, jittered), plus a continuous **probe worker**:
+### A. What is the smallest useful Scout we can ship?
 
-1. **Fetch** source pages: max 50 pages × 100 items per cycle, 5 MB response cap, validated with `zod` (already a dependency). Invalid items are counted and skipped, not fatal.
-2. **Extract** per item: resource URL, `type` (only `http` in v0), x402 version, every `accepts[]` option, name, description, tags, Bazaar input/output metadata.
-3. **Normalize** the URL → `canonical_url` (§5). Reject non-https.
-4. **Upsert** `discovered_services` (by `canonical_url`) and `discovery_sources_seen` (by service + source). Write a `discovery_events` row for `first_seen`, `listing_changed` (content hash differs) and `reappeared`.
-5. **Link** against CORTX records (S3): set `linked_service_id` / `linked_seed_id` / `linked_submission_id`.
-6. **Schedule a probe**: new → now; listing changed → now; otherwise per the cadence in §6.
-6b. **Listing-first classification.** Each listing already carries its `accepts[]` (network, asset, scheme, price), so Scout classifies from the listing first. Only services that pass on paper (class `pending`) get a live probe. With about 16k listings, that avoids probing thousands of off-network or expensive endpoints.
-7. **Probe** (free; §6) → parse the 402 with `parsePaymentRequired()` → choose the Base+USDC option (same rule as the runner) → `priceToUsdc()`, `findFacilitatorUrl()`.
-8. **Classify** (§7). On a class change, write a `discovery_events` row.
-9. **Queue**: `eligible` / `needs_input` candidates not yet queued → insert into `endpoint_submissions` with `source = 'cori_scout'` (§4). Daily cap (default 25).
-10. **Heartbeat + run stats** → `cori_runs`.
+What's built, plus G1–G3 (memory), deployed in one process on the VPS with **one source (CDP Bazaar)**:
+- reads the whole Bazaar every 6 h
+- keeps every listing version, every probe result and every change, from day one
+- classifies with fixed rules
+- puts up to 25 candidates a day into `/admin/cori` for you to approve or reject
 
-Disappearance: a service not seen in any source for 7 days **and** failing probes for 7 days → class `gone` (history kept, never deleted).
+Its first deliverable is a fact we don't have: *how many real, cheaply verifiable x402 services on Base exist, where they came from, and since when*. Its second is a reviewed queue.
 
----
+Even smaller: the first **dry run** (`CORI_DRY_RUN=1 --once`) writes nothing except its run log. That alone answers the counts and confirms the live Bazaar fields. That's step 1 of Phase D.
 
-## 4. Database changes (migration `023_cori_scout.sql`)
+### B. What existing CORTX code do we reuse instead of rewriting?
 
-All new tables: RLS on, no anon/authenticated access. Safe to re-run; no temp tables or explicit transactions (Supabase SQL editor lessons from 020–022).
-
-```sql
--- One row per canonical endpoint Cori has ever seen
-discovered_services (
-  id uuid pk,
-  canonical_url text unique not null,
-  host text not null,
-  first_seen_at timestamptz not null, first_source text not null,
-  last_seen_at timestamptz not null,               -- last time any source listed it
-  service_name text, description text, tags text[],  -- untrusted, length-capped
-  bazaar_metadata jsonb,                            -- input/output info, capped at 16 KB
-  http_method text,                                 -- from metadata; default GET
-  x402_version smallint, network text, asset text, scheme text, transfer_method text,
-  price_atomic numeric, price_usdc numeric,
-  pay_to_fingerprint text,                          -- sha256 prefix, same as the runner
-  facilitator_url text,                             -- only if the service publishes one
-  last_probe_at timestamptz, next_probe_at timestamptz, probe_failures int default 0,
-  last_probe jsonb,                                 -- latest free-probe evidence (capped)
-  classification text not null default 'pending',   -- §7
-  classification_reasons text[] not null default '{}',
-  evidence_state text not null default 'observed'   -- observed only in v0 (§0)
-     check (evidence_state in ('observed','reproduced','confirmed','resolved')),
-  linked_service_id uuid references services(id),
-  linked_seed_id uuid references registry_seeds(id),
-  linked_submission_id uuid references endpoint_submissions(id),
-  created_at, updated_at
-)
-
--- Where/when each source listed it (first/last), plus a content hash to spot changes
-discovery_sources_seen (
-  discovered_service_id uuid, source text,
-  first_seen_at, last_seen_at, last_listing_hash text,
-  primary key (discovered_service_id, source)
-)
-
--- Append-only history: Cori's first memory
-discovery_events (
-  id bigserial pk, discovered_service_id uuid, at timestamptz,
-  event text check (event in ('first_seen','listing_changed','reappeared','disappeared',
-                              'terms_changed','price_changed','probe_status_changed',
-                              'classification_changed','queued','approved','rejected')),
-  details jsonb
-)
-
--- Heartbeat + per-cycle stats
-cori_runs (
-  id bigserial pk, started_at, finished_at, kind text,   -- 'discover:<source>' | 'probe' | 'heartbeat'
-  ok boolean, stats jsonb, error text
-)
-
--- Configurable sources (on/off, cadence) and a host denylist (opt-out/abuse)
-cori_sources (id text pk, url text, enabled boolean, interval_minutes int, last_run_at timestamptz)
-cori_denylist (host text pk, reason text, added_at timestamptz)
-```
-
-**Existing table change (reuse the admin queue):**
-```sql
-alter table endpoint_submissions
-  add column source text not null default 'public' check (source in ('public','cori_scout')),
-  add column discovered_service_id uuid references discovered_services(id),
-  add column candidate_metadata jsonb;   -- network, asset, price, x402 version, class, reasons, sources
-create unique index ... on endpoint_submissions (discovered_service_id) where status = 'pending';
-```
-`name` is required by the table: Scout uses `serviceName`, falling back to `host + path`.
-
-**Least-privilege role** `cori_agent` (LOGIN, password set by the founder in Supabase):
-- select/insert/update on the six Cori tables above
-- insert on `endpoint_submissions`, limited by column privileges to `endpoint_url, name, description, website_url, category, source, discovered_service_id, candidate_metadata`
-- select on `services(id, endpoint_url, deleted_at)`, `registry_seeds(id, endpoint_url)`, `endpoint_submissions(id, endpoint_url, status, discovered_service_id)`
-- **nothing else**: no checks, incidents, wallets/spend, users, settings.
-
----
-
-## 5. Deduplication strategy
-
-`canonical_url` rules:
-- lowercase scheme and host; punycode for internationalized hosts
-- drop the default port (443), the fragment, userinfo, and `utm_*` / known tracking params
-- keep the path case-sensitive; collapse duplicate slashes; strip one trailing slash (except root)
-- sort the remaining query params
-
-Matching:
-1. **Exact** `canonical_url` → same row (upsert).
-2. **Against CORTX records**: canonicalize `services.endpoint_url`, `registry_seeds.endpoint_url` and `endpoint_submissions.endpoint_url` at match time → `linked_*`, class `already_monitored` / `already_listed` / `already_submitted`. Never re-queued.
-3. **Grouping, not merging**: same `host + path` with different queries, or the same `pay_to_fingerprint`, are recorded as related (for merchant view later) but stay separate rows.
-4. **Queue idempotency**: the unique pending index + `linked_submission_id` → never two pending submissions for one service. A **rejected** candidate is re-queued only after a material change (`price_changed`, `terms_changed`, or a new source), and at most once per 30 days.
-
----
-
-## 6. Free-probe rules
-
-A probe asks "does this URL answer with valid x402 payment terms?". **It can never pay:**
-- **Never** sends `X-PAYMENT` / `PAYMENT-SIGNATURE`, never signs, has no wallet, sends no cookies or auth headers.
-- **Method:** `GET` first. `POST` only if GET didn't return 402 **and** the Bazaar metadata declares POST. Body = the Bazaar example if it's JSON and ≤ 8 KB, else `{}`. No other methods.
-- **Limits:** 10 s timeout; 64 KB body cap (payment terms are small); ≤ 2 redirects, each re-validated (§10).
-- **Politeness:**
-  - global concurrency 4
-  - per host: 1 at a time, ≥ 2 s apart, ≤ 30 probes an hour
-  - `User-Agent: CORTX-Cori/0.1 (+https://github.com/danbuildss/cortx)`
-  - denylist honored (`cori_denylist`, opt-out on request)
-- **Cadence:**
-  - new or changed listing → now
-  - known → every 24 h (the Observer phase makes this smarter)
-  - failures back off 1 h → 6 h → 24 h
-- **Recorded:** HTTP status, latency, which header/body carried the terms, x402 version, the chosen option, price, facilitator (if published), plus terms/price change events vs the previous probe.
-
----
-
-## 7. Eligibility / classification rules (deterministic, in order)
-
-| Class | Rule | Queued? |
-|---|---|---|
-| `blocked` | fails SSRF checks, non-https, or host on the denylist | no |
-| `already_monitored` / `already_listed` / `already_submitted` | linked to an existing CORTX record | no |
-| `unreachable` | network error / timeout / 5xx on the latest probe | no |
-| `not_x402` | answered, but no 402 with parseable terms | no |
-| `invalid_terms` | 402, but terms missing payTo/amount/network | no |
-| `unsupported_network` | no Base mainnet option (`base` / `eip155:8453`) | no |
-| `unsupported_asset` | no USDC option | no |
-| `unsupported_scheme` | scheme ≠ `exact`, or transfer method ≠ EIP-3009 (e.g. Permit2) | no |
-| `too_expensive` | price > `CORI_MAX_ELIGIBLE_PRICE_USDC` (default **$0.05**) | no |
-| `needs_input` | would be eligible, but POST without a usable example input | yes (flagged) |
-| `eligible` | Base + USDC + exact/EIP-3009 + price ≤ cap + GET, or POST with an example input | **yes** |
-| `gone` | §3 disappearance rule | no |
-
-`classification_reasons` lists every rule that matched (e.g. `["network:base","asset:usdc","price:0.001","input:bazaar_example","facilitator:unpublished"]`), so an admin can see why at a glance. "Eligible" means *eligible for review and later verification*. **Scout itself never verifies.**
-
----
-
-## 8. VPS process / service design
-
-- **Server:** Hetzner Cloud, separate **CORTX** project, smallest shared vCPU (CX22 / CAX11), Ubuntu 24.04 LTS, IPv4 + IPv6.
-- **Hardening:**
-  - SSH keys only, no root login, `fail2ban`, `unattended-upgrades`
-  - `ufw`: deny all incoming except SSH; outbound 443 / 53 / 123 only
-- **Runtime:** Node 22 LTS. User `cori` (no sudo). Code at `/opt/cori` (git clone of this repo, read-only deploy key).
-- **Code:** `agent/cori/` in this repo (open source):
-  ```
-  agent/cori/
-    index.ts          # entry: config, advisory lock, scheduler, graceful shutdown
-    scheduler.ts      # timers for source cycles, probe worker, heartbeat
-    config.ts         # env + cori_sources, validated with zod
-    db.ts             # Postgres pool (role cori_agent), typed queries
-    sources/bazaar.ts # /discovery/resources client (paginated, capped, validated)
-    normalize.ts      # canonical_url + matching keys
-    probe.ts          # free probe using lib/check-runner/x402.ts + safe fetch
-    classify.ts       # §7, pure
-    queue.ts          # endpoint_submissions candidates, caps, idempotency
-    log.ts            # JSON logs
-  ```
-  Reuses `lib/check-runner/x402.ts` and `ssrf.ts` directly. Built with **esbuild** into one `agent/cori/dist/cori.mjs` (new devDependency `esbuild`). New runtime dependency **`postgres`** (direct Postgres driver, for the least-privilege role).
-- **Single instance:** `pg_try_advisory_lock` at startup; a second copy exits.
-- **systemd:** `cori.service`
-  - `Restart=always`, `RestartSec=10`, `MemoryMax=512M`
-  - `NoNewPrivileges`, `ProtectSystem=strict`
-  - env file `/etc/cori/cori.env` (0600, owner `cori`)
-- **Deploy:** `git pull && npm ci && npm run build:cori && sudo systemctl restart cori`, scripted as `agent/cori/deploy.sh`. The founder creates the server; I provide the setup script and unit file.
-- **Modes:** `CORI_DRY_RUN=1` (fetch, probe and classify, but write nothing except `cori_runs`) and `npm run cori:once` (single cycle, for testing).
-
----
-
-## 9. Communication with the existing CORTX app / database
-
-- **Cori → DB:** direct Postgres over TLS as `cori_agent`. Supabase direct connections are IPv6; Hetzner has IPv6. The Supavisor pooler with custom roles is the fallback, to confirm in Phase A. No Vercel API calls in v0.
-- **App → Cori data:** server-side reads with the service role (as the admin page does today).
-  - **/admin** gets a **Cori** panel: last heartbeat, last cycle stats, counts by class, recent `discovery_events`.
-  - The existing **pending submissions** list shows a `Cori` badge, network/asset/price/x402 version/class/reasons/first-seen/sources, and a link to the endpoint.
-  - Approve and reject use the existing `/api/admin/submissions`. After approval, the app sets `discovered_services.linked_seed_id` and logs an `approved` event.
-- **Watchdog (Vercel cron, existing):** if the newest `cori_runs.started_at` is older than 30 min → admin Telegram alert (6 h cooldown, same `system_settings` pattern as the wallet alert).
-- **Nothing public changes in v0:** `/registry` still shows only admin-approved `registry_seeds`.
-
----
-
-## 10. Security / SSRF protections
-
-- **Address rules are now an allow-list** (`lib/net/ip.ts`, shared with the existing runner): only public unicast addresses pass. This closes gaps in the old block-list: IPv4-mapped IPv6 (`::ffff:127.0.0.1`), 6to4, multicast and similar.
-- **Tightened URL safety for Cori:** today `validateAndResolveUrl()` checks DNS once, but `fetch()` resolves again, which leaves a DNS-rebinding window. Cori uses a **pinned fetch**: an `undici` `Agent` whose `connect.lookup` rejects private/reserved addresses **at connect time** (same `ipaddr.js` rules as today). https only, blocked ports as today.
-- **Redirects:** manual, ≤ 2, each hop re-validated; never follow to http or to a private address.
-- **Caps everywhere:** response bodies (64 KB probes / 5 MB source pages), JSON metadata stored (16 KB), text fields (name 120 chars, description 1,000), tags (20).
-- **Untrusted content:** names, descriptions and metadata from sources are data, never instructions. Stored parameterized, rendered escaped (React). Nothing is forwarded into requests except a size-capped JSON example body.
-- **Secrets on the VPS:** only the `cori_agent` DB password (plus a CDP read-only API key if Bazaar needs one). **No wallet key, no service-role key, no Telegram token.**
-- **Least privilege** (§4): even a fully compromised VPS can't read checks/incidents/users, can't touch spend or settings, and can't publish to the registry. It can only add candidates to a queue a human reviews.
-- **Abuse safety:** per-host rate limits, an identifying User-Agent, a denylist/opt-out.
-
----
-
-## 11. Logging / observability
-
-- **JSON logs** to journald: `ts, level, run_id, component, event, host, canonical_url, duration_ms, error_code`. No secrets, no full response bodies.
-- **`cori_runs`** per cycle:
-  - sources polled, pages, items seen, invalid items
-  - new services, changed listings
-  - probes ok/failed by reason
-  - class counts, candidates queued, cap hits
-- **`discovery_events`** = durable per-service history (first seen, where, changes).
-- **Admin Cori panel** (§9) and the **watchdog** alert. `journalctl -u cori` for live debugging.
-
----
-
-## 12. Failure / retry behavior
-
-| Failure | Behavior |
+| Reused (already wired) | Where |
 |---|---|
-| Source fetch error / 5xx / timeout | retry 3× (2 s, 4 s, 8 s), then record `cori_runs.ok=false` for that source; other sources continue; next cycle retries |
-| Source returns malformed items | skip the item, count `invalid_items`, continue |
-| Probe failure | backoff 1 h → 6 h → 24 h; classify `unreachable` after 3 consecutive failures |
-| DB connection lost | exponential reconnect (max 60 s); no work lost (idempotent upserts); heartbeat gap triggers the watchdog if > 30 min |
-| Process crash | systemd restarts in 10 s; the advisory lock releases on disconnect |
-| Two instances started | the second fails `pg_try_advisory_lock` and exits cleanly |
-| Queue cap reached | leftover candidates wait for the next day, oldest first |
-| Poison item (parser throws) | classified `invalid_terms` with a reason; not re-probed until the listing changes |
+| x402 parsing for V1 body / V2 `PAYMENT-REQUIRED` header, Base+USDC option choice, price in atomic units → USDC, facilitator detection, network aliases | `lib/check-runner/x402.ts` (`parsePaymentRequired`, `selectPaymentOption`, `priceToUsdc`, `findFacilitatorUrl`, `NETWORK_ALIASES`, `isUsdcAsset`) — the same rule as the paid runner |
+| Public-address rules (allow-list) | `lib/net/ip.ts`, shared with the runner |
+| SSRF-safe fetch: connect-time DNS pinning, re-validated redirects, caps | `lib/net/safe-fetch.ts` (the runner now uses the same rules via `checked-fetch.ts`, #119) |
+| The admin review queue | `endpoint_submissions` + `/api/admin/submissions` (approve → `registry_seeds`, reject with reason) |
+| Admin UI | `/admin/cori`, sidebar health dot, candidate cards (#117) |
+| Heartbeat alert | `/api/cron` watchdog → Telegram, state in `system_settings` |
+| Stable JSON + hashing, zod validation, test hooks and fakes | `lib/cori/bazaar.ts`, `agent/cori/fake-ecosystem.ts`, `test/hooks.mjs` |
+| Migration conventions (re-runnable, revoke functions, no temp tables) | `supabase/migrations/023`, `026` |
 
-All writes are idempotent (`ON CONFLICT` on `canonical_url` / primary keys), so any step can be retried safely.
+**Deliberately not reused in V0:**
+- **The paid check runner.** Scout never pays. The Verifier will reuse it later through a DB queue → Vercel, never a second payment stack.
+- **Readiness `/verify`.** It needs a signed authorization, which needs a wallet.
+- **The older onboarding `detect` parser.** A separate cleanup.
 
----
+### C. What new database state is genuinely necessary?
 
-## 13. Tests
+Already live: migration 023, run Sep 28. That's 6 tables plus 3 columns on `endpoint_submissions`.
 
-Same stack as today (`npm test`, Node test runner, `test/` hooks):
-- **Unit (pure):**
-  - `normalize` (canonicalization cases, tracking params, trailing slashes, IDN)
-  - `classify` (full matrix of §7, ordering, reasons)
-  - Bazaar item parsing (v1 and v2 fixtures, malformed, oversized)
-  - config validation, queue cap/idempotency logic
-- **Safety:**
-  - the pinned fetch rejects a host that resolves to a private IP at connect time (rebinding simulated with a custom resolver)
-  - redirects to http/private are refused
-  - body caps are enforced
-- **Integration (end to end):** a fake Bazaar server and fake x402 endpoints (V1 body, V2 header, POST-with-example, non-402, too expensive, Permit2, unreachable) → one full cycle into a Postgres 16 database with migration 023 applied. Asserts:
-  - rows, events and classes
-  - queue inserts, and **no duplicate submissions on a second cycle**
-  - a rejected candidate isn't re-queued without a material change
-  - **fake endpoints assert no payment header was ever received**
-- **Migration** (Postgres 16): re-run safe; the `cori_agent` role **cannot** read `checks`/`incidents`, update `registry_seeds`, or insert non-allowed submission columns.
-- **First live run** in `CORI_DRY_RUN=1`, reviewed before switching writes on.
+New in 027, and only this:
+- `discovery_observations`: append-only, one compact row per probe (G1)
+- `discovery_listings`: one row per distinct listing version per source (G2)
+- columns:
+  - `discovered_services.route_template`, `pay_to` (if decision 2), `source_last_updated`
+  - `cori_runs.cori_version`
+- FK changes from cascade to restrict (G3)
 
----
+**Not needed:**
+- a separate candidates table: `discovered_services.classification` is the state
+- a job/queue table: `next_probe_at` is the probe queue, and `endpoint_submissions` is the review queue
+- Redis, or a second database
 
-## 14. Implementation phases (one PR each; the founder approves each)
+### D. What security risks come from probing arbitrary third-party URLs?
 
-| Phase | Deliverable | Needs from founder |
+| Risk | Mitigation (✅ built · 🔧 B2) |
+|---|---|
+| SSRF to localhost, private ranges, link-local, cloud metadata (`169.254.169.254`, `metadata.google.internal` → link-local), CGNAT, IPv6 ULA/link-local, NAT64, 6to4, IPv4-mapped IPv6 | ✅ allow-list: only addresses `ipaddr.js` classifies as public unicast pass. IP literals are checked before connecting, hostnames at connect time. |
+| DNS rebinding (public at check time, private at connect time) | ✅ The check runs inside the socket's DNS lookup, so the address checked is the address connected to. A test simulates rebinding. |
+| Redirect to a private address or to http | ✅ manual redirects, at most 2, every hop re-validated, never replays a body |
+| Unusual ports (SSH, SMTP, databases, internal admin panels) | 🔧 443 only (G6), plus the firewall allows outbound 443 only for web traffic |
+| Malformed or credential-carrying URLs, non-https | ✅ refused (`INVALID_URL`, `CREDENTIALS_IN_URL`, `NON_HTTPS`) |
+| Slow or huge responses, decompression bombs | ✅ 10 s total timeout, 64 KB probe cap / 5 MB source page cap, no `accept-encoding` sent (no automatic decompression), Node's 16 KB header cap |
+| Cori used as a reflector against a victim (a poisoned listing names someone else's URL) | ✅ GET only by default, at most once per 24 h per URL and 30 per hour per host, identifying User-Agent, denylist/opt-out · 🔧 no third-party bodies (G5) · 🔧 global probe budget (`CORI_MAX_PROBES_PER_HOUR`, default 600) |
+| Catalog flooding (someone lists 100k junk URLs) | ✅ listing-first classification: only listings that pass on paper (Base, USDC, exact, ≤ $0.05) get a probe; per-host limits · 🔧 hard cap of 50k items per pass, global probe budget |
+| Hostile text in listings (names, descriptions, metadata) | ✅ length caps, control characters stripped, stored as parameters, rendered escaped by React. Never treated as instructions, never fetched (e.g. `iconUrl`). |
+| A compromised VPS | ✅ nothing to steal: no wallet key, no service-role key, no Telegram token. `cori_agent` can't read checks, incidents, users or spend, can't approve, can't touch the registry, and can only insert `pending` candidates. 🔧 Cori refuses to start if any env var looks like a key (`*PRIVATE_KEY*`, `*SERVICE_ROLE*`, `*WALLET*`). |
+| Abuse complaints against our IP | ✅ User-Agent with a contact link, a denylist honoured on the next pass, low request rates |
+
+### E. How do we stop Scout from polluting the real reliability dataset?
+
+- **Separate tables, enforced by the database.** Scout writes only `discovered_services`, `discovery_*`, `cori_runs` and pending rows in `endpoint_submissions`. The `cori_agent` role has **no** grant on `services`, `checks` or `incidents`, and can't read them either. This is a database permission, not a coding convention.
+- **Nothing public is computed from Cori's tables.** Uptime, success rates, the reliability API, `/status`, badges and the registry's numbers come from `checks`. Only `/admin/cori` reads Cori's tables.
+- **Only a human promotes.** Approve → `registry_seeds` (public, labelled "Observed", unverified, with no reliability numbers). A `services` row (monitored, paid checks) is still created by a person, through the existing flow.
+- **Separate labels.** Admin counts keep people's submissions apart from Cori's (`source = 'cori_scout'`). Every Cori record carries `evidence_state = 'observed'`.
+
+### F. Where are the boundaries between a discovered candidate, an observed service and a CORTX-verified service?
+
+```
+DISCOVERED CANDIDATE          OBSERVED SERVICE              CORTX-VERIFIED SERVICE
+discovered_services           (Observer V1 — later)          services + checks
+private (admin only)          private until reviewed         public evidence
+"a source listed it; a        "we have a baseline of free    "a real paid check passed:
+ free probe returned these     observations over time"        payment → settlement receipt
+ terms"                                                        → delivery → schema"
+evidence_state = observed     evidence_state = observed      evidence = checks rows
+written by: Cori              written by: Cori               written by: Vercel runner,
+                                                              under spend caps
+            │ human approves                                       ▲
+            ▼                                                      │ human creates
+     registry_seeds  — public listing "Observed", no numbers ──────┘ a monitored service
+```
+
+Rule: **a claim moves right only on new evidence, and in V0 only through a human.** Scout never sets `reproduced`, `confirmed` or `resolved`. Those belong to the Investigator, later.
+
+### G. What do the discovery sources actually provide, and what are we assuming?
+
+Checked against the official x402 specs (`specs/x402-specification-v2.md` §8, `specs/extensions/bazaar.md`, x402-foundation/x402, Oct 5). The CDP API itself is blocked from my build container, so its live response is confirmed on the first dry run.
+
+| Field / behaviour | Spec says | Our status |
 |---|---|---|
-| **A. Groundwork** | Confirm the Bazaar URL/auth/fields; migration 023 + `cori_agent` role; pinned fetch; `normalize` + `classify` with unit tests | Run the migration; set the role password |
-| **B. Scout core** | `agent/cori/` sources, pipeline, probe, queue, scheduler, logs; integration tests; `cori:once` + dry-run | — |
-| **C. Admin + watchdog** | Cori panel, candidate metadata in the submissions list, approve → link back, heartbeat watchdog | Merge |
-| **D. VPS go-live** | Setup script, systemd unit, deploy script; first run in dry-run, then live | Create the Hetzner CORTX project + server, add SSH/deploy keys, fill `/etc/cori/cori.env` |
-| **E. Observe 1 week** | Review the queue; tune caps/cadence; write down the real numbers (how many eligible services exist) in NOTES | Review candidates |
+| `GET /discovery/resources` with `type`, `payTo`, `scheme`, `network`, `extensions`, `limit` (1–100), `offset` | Defined (§8.1) | ✅ used. CDP URL and "no API key" were confirmed Sep 28 |
+| Item fields `resource`, `type`, `x402Version`, `accepts[]`, `lastUpdated` | Required (§8.3) | ✅ parsed. 🔧 store `lastUpdated` |
+| `extensions.bazaar.info.input` (method, queryParams/body, bodyType) and `info.output` (type, example) | Optional. Facilitators must validate them against the listing's own schema. | ✅ parsed leniently. V1 equivalent `accepts[].outputSchema` also read. 🔧 keep `output` as well (G2 listing rows keep the whole extension, capped) |
+| `routeTemplate` for dynamic routes (`/users/:userId`) | Defined, it's the catalog key | ❌ ignored today → 🔧 G4 |
+| Methods HEAD / DELETE / PUT / PATCH and `type: mcp` | Defined | MCP skipped (✅ `type=http`). Other methods → 🔧 `unsupported_method` |
+| `serviceName`, `tags`, `iconUrl`, `description`, `mimeType` on items | **Not in §8.3.** They're defined on the 402's `resource` object. Whether CDP echoes them on items is unconfirmed. | ✅ optional. Name falls back to host + path |
+| `pagination.total` | In the example response | ✅ read. 🔧 used to paginate to the end (G7) |
+| Listed only after a successful payment | **Not stated.** A facilitator catalogs when it *receives a payment payload* (verify or settle) that includes the extension. | 🔧 v1 claim removed (G10). A listing is a lead, not evidence. |
+| Listings removed when a service dies | **Not specified.** "Resources can be added, updated, or removed dynamically." No tombstones. | Absence over 7 days of passes → `disappeared`. A single missing pass means nothing, because offset paging over a changing list can skip items. |
+| Rate limits | Not specified | Unknown → first dry run. ✅ 3 retries with backoff on 429/5xx, 30 min source cool-down |
+| Listing content trustworthy? | No. The spec calls the facilitator a trust boundary and warns of catalog poisoning. | ✅ all listing content is untrusted data (§D) |
 
-Estimated: A–C about a week of build; D a day with the founder; E one week of running.
+The other sources (Aeon's, ScoutScore, directory sites, GitHub awesome-lists) **aren't in V0**. CORTX's own records (services, seeds, submissions) are used only to deduplicate, and people's submissions keep using the existing form.
 
----
+### H. How do we test Scout without spending USDC?
 
-## 15. Explicitly NOT built in v0
-
-- ❌ Any payment, paid check, or verification request (Phase 3 Verifier/policy queue comes later)
-- ❌ Readiness `/verify` from the VPS: it needs a signed authorization, and the VPS has no wallet
-- ❌ Observer baselines beyond the discovery probe (latency distributions, schema learning), anomaly detection, reproduction, incidents
-- ❌ Provider notifications
-- ❌ Any public output: Reliability Index, counts, pages, posts, badges. `/registry` changes only through human approval.
-- ❌ Scores or rankings
-- ❌ Any LLM
-- ❌ Auto-approval into the registry
-- ❌ Scraping competitor data (ScoutScore) or directory websites; on-chain crawling
-- ❌ MCP / preflight API
-- ❌ Changes to existing monitoring, the paid-check path, the wallet, or spend caps (only the watchdog is added to the cron)
-- ❌ Merging the older onboarding `detect` parser into `x402.ts` (worth doing, separate cleanup)
-- ❌ HA / multi-region
+1. **There is no payment code in Cori at all.** No wallet, no signing library, no key in the environment. 🔧 Add a test that the built `cori.mjs` bundle contains no `viem` signing / `x402/client` modules (esbuild metafile check), and the env refusal rule from §D.
+2. ✅ **Fake ecosystem:** a fake Bazaar plus 15 fake x402 services (V1 body, V2 header, POST, non-402, too expensive, Permit2, unreachable…). Every fake service **asserts that no payment header ever arrives**.
+3. ✅ **Real Postgres as `cori_agent`** (Postgres 16, production-shaped schema): the permissions are enough for Scout and still restrictive.
+4. ✅ **Unit tests:** normalization, the full classification matrix, Bazaar V1/V2 parsing and caps, IP rules, safe-fetch against a real local HTTPS server, including DNS rebinding.
+5. 🔧 **New tests for B2:** observations append on every probe (including failures), listing versions only on change, no cascade deletes, `routeTemplate` identity, `unsupported_method`, POST without third-party body, port 443 only, pagination to `total`, `disappeared` sweep, version stamp.
+6. **Live, without spending:** dry run on the VPS (writes nothing but its run log) → you review the numbers → live run. Probes are free by construction. The only "cost" is our requests to third parties, which are rate-limited.
 
 ---
 
-## Decisions (approved Sep 28, 2026)
+## 1. Current CORTX components Scout reuses
+See B. Also: `cori_sources` (sources switch on/off without a deploy), `cori_denylist` (opt-out), `system_settings` (watchdog state).
 
-1. Eligible price cap: **$0.05** per call (`CORI_MAX_ELIGIBLE_PRICE_USDC`)
-2. Daily queue cap: **25** new candidates/day
-3. Sources at start: **CDP Bazaar only**, others added later via `cori_sources`
-4. DB access: dedicated **`cori_agent`** least-privilege role (no service-role key on the VPS)
-5. User-Agent contact: the **GitHub repo** for now; an "About Cori / opt-out" page later
+## 2. Architecture
 
-## Phase A status (built)
+```
+                 ┌──────────── CORI VPS (Hetzner, CORTX project) ─────────────────┐
+ CDP Bazaar ────►│ cori (one Node 22 process, systemd)                              │
+ (public)        │  scheduler ─► source pass ─► normalize ─► dedupe/link ─► classify │
+                 │        └─► probe worker (free, never pays) ─► classify ─► queue   │
+                 │  memory: listings · observations · events (append-only)          │
+                 └──────────────────────────┬─────────────────────────────────────┘
+                                            │ Postgres/TLS as `cori_agent` (least privilege)
+                                            ▼
+     Supabase: discovered_services · discovery_listings · discovery_observations ·
+               discovery_events · discovery_sources_seen · cori_runs · cori_sources ·
+               cori_denylist · endpoint_submissions(source='cori_scout', pending only)
+                                            ▲
+     Vercel (unchanged wallet/payment path): /admin/cori review · approve → registry_seeds
+                                             cron watchdog → Telegram if Cori goes quiet
+```
 
-- `supabase/migrations/023_cori_scout.sql`: tables, queue link, `cori_agent` role + RLS policies. Verified on Postgres 16 (re-runnable; the role can't read checks/incidents/private columns, can't approve, can't write the registry, and can only queue `cori_scout` + `pending`, once per service).
-- `lib/net/ip.ts`: shared allow-list address rules (now also used by the existing runner).
-- `lib/net/safe-fetch.ts`: connect-time DNS pinning, re-validated redirects that never replay a body, body/time caps.
-- `lib/cori/normalize.ts`, `lib/cori/classify.ts`, `lib/cori/bazaar.ts`: pure pipeline pieces.
-- `selectPaymentOption` / `NETWORK_ALIASES` / `isUsdcAsset` moved into `lib/check-runner/x402.ts`, so the runner, readiness and Scout share one rule.
-- Tests: 61 total (31 new: normalization, full classification matrix, Bazaar V1/V2 parsing and caps, IP rules, safe-fetch against a real local HTTPS server incl. DNS rebinding).
+In the brief's terms, **one process** (§11, §26): `scout` = sources + normalize + classify + queue; `scheduler` = the tick loop; `policy` = fixed caps in config (price cap, daily queue cap, probe budget, per-host limits). `observer` and `investigator` come later, as modules in the same process.
 
-## Phase B status (built)
+## 3. Discovery sources
+✅ **CDP Bazaar only**, as approved Sep 28. More sources are configuration (`cori_sources`) plus an adapter. Candidates for later, each needing its own approval: other facilitators' `/discovery/resources` (same contract, so no new adapter), and ecosystem lists that have an official API or clear terms. Not used: ScoutScore's data (competitor dependency), scraping directory sites, on-chain crawling.
 
-- `agent/cori/`: the Cori process (README inside): Bazaar client, pipeline, free probe, queue, per-host limiter, Postgres and in-memory stores, advisory lock, dry-run and `--once` modes, heartbeat, graceful shutdown. Built with esbuild into one file (`npm run build:cori`). New dependencies: `postgres` (runtime), `esbuild` (dev).
-- Behavior decisions made while building:
-  - A failed source is retried after 30 minutes, not every tick.
-  - Idle ticks write no run rows; liveness comes from a heartbeat row every 5 minutes.
-  - A service becomes `unreachable` only after 3 consecutive failed probes (backoff 1 h, 6 h, 24 h).
-  - **Rejected candidates are never re-queued automatically in v0.** The spec allowed re-queueing after a material change; that needs `reviewed_at`, which `cori_agent` can't read. Conservative for now; revisit with Phase C.
-  - The pay-to fingerprint is a SHA-256 prefix of the lower-cased address.
-- Tests (69 total):
-  - The full pipeline against a fake Bazaar and fake x402 services (15 listings covering every class, pagination, dedupe, daily cap across days, listing/price changes, 3-strike unreachable, denylist, failing-source isolation and backoff) asserts **no payment header was ever sent**.
-  - The same pipeline on real Postgres **as `cori_agent`** (production-shaped schema, migrations 023/024) confirms permissions are sufficient and still restrictive.
-- Smoke-tested the built bundle: dry run writes nothing but `dry:*` run rows; a second instance exits on the lock; SIGTERM stops cleanly.
-- The real Bazaar is unreachable from the build container (egress filter), so its live field names get confirmed on the first dry run on the VPS (Phase D).
+## 4. Source adapters
+An adapter yields raw items. Parsing, normalization and classification are shared. ✅ `agent/cori/sources/bazaar.ts`: paginated, zod-validated per page, 5 MB page cap, 3 retries (2/4/8 s) on 429/5xx/network errors, fatal on other 4xx or SSRF refusal. 🔧 Paginate to `pagination.total`, with a hard cap of 500 pages × 100. A new adapter must output the same `Listing` shape (`lib/cori/bazaar.ts`), so the rest of the pipeline is unchanged.
 
-## Phase C status (built)
+## 5. Discovery scheduling
+- ✅ Tick every 30 s. Each source is due every `interval_minutes` (Bazaar 360 = every 6 h). A failed source retries after 30 min. One source failing never stops the others.
+- ✅ The probe worker runs every tick on due rows (`next_probe_at <= now`, batch 200, concurrency 4):
+  - new or changed listing → now
+  - healthy → every 24 h
+  - failures back off 1 h → 6 h → 24 h
+- 🔧 Global probe budget of 600 per hour.
+- 🔧 Daily sweep: `disappeared` / `gone`.
 
-- **Cori has its own owner-only page, `/admin/cori`** (founder's choice after seeing the full admin page on a phone), plus a **Cori item in the sidebar and phone menu** under Admin: a health dot (green < 10 min, amber < 30 min, red after, grey before the first run) and a count of candidates waiting for review. The page (`app/(app)/admin/cori/page.tsx`, blocks in `cori-panel.tsx`, reads in `cori-data.ts`) shows:
-  - status: heartbeat, live vs dry run, the last Bazaar scan, services known
-  - **Waiting for you**: Cori's pending candidates as cards with Approve / Reject, and facts from `candidate_metadata` (`cori-candidate.tsx`): price, network, x402 version, method, plain-English "why eligible", the needs-input flag, first seen + source, "Observed (not verified)"
-  - **What Cori knows**: counts per class (head-count queries, because PostgREST caps row reads at 1,000)
-  - recent errors and the last 20 discovery events
-  - before Phase D: only a "Not started yet" card
-- `/admin` keeps one slim Cori line under the header ("● Running · N waiting · Open Cori →"). Its **Pending Submissions** list shows only people's submissions, plus a "N found by Cori → review on the Cori page" line when Cori has candidates.
-- **Review write-back** (`/api/admin/submissions`):
-  - approve sets `linked_seed_id`, class `already_listed`, and logs an `approved` event
-  - reject logs a `rejected` event with the reason
-  - never fails the review itself
-- **Watchdog** in the CORTX cron:
-  - Telegram alert when the newest `cori_runs` row is older than 30 min, repeated at most every 6 h
-  - a single "back" message on recovery
-  - silent until Cori has run once
-  - state kept in `system_settings.cori_watchdog`
-- Pure logic in `lib/cori/status.ts` with tests.
+## 6. Normalization
+✅ `canonicalUrl()`:
+- https only
+- lowercase scheme and host (punycode)
+- drop the default port, fragment, credentials and tracking params
+- collapse `//`
+- strip one trailing slash
+- sort the query
+
+✅ Untrusted text: names ≤ 120 characters, descriptions ≤ 1,000, at most 20 tags of ≤ 40 characters, metadata ≤ 16 KB, examples ≤ 8 KB.
+
+🔧 When a listing has a `routeTemplate`, also store `route_template` and use `origin + template` as the identity (§7).
+
+## 7. Endpoint identity / deduplication
+- ✅ Identity is `canonical_url` (unique).
+- ✅ Matched against CORTX `services`, `registry_seeds` and `endpoint_submissions`, each canonicalized at match time → `already_monitored`, `already_listed` or `already_submitted`. These are never queued.
+- ✅ Related URLs (same host+path with a different query, or the same pay-to) are grouped, not merged.
+- ✅ One pending submission per discovered service (unique index). A rejected candidate is never re-queued automatically in V0.
+- 🔧 **Dynamic routes:** `/users/123` and `/users/456` from the same template are one service. Identity: `canonicalUrl(origin + routeTemplate)`. The concrete URL is kept as the probe URL.
+- **Not merged:** different methods on the same URL. They're rare; Phase E counts them.
+
+## 8. Provenance / history (the memory)
+Per service:
+- ✅ `first_seen_at`, `first_source`, `last_seen_at`
+- ✅ per source: first/last seen and listing hash (`discovery_sources_seen`)
+
+Append-only:
+- ✅ `discovery_events`: first_seen, listing_changed, price_changed, terms_changed, probe_status_changed, classification_changed, queued, approved, rejected, reappeared
+- 🔧 `disappeared` actually written
+- 🔧 **`discovery_listings`** (G2): `(discovered_service_id, source, listing_hash)` unique, with `first_seen_at`, `last_seen_at`, `source_last_updated`, `x402_version`, `accepts` (jsonb), `resource_meta` (name / description / tags / mime), `extensions` (capped 16 KB). A new row only when the content changes, so a stable service costs one row ever. `listing_changed` events carry `{from_hash, to_hash}`.
+- 🔧 **`discovery_observations`** (G1): one row per probe. Columns:
+  - `at`, `outcome` (ok / unreachable / not_x402 / invalid_terms / blocked), `error_code`
+  - `http_status`, `latency_ms`, `method`
+  - `terms_source` (body / header), `x402_version`, `network`, `asset`, `scheme`, `transfer_method`
+  - `price_atomic`, `price_usdc`
+  - `pay_to` (or fingerprint, per decision 2), `facilitator_published`
+  - `cori_version`
+
+  No bodies are kept (the terms are extracted), and no request headers (we send only a User-Agent).
+
+What stays a **cache** (allowed by DATA COMPOUNDS, since the history above makes it rebuildable): `discovered_services` current facts, `last_probe`, `classification`, `next_probe_at`.
+
+## 9. Free probing
+- ✅ **Never pays.** It never sends `X-PAYMENT` / `PAYMENT-SIGNATURE`, has no wallet, sends no cookies or auth, and the only headers are User-Agent, Accept and (for POST) Content-Type.
+- ✅ **GET first.** POST only if GET didn't return 402 and the listing declares POST.
+  - 🔧 The POST body is `{}`, never the listing's example (G5).
+  - 🔧 HEAD / DELETE / PUT / PATCH → not probed, class `unsupported_method`.
+- ✅ **Limits:** 10 s total, 64 KB body, at most 2 redirects. 🔧 Port 443 only.
+- ✅ **Politeness:** per host, 1 at a time, ≥ 2 s apart, ≤ 30 an hour. 🔧 Global 600 an hour.
+- ✅ **Recorded:** status, latency, where the terms came from, version, the chosen option, price, whether a facilitator is published. 🔧 Every probe also goes into `discovery_observations`.
+
+## 10. Eligibility classification
+✅ Deterministic, in order. The first failing rule decides the class, and every matched rule is listed in `classification_reasons`.
+
+`blocked` → `gone` → `already_monitored` / `listed` / `submitted` → `unreachable` (after 3 failures in a row) → `not_x402` → `invalid_terms` → `unsupported_network` (Base mainnet only) → `unsupported_asset` (USDC) → `unsupported_scheme` (exact + EIP-3009) → `too_expensive` (> $0.05) → `pending` (passes on paper, waiting for a probe) → `needs_input` (POST without a usable example) → `eligible`.
+
+🔧 New: `unsupported_method` (after the `already_*` classes). 🔧 New `blocked` reason: `port`.
+
+"Eligible" means **eligible for human review and later verification**. Scout itself never verifies.
+
+## 11. Database / schema changes
+- ✅ Live: migration 023.
+- 🔧 New: `027_cori_memory.sql`. Additive only, re-runnable, no existing rows changed:
+  - the two append-only tables in §8
+  - the 4 columns listed in C
+  - FKs from `discovery_events` and `discovery_sources_seen` changed to `restrict`
+  - `cori_agent` gets `select, insert` on the new tables (no update or delete on observations, so the agent itself can't rewrite history), `insert`/`update(last_seen_at)` on listings, and update on the new columns
+- **Size estimate** (to confirm in Phase E):
+  - listings ≈ 16k × ~3 KB ≈ 50 MB once, then only changes
+  - observations ≈ 200 B × (services passing on paper) per day. For example 2,000/day ≈ 0.4 MB/day ≈ 150 MB/year.
+  - **On Supabase's free plan (500 MB) this is the main cost risk.** If it gets close, either keep observations per change plus one a day (still history), or move to Supabase Pro ($25/month). I'll report real numbers after a week.
+
+## 12. Integration with the existing admin review
+✅ Built (#117), no change:
+- Candidates are `endpoint_submissions` rows with `source = 'cori_scout'` and `candidate_metadata`: price, network, version, method, reasons, first seen, sources, `evidence_state: observed`.
+- `/admin/cori` shows them as cards with Approve / Reject.
+- Approve → `registry_seeds` (labelled "Observed" on `/registry`) + `approved` event.
+- Reject → `rejected` event with the reason.
+- `/admin` shows only people's submissions, plus "N found by Cori →".
+
+## 13. Cori VPS process architecture
+✅ One Node 22 process: `agent/cori/index.ts`, bundled by esbuild into one file `agent/cori/dist/cori.mjs`.
+- config validated with zod
+- a Postgres advisory lock (a second instance exits)
+- the tick loop and a heartbeat row every 5 min
+- SIGTERM → finishes the current step and exits
+- `--once` and `CORI_DRY_RUN=1` modes
+
+🔧 Pass a stop signal into the probe batch, so shutdown doesn't wait for up to 200 probes.
+
+## 14. Communication with Supabase / CORTX
+✅ Direct Postgres over TLS as `cori_agent`. Supabase direct connections are IPv6, and Hetzner servers have IPv6. Fallback: the Supavisor session pooler (`cori_agent.<project-ref>` user). This gets confirmed during Phase D.
+
+Cori never calls Vercel. Vercel reads Cori's tables with the service role (admin pages, watchdog). Later, paid-check *requests* will go Cori → DB → Vercel, never a key on the VPS (brief §10).
+
+## 15. Authentication / permissions
+✅ `cori_agent` (migration 023):
+- select/insert/update on Cori's own tables
+- select on a few id/url columns of `services`, `registry_seeds` and `endpoint_submissions`
+- insert into `endpoint_submissions` only for allowed columns, and only `source = 'cori_scout'`, `status = 'pending'` (RLS policy)
+- nothing else
+
+The password is set by you in Supabase, stored in your password manager and in `/etc/cori/cori.env` (mode 0600, owner `cori`). Never in chat or GitHub.
+
+VPS access: SSH keys only, no root login, user `cori` without sudo. The repo is pulled with a read-only deploy key, or anonymously since it's public.
+
+## 16. SSRF / network protections
+See D. Two layers:
+- **in code:** an allow-list of addresses checked at connect time, https only, port 443, re-validated redirects, caps
+- **on the server:** `ufw` denies all incoming except SSH; outbound allows 443 (web), 53 (DNS), 123 (time) and 🔧 5432/6543 to the Supabase host only (G11)
+
+Cloud metadata (`169.254.169.254`) is blocked in code, and isn't reachable as a web target through the firewall either.
+
+## 17. Rate limiting
+Per host: 1 in flight, ≥ 2 s apart, ≤ 30 an hour (over the cap → rescheduled in an hour, not dropped). 🔧 Global: 600 probes an hour. Source: one pass per 6 h, a 30 min cool-down after a failure, and 3 retries with backoff inside a pass. Queue: ≤ 25 new candidates per UTC day.
+
+## 18. Concurrency
+4 probe workers (configurable 1–16). One source pass at a time. One process (advisory lock). A Postgres pool of 4 connections.
+
+## 19. Retry / backoff
+| Failure | Behaviour |
+|---|---|
+| Source page error / 429 / 5xx / timeout | retry 2 s, 4 s, 8 s → the pass fails, `cori_runs.ok=false`, retried in 30 min |
+| Malformed item | skipped and counted (`invalid_items`) |
+| Probe failure | backoff 1 h → 6 h → 24 h; `unreachable` after 3 in a row. 🔧 Every attempt recorded as an observation. |
+| DB lost | the cycle fails and is logged; the next tick retries; all writes are idempotent |
+| Crash | systemd restarts in 10 s; the lock is released when the connection drops |
+| Queue cap reached | the rest wait for the next UTC day, oldest first |
+
+## 20. Logging
+✅ JSON lines to journald: `ts, level, app, component, event, source, canonical_url, error, duration`. No secrets, no response bodies. 🔧 `cori_version` on startup. journald capped at 500 MB (`SystemMaxUse`). Debug with `journalctl -u cori -f`.
+
+## 21. Metrics / health
+- ✅ The health check is **external and doesn't need an open port**:
+  - a heartbeat row every 5 min
+  - the Vercel cron watchdog sends Telegram after 30 min of silence (at most every 6 h) and a "back" message on recovery
+  - `/admin/cori` health dot: green < 10 min, amber < 30, red after that
+- ✅ Per-run stats in `cori_runs.stats`: pages, items, invalid, new, changed, class counts, probes by outcome, queue counts, cap hits.
+- 🔧 `duration_ms` and `cori_version` on each run.
+
+## 22. Failure handling
+See 19. One more rule: **Cori failing never affects CORTX.** Monitoring, the paid path and the public pages don't depend on Cori. If Cori stops, the only effects are a Telegram alert and no new candidates.
+
+## 23. Testing
+See H. Today the suite runs 116 tests (115 pass, 1 skipped: the real-Postgres test runs only when a disposable database URL is set). B2 adds about 15–20.
+
+## 24. Deployment (Phase D)
+1. **You:** create the Hetzner project "CORTX" and a small server (shared vCPU, 2 vCPU / 4 GB, Ubuntu 24.04), in the region nearest the Supabase project. Add your SSH key.
+2. **Me:** `ops/cori/setup.sh` (users, firewall, fail2ban, unattended-upgrades, Node 22, journald cap), `ops/cori/cori.service`, and `ops/cori/deploy.sh <git-sha>` (pull → `npm ci` → `npm run build:cori` → restart).
+3. **systemd hardening:**
+   - `Restart=always`, `RestartSec=10`, `TimeoutStopSec=60`
+   - `MemoryMax=512M`, `CPUQuota=50%`, `TasksMax=64`
+   - `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`
+   - `CapabilityBoundingSet=` (empty), `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX`
+   - `EnvironmentFile=/etc/cori/cori.env`
+4. **You:** set the `cori_agent` password in the Supabase SQL editor (`alter role cori_agent with login password '…'`) and paste it into `/etc/cori/cori.env` on the server. It never goes in chat.
+5. **Dry run:** `CORI_DRY_RUN=1 --once`. We look at the counts and the live Bazaar fields together. If a field name differs, I fix the parser first.
+6. **Live:** `systemctl enable --now cori`. The watchdog and `/admin/cori` turn green.
+
+## 25. Rollback
+- **Stop instantly:** `systemctl stop cori`. Nothing public depends on it.
+- **Cut access from Supabase without the server:** `alter role cori_agent nologin;` (and terminate its sessions).
+- **Previous code:** `deploy.sh <previous-sha>`.
+- **Disable one source:** `update cori_sources set enabled = false where id = 'cdp_bazaar'`.
+- **Unwanted candidates:** reject them in `/admin/cori`.
+- **Database:** 027 is additive. Rolling back means leaving the tables (no drops, per DATA COMPOUNDS) and running the previous code, which ignores them.
+
+## 26. Implementation phases (one PR / session each, each approved by you)
+| Phase | What | Needs from you | Status |
+|---|---|---|---|
+| A | Groundwork: migration 023, role, safe fetch, normalize, classify | run 023 ✅ | ✅ merged |
+| B | Scout process, pipeline, stores, tests | — | ✅ merged |
+| C | `/admin/cori`, review write-back, watchdog | — | ✅ merged |
+| **B2** | G1–G11: migration 027 (memory, no cascades), route templates, methods, POST body, port 443, pagination, disappeared sweep, version stamp, env refusal, bundle test, probe budget, stop signal | approve this spec + 4 decisions; merge; run 027 | 🔧 proposed |
+| **D** | Server go-live: setup script, unit, deploy script; dry run → live | Hetzner project + server, role password, about an hour together | waiting |
+| **E** | Observe 1 week: review the queue, record real numbers in NOTES (listings, pass-on-paper, eligible, DB growth/day, pass duration) | review candidates | — |
+| next | Separate spec: **Observer V1** (baselines and change detection on the observations B2 starts collecting) | — | ⏳ |
+
+## 27. Estimated operating cost
+- **USDC:** $0. Scout can't pay.
+- **Hetzner:** a small shared-vCPU server with an IPv4 address is about €5–8/month (exact price at order time; Hetzner changed prices in 2025–26). The included traffic (≥ 20 TB) is far above our use. A Bazaar pass is about 16k items × ~2 KB ≈ 30 MB, so 4 a day ≈ 4 GB/month.
+- **Supabase:** about 48k small queries per Bazaar pass (fine), plus the storage in §11. Free plan for now; the 500 MB ceiling is the cost to watch, at $25/month for Pro if needed. If a pass takes over 15 min (network round-trips), the fix is batching per page, not more money.
+- **Vercel:** the watchdog query is already in the 15-min cron, so $0 extra.
+- **Your time:** about 1 h for Phase D, then the review queue (≤ 25 candidates a day; reject liberally).
+
+## 28. Conflicts with the current architecture
+1. **DATA COMPOUNDS vs Scout's tables:** overwrites (G1/G2) and cascades (G3) → fixed in B2.
+2. **v1 firewall plan blocked the database port** (G11) → fixed in Phase D.
+3. **Wrong Bazaar assumption** about "listed only after a successful payment" (G10) → corrected. It affects how much we trust listings (not at all).
+4. **Supabase free plan size** vs keeping every observation → measure in Phase E, decide then.
+5. **Outside Scout, noted for later:** admins can hard-delete `registry_seeds` (`/api/admin/registry-seeds` DELETE), which conflicts with DATA COMPOUNDS. Approved Cori candidates add to `/registry`'s total-entries count (they're labelled "Observed", so it's honest, but it's a product choice). `cori_agent` can't read `reviewed_at`, so rejected candidates are never re-queued automatically (conservative, by design).
+6. **Brief §26 "health check":** done as a heartbeat plus an external watchdog rather than an HTTP endpoint, so the server has no open ports. Same guarantee, smaller attack surface.
+
+## 29. Reuse instead of build
+See B. Also not built because CORTX already has it: no new admin UI, alerting channel, scheduler service, queue system, payment code, parser, URL-safety code or migration tooling.
+
+## 30. Explicit non-goals (Scout V0)
+- Any payment, paid check or verification request (the Verifier comes later, through a DB queue → Vercel)
+- Readiness `/verify` from the VPS
+- Observer baselines or anomaly detection beyond storing observations
+- Reproduction, incidents, provider notifications
+- Any public output: no Reliability Index, published counts, posts, badges or leaderboards. `/registry` changes only through human approval.
+- Scores or rankings
+- Any LLM
+- Auto-approval
+- Scraping competitors or directory sites, on-chain crawling
+- MCP or preflight API
+- Changes to monitoring, the paid path, the wallet or spend caps
+- Everything in brief §31: marketplace, bounties, escrow, hiring, remediation, routing, refunds, insurance, tokens
+
+---
+
+## History
+- **Sep 28 — v1 approved with defaults:** $0.05 eligible price cap, 25 candidates/day, CDP Bazaar only, `cori_agent` least-privilege role, GitHub repo as the User-Agent contact.
+- **Sep 28 — Phase A built:** migration 023, `lib/net/ip.ts` allow-list, `lib/net/safe-fetch.ts`, `lib/cori/{normalize,classify,bazaar}.ts`, shared payment-option rules moved into `x402.ts`. 61 tests.
+- **Sep 28 — Phase B built:** `agent/cori/` (Bazaar client, pipeline, probe, limiter, Postgres + memory stores, lock, dry run, `--once`, heartbeat). esbuild bundle. A failed source is retried after 30 min; idle ticks write no run rows; `unreachable` after 3 failures; rejected candidates aren't re-queued. 69 tests, including the fake-ecosystem pipeline and real Postgres as `cori_agent`.
+- **Sep 28 — Phase C built:** `/admin/cori` page plus sidebar health dot, candidate cards, approve/reject write-back, Telegram watchdog. 77 tests.
+- **Oct 5 — v2 (this document):** re-audited against the canonical brief (`CORI_BRIEF.md`) and DATA COMPOUNDS. Found G1–G11, proposed Phase B2, answered A–H, corrected the Bazaar listing assumption against the official x402 specs.
