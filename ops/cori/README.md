@@ -17,7 +17,7 @@ Cori's server is a small Hetzner VPS in its own **CORTX** project, separate from
 
 ## 1. Create the server (Hetzner console)
 
-1. Create a new project: **CORTX**.
+1. Use the existing **Default** project (next to the Luca server; a new project didn't offer CX23). Don't change the Luca server.
 2. Add Server:
    - **Location:** nearest to your Supabase project's region. Supabase → Project Settings → General shows the region, e.g. `eu-central-1` → Falkenstein or Nuremberg; `us-east-1` → Ashburn.
    - **Image:** Ubuntu 24.04.
