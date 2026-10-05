@@ -61,6 +61,10 @@ export async function startFakeEcosystem(): Promise<FakeEcosystem> {
 
       const name = u.pathname.replace('/svc/', '');
       const json = { 'content-type': 'application/json' };
+      if (name.startsWith('users/')) {
+        res.writeHead(402, { ...json, 'payment-required': b64(v2Terms(u.pathname)) });
+        return res.end('{}');
+      }
       switch (name) {
         case 'v2-get':
         case 'v2-get-2':

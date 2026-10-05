@@ -60,21 +60,26 @@ async function main() {
     return;
   }
 
-  const pg = new PgStore(sql);
+  const pg = new PgStore(sql, { version: config.version });
   const store = config.dryRun ? await dryRunStore(pg) : pg;
+  const shutdown = new AbortController();
   const deps: Deps = {
     store,
     config,
     log,
-    limiter: new HostLimiter(config.perHostMinIntervalMs, config.perHostMaxPerHour),
+    limiter: new HostLimiter(config.perHostMinIntervalMs, config.perHostMaxPerHour, { globalMaxPerHour: config.maxProbesPerHour }),
+    signal: shutdown.signal,
   };
 
   let stopping = false;
-  const stop = (signal: string) => { log.info('stopping', { signal }); stopping = true; };
+  const stop = (signal: string) => { log.info('stopping', { signal }); stopping = true; shutdown.abort(); };
   process.on('SIGTERM', () => stop('SIGTERM'));
   process.on('SIGINT', () => stop('SIGINT'));
 
-  log.info('started', { mode: once ? 'once' : 'daemon', max_price_usdc: config.maxEligiblePriceUsdc, daily_queue_cap: config.dailyQueueCap });
+  log.info('started', {
+    mode: once ? 'once' : 'daemon', cori_version: config.version, max_price_usdc: config.maxEligiblePriceUsdc,
+    daily_queue_cap: config.dailyQueueCap, allowed_ports: config.allowedPorts, max_probes_per_hour: config.maxProbesPerHour,
+  });
 
   try {
     if (once || config.dryRun) {

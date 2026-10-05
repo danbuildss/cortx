@@ -1,8 +1,9 @@
 // In-memory Store: dry runs (seeded with read-only data from the database)
 // and tests. Nothing written here ever reaches the database.
 import { randomUUID } from 'node:crypto';
+import type { ListingSnapshot } from '../../lib/cori/bazaar';
 import type {
-  DiscoveryEvent, KnownRecords, NewService, NewSubmission, ServicePatch, ServiceRow, SourceRow, Store,
+  DiscoveryEvent, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow, SourceRow, Store,
 } from './store';
 
 export type MemorySeed = {
@@ -22,6 +23,8 @@ export class MemoryStore implements Store {
   events: Array<{ serviceId: string; event: DiscoveryEvent; at: Date; details?: Record<string, unknown> }> = [];
   submissions: Array<NewSubmission & { id: string; status: string; source: string; submitted_at: Date }> = [];
   runs: Array<{ id: number; kind: string; ok?: boolean; stats?: Record<string, unknown>; error?: string | null }> = [];
+  listings: Array<{ serviceId: string; source: string; hash: string; first: Date; last: Date; snapshot: ListingSnapshot }> = [];
+  observations: Array<Observation & { serviceId: string }> = [];
   private readonly now: () => Date;
 
   constructor(seed: MemorySeed = {}) {
@@ -61,7 +64,8 @@ export class MemoryStore implements Store {
       service_name: null, description: null, tags: [], bazaar_metadata: null,
       http_method: 'GET', input_example: null, x402_version: null, network: null, asset: null,
       scheme: null, transfer_method: null, price_atomic: null, price_usdc: null,
-      pay_to_fingerprint: null, facilitator_url: null, listing_hash: null,
+      pay_to_fingerprint: null, pay_to: null, facilitator_url: null, listing_hash: null,
+      route_template: null, resource_url: null, source_last_updated: null, disappeared_at: null,
       last_probe_at: null, next_probe_at: null, probe_failures: 0, last_probe: null,
       classification: 'pending', classification_reasons: [],
       linked_service_id: null, linked_seed_id: null, linked_submission_id: null,
@@ -89,6 +93,24 @@ export class MemoryStore implements Store {
 
   async addEvent(serviceId: string, event: DiscoveryEvent, details?: Record<string, unknown>) {
     this.events.push({ serviceId, event, at: this.now(), details });
+  }
+
+  async recordListing(serviceId: string, source: string, hash: string, snapshot: ListingSnapshot, at: Date) {
+    const prev = this.listings.find((l) => l.serviceId === serviceId && l.source === source && l.hash === hash);
+    if (prev) { prev.last = at; return { newVersion: false }; }
+    this.listings.push({ serviceId, source, hash, first: at, last: at, snapshot });
+    return { newVersion: true };
+  }
+
+  async addObservation(serviceId: string, o: Observation) {
+    this.observations.push({ ...o, serviceId });
+  }
+
+  async notSeenSince(cutoff: Date, limit: number) {
+    return [...this.services.values()]
+      .filter((s) => s.disappeared_at == null && s.last_seen_at.getTime() < cutoff.getTime())
+      .slice(0, limit)
+      .map((s) => ({ ...s }));
   }
 
   async dueProbes(now: Date, limit: number) {

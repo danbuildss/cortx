@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --test --experimental-strip-types --no-warnings --import ./test/register.mjs lib/**/*.test.ts agent/**/*.test.ts",
-    "build:cori": "esbuild agent/cori/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=agent/cori/dist/cori.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "build:cori": "node agent/cori/build.mjs",
     "cori:once": "node agent/cori/dist/cori.mjs --once"
   },
   "dependencies": {

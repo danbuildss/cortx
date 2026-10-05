@@ -1,5 +1,7 @@
 // Cori Scout pipeline (spec §3): discover → normalize → dedupe → link →
 // classify → probe → queue. Deterministic; no payments; no public writes.
+// Memory (spec v2 §8): every listing version and every probe is kept;
+// discovered_services holds only the current facts (a cache).
 import { createHash } from 'node:crypto';
 import { canonicalUrl, hostOf } from '../../lib/cori/normalize';
 import { classify, type Classification, type ClassifyInput, type Terms } from '../../lib/cori/classify';
@@ -20,6 +22,10 @@ export type Deps = {
   now?: () => Date;
   fetchOptions?: SafeFetchOptions;          // test seams only
   sleep?: (ms: number) => Promise<void>;
+  /** Aborted on shutdown: probe batches stop between probes */
+  signal?: AbortSignal;
+  /** Last complete (not truncated) pass per source, kept across cycles by runCycle */
+  passLog?: Map<string, Date>;
 };
 
 const HOUR = 3_600_000;
@@ -28,14 +34,31 @@ const PROBE_BACKOFF_MS = [HOUR, 6 * HOUR, 24 * HOUR];
 const UNREACHABLE_AFTER_FAILURES = 3;
 // A failed source is retried after this long, not every tick
 const SOURCE_RETRY_MS = 30 * 60_000;
+// The disappearance sweep only runs when every enabled source completed a full pass this recently
+const SWEEP_NEEDS_PASS_WITHIN_MS = 24 * HOUR;
+const SWEEP_BATCH = 500;
 
 // Classes decided from the listing alone never need a probe until the listing changes
 const NO_PROBE: ReadonlySet<Classification> = new Set([
   'blocked', 'already_monitored', 'already_listed', 'already_submitted',
-  'unsupported_network', 'unsupported_asset', 'unsupported_scheme', 'too_expensive', 'gone',
+  'unsupported_network', 'unsupported_asset', 'unsupported_scheme', 'unsupported_method', 'too_expensive', 'gone',
+]);
+
+// Classes decided from the listing alone: when the listing disappears, they become 'gone'
+// (probed classes become 'gone' through the probe rule instead)
+const LISTING_ONLY: ReadonlySet<Classification> = new Set([
+  'blocked', 'unsupported_network', 'unsupported_asset', 'unsupported_scheme', 'unsupported_method', 'too_expensive',
 ]);
 
 const nowOf = (d: Deps) => (d.now ? d.now() : new Date());
+
+// Canonical URLs omit :443, so any explicit port is a non-443 port
+function portAllowed(url: string, allowed: readonly number[]): boolean {
+  const u = new URL(url);
+  return allowed.includes(u.port ? Number(u.port) : 443);
+}
+
+const probeUrlOf = (row: Pick<ServiceRow, 'canonical_url' | 'resource_url'>) => row.resource_url ?? row.canonical_url;
 const after = (from: Date, ms: number) => new Date(from.getTime() + ms);
 
 // ─── Linking against existing CORTX records (spec §5) ─────────────────────────
@@ -62,11 +85,14 @@ export function buildLinkIndex(known: KnownRecords): LinkIndex {
 
 type Link = { linked: ClassifyInput['linked']; patch: ServicePatch };
 
-function linkFor(url: string, rowId: string | null, idx: LinkIndex): Link {
-  const serviceId = idx.services.get(url) ?? null;
-  const seedId = idx.seeds.get(url) ?? null;
+// `urls`: the identity URL and, for dynamic routes, the concrete URL too
+function linkFor(urls: Array<string | null>, rowId: string | null, idx: LinkIndex): Link {
+  const keys = [...new Set(urls.filter((u): u is string => !!u))];
+  const first = <T>(m: Map<string, T>) => keys.map((k) => m.get(k)).find((v) => v != null) ?? null;
+  const serviceId = first(idx.services);
+  const seedId = first(idx.seeds);
   // A submission someone else made (pending/approved) — not Cori's own candidate
-  const other = (idx.submissions.get(url) ?? []).find(
+  const other = keys.flatMap((k) => idx.submissions.get(k) ?? []).find(
     (s) => (s.status === 'pending' || s.status === 'approved') && (rowId == null || s.discovered_service_id !== rowId)
   );
   const patch: ServicePatch = { linked_service_id: serviceId, linked_seed_id: seedId };
@@ -104,7 +130,7 @@ function listingPatch(l: Listing): ServicePatch {
     description: l.description,
     tags: l.tags,
     bazaar_metadata: l.metadata,
-    http_method: l.input.method === 'OTHER' ? 'OTHER' : l.input.method,
+    http_method: l.input.rawMethod,
     input_example: l.input.example,
     x402_version: l.x402Version,
     network: o?.network ?? null,
@@ -114,8 +140,12 @@ function listingPatch(l: Listing): ServicePatch {
     price_atomic: l.priceAtomic,
     price_usdc: l.priceUsdc,
     pay_to_fingerprint: payToFingerprint(o?.payTo),
+    pay_to: l.payTo,
     facilitator_url: l.facilitatorUrl,
     listing_hash: l.listingHash,
+    route_template: l.routeTemplate,
+    resource_url: l.probeUrl === l.canonicalUrl ? null : l.probeUrl,
+    source_last_updated: l.lastUpdated ? new Date(l.lastUpdated) : null,
   };
 }
 
@@ -136,14 +166,14 @@ function hasExample(row: Pick<ServiceRow, 'http_method' | 'input_example'>): boo
 
 function inputOf(row: Pick<ServiceRow, 'http_method' | 'input_example'>): ClassifyInput['input'] {
   const m = row.http_method === 'GET' || row.http_method === 'POST' ? row.http_method : 'OTHER';
-  return { method: m, hasExample: hasExample(row) };
+  return { method: m, rawMethod: row.http_method, hasExample: hasExample(row) };
 }
 
 // ─── Discovery (one source pass) ──────────────────────────────────────────────
 
 export type DiscoveryStats = BazaarPassStats & {
   invalid_items: number; skipped_non_http: number; new_services: number;
-  changed_listings: number; reappeared: number; duplicates_in_pass: number;
+  changed_listings: number; new_listing_versions: number; reappeared: number; duplicates_in_pass: number;
   classes: Record<string, number>;
 };
 
@@ -155,7 +185,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
   const denylist = await store.loadDenylist();
   const stats: DiscoveryStats = {
     pages: 0, items: 0, truncated: false, total: null,
-    invalid_items: 0, skipped_non_http: 0, new_services: 0, changed_listings: 0, reappeared: 0,
+    invalid_items: 0, skipped_non_http: 0, new_services: 0, changed_listings: 0, new_listing_versions: 0, reappeared: 0,
     duplicates_in_pass: 0, classes: {},
   };
   const seenThisPass = new Set<string>();
@@ -189,27 +219,31 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     }
 
     const { seenBefore } = await store.touchSource(row.id, source.id, at, l.listingHash);
+    const { newVersion } = await store.recordListing(row.id, source.id, l.listingHash, l.snapshot, at);
+    if (newVersion) stats.new_listing_versions++;
     const changed = !isNew && row.listing_hash !== l.listingHash;
     if (changed) {
       stats.changed_listings++;
-      await store.addEvent(row.id, 'listing_changed', { source: source.id });
+      await store.addEvent(row.id, 'listing_changed', { source: source.id, from_hash: row.listing_hash, to_hash: l.listingHash });
       if (row.price_usdc != null && l.priceUsdc != null && Number(row.price_usdc) !== l.priceUsdc) {
         await store.addEvent(row.id, 'price_changed', { from: Number(row.price_usdc), to: l.priceUsdc, via: 'listing' });
       }
     }
-    if (!isNew && row.classification === 'gone') {
+    const reappeared = !isNew && (row.classification === 'gone' || row.disappeared_at != null);
+    if (reappeared) {
       stats.reappeared++;
-      await store.addEvent(row.id, 'reappeared', { source: source.id });
+      await store.addEvent(row.id, 'reappeared', { source: source.id, disappeared_at: row.disappeared_at?.toISOString() ?? null });
     }
     if (!isNew && !seenBefore) await store.addEvent(row.id, 'listing_changed', { new_source: source.id });
 
-    const link = linkFor(l.canonicalUrl, row.id, idx);
+    const link = linkFor([l.canonicalUrl, l.probeUrl], row.id, idx);
     // Reuse the last probe only if the listing hasn't changed since
     const lastProbe = !isNew && !changed && row.classification !== 'gone' ? row.last_probe : null;
     const probeOutcome = lastProbe && lastProbe.outcome !== 'blocked' ? lastProbe.outcome : null;
     const facts = listingPatch(l);
+    const blockedReason = denylist.has(host) ? 'denylist' : !portAllowed(l.probeUrl, config.allowedPorts) ? 'port' : null;
     const result = classify({
-      blockedReason: denylist.has(host) ? 'denylist' : null,
+      blockedReason,
       linked: link.linked,
       probe: probeOutcome,
       terms: probeOutcome === 'ok' && lastProbe ? probeTerms(lastProbe) : listingTerms(l),
@@ -223,6 +257,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
       last_seen_at: at,
       classification: result.classification,
       classification_reasons: result.reasons,
+      ...(reappeared ? { disappeared_at: null } : {}),
     };
     // Probe schedule: never for listing-level rejections; now for new/changed
     // candidates; otherwise keep the existing schedule
@@ -243,21 +278,31 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
 
 // ─── Probing (free) ───────────────────────────────────────────────────────────
 
-export type ProbeStats = { probed: number; rescheduled_rate_limit: number; outcomes: Record<string, number>; classes: Record<string, number> };
+export type ProbeStats = {
+  probed: number; rescheduled_rate_limit: number; budget_left: number;
+  outcomes: Record<string, number>; classes: Record<string, number>;
+};
 
 async function probeOne(d: Deps, row: ServiceRow, idx: LinkIndex, denylist: Set<string>, stats: ProbeStats): Promise<void> {
   const { store, config } = d;
   const at = nowOf(d);
 
+  const url = probeUrlOf(row);
   const blockedReason = denylist.has(row.host) ? 'denylist' : null;
-  const p = blockedReason
-    ? ({ outcome: 'blocked', error: 'DENYLIST' } as ProbeRecord)
-    : await probe(row, { userAgent: config.userAgent, fetchOptions: d.fetchOptions });
+  const p: ProbeRecord = blockedReason
+    ? {
+        outcome: 'blocked', at: at.toISOString(), method: null, http_status: null, latency_ms: null, error: 'DENYLIST',
+        terms_source: null, x402_version: null, network: null, asset: null, scheme: null, transfer_method: null,
+        price_atomic: null, price_usdc: null, pay_to: null, facilitator_published: false,
+      }
+    : await probe({ url, http_method: row.http_method }, { userAgent: config.userAgent, allowedPorts: config.allowedPorts, fetchOptions: d.fetchOptions });
   stats.probed++;
   stats.outcomes[p.outcome] = (stats.outcomes[p.outcome] ?? 0) + 1;
+  // Every attempt is kept, including "couldn't check" (DATA COMPOUNDS)
+  await store.addObservation(row.id, { ...p, probe_url: url, cori_version: config.version });
 
   const failures = p.outcome === 'ok' ? 0 : row.probe_failures + 1;
-  const link = linkFor(row.canonical_url, row.id, idx);
+  const link = linkFor([row.canonical_url, row.resource_url], row.id, idx);
   const gone = p.outcome !== 'ok' && p.outcome !== 'blocked' && at.getTime() - row.last_seen_at.getTime() > GONE_AFTER_MS;
 
   let result: { classification: Classification; reasons: string[] };
@@ -266,7 +311,7 @@ async function probeOne(d: Deps, row: ServiceRow, idx: LinkIndex, denylist: Set<
     result = { classification: 'pending', reasons: [`probe:retrying(${failures}/${UNREACHABLE_AFTER_FAILURES})`, `error:${p.error ?? 'unknown'}`] };
   } else {
     result = classify({
-      blockedReason: blockedReason ?? (p.outcome === 'blocked' ? (p.error ?? 'ssrf').toLowerCase() : null),
+      blockedReason: blockedReason ?? (p.outcome === 'blocked' ? (p.error === 'BLOCKED_PORT' ? 'port' : (p.error ?? 'ssrf').toLowerCase()) : null),
       linked: link.linked,
       gone,
       probe: p.outcome === 'blocked' ? null : p.outcome,
@@ -318,8 +363,12 @@ export async function probeDue(d: Deps, limit = d.config.probeBatch): Promise<Pr
   const log = d.log.child({ component: 'probe' });
   // Always a real timer: waiting on a busy host must yield to the event loop
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, Math.max(ms, 10)));
-  const stats: ProbeStats = { probed: 0, rescheduled_rate_limit: 0, outcomes: {}, classes: {} };
-  const due = await store.dueProbes(nowOf(d), limit);
+  const stats: ProbeStats = { probed: 0, rescheduled_rate_limit: 0, budget_left: 0, outcomes: {}, classes: {} };
+  // Global hourly probe budget: only take as many due rows as it still allows
+  const budget = d.limiter.globalRemaining();
+  stats.budget_left = budget;
+  if (budget === 0 || d.signal?.aborted) return stats;
+  const due = await store.dueProbes(nowOf(d), Math.min(limit, budget));
   if (due.length === 0) return stats;
 
   const idx = buildLinkIndex(await store.loadKnown());
@@ -328,13 +377,15 @@ export async function probeDue(d: Deps, limit = d.config.probeBatch): Promise<Pr
 
   const worker = async () => {
     for (let row = queue.shift(); row; row = queue.shift()) {
+      if (d.signal?.aborted) break; // shutting down: leave the rest for next time
       let wait = d.limiter.reserve(row.host);
-      while (wait > 0) {
+      while (wait > 0 && !d.signal?.aborted) {
         await sleep(Math.min(wait, 5_000));
         wait = d.limiter.reserve(row.host);
       }
+      if (wait > 0) break; // aborted while waiting
       if (wait < 0) {
-        // Hourly cap for this host: try again in an hour
+        // Hourly cap (this host, or the global budget): try again in an hour
         await store.updateService(row.id, { next_probe_at: after(nowOf(d), HOUR) });
         stats.rescheduled_rate_limit++;
         continue;
@@ -375,7 +426,7 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
   const candidates = await store.queueCandidates(remaining);
   for (const row of candidates) {
     // Re-check against CORTX records right before queueing
-    const link = linkFor(row.canonical_url, row.id, idx);
+    const link = linkFor([row.canonical_url, row.resource_url], row.id, idx);
     if (link.linked) {
       const cls = link.linked === 'monitored' ? 'already_monitored' : link.linked === 'listed' ? 'already_listed' : 'already_submitted';
       await store.updateService(row.id, { ...link.patch, classification: cls, classification_reasons: [`linked:${link.linked}`], next_probe_at: null });
@@ -385,7 +436,8 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
     const origin = new URL(row.canonical_url).origin;
     const sources = await store.sourcesFor(row.id);
     const submissionId = await store.insertSubmission({
-      endpoint_url: row.canonical_url,
+      // Reviewers (and a later paid check) need a callable URL, not a route template
+      endpoint_url: probeUrlOf(row),
       name: (row.service_name ?? `${row.host}${new URL(row.canonical_url).pathname}`).slice(0, 120),
       description: row.description,
       website_url: origin,
@@ -400,6 +452,7 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
         price_usdc: row.last_probe?.price_usdc ?? row.price_usdc,
         x402_version: row.last_probe?.x402_version ?? row.x402_version,
         http_method: row.http_method,
+        route_template: row.route_template,
         has_input_example: hasExample(row),
         facilitator_published: row.last_probe?.facilitator_published ?? row.facilitator_url != null,
         first_seen_at: row.first_seen_at.toISOString(),
@@ -417,15 +470,55 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
   return stats;
 }
 
+// ─── Disappearance sweep (spec v2 G8) ─────────────────────────────────────────
+
+export type SweepStats = { disappeared: number; gone: number; skipped: string | null };
+
+/**
+ * Marks services no source has listed for 7 days as disappeared (an event, never
+ * a deletion). Only runs when every enabled source completed a full pass in the
+ * last 24 h — so a source outage or a truncated pass never looks like
+ * services vanishing. Listing-only classes become 'gone'; probed services keep
+ * their class (the probe rule decides, and a delisted service may still work).
+ */
+export async function sweepDisappeared(d: Deps, sources: SourceRow[]): Promise<SweepStats> {
+  const at = nowOf(d);
+  const stats: SweepStats = { disappeared: 0, gone: 0, skipped: null };
+  const enabled = sources.filter((s) => s.enabled);
+  const fresh = enabled.every((s) => {
+    const t = d.passLog?.get(s.id);
+    return t != null && at.getTime() - t.getTime() <= SWEEP_NEEDS_PASS_WITHIN_MS;
+  });
+  if (enabled.length === 0 || !fresh) { stats.skipped = 'no_recent_complete_pass'; return stats; }
+
+  const rows = await d.store.notSeenSince(new Date(at.getTime() - GONE_AFTER_MS), SWEEP_BATCH);
+  for (const row of rows) {
+    const patch: ServicePatch = { disappeared_at: at };
+    await d.store.addEvent(row.id, 'disappeared', { last_seen_at: row.last_seen_at.toISOString() });
+    stats.disappeared++;
+    if (LISTING_ONLY.has(row.classification)) {
+      Object.assign(patch, { classification: 'gone', classification_reasons: ['gone:not_listed_7d'], next_probe_at: null });
+      await d.store.addEvent(row.id, 'classification_changed', { from: row.classification, to: 'gone', reasons: ['gone:not_listed_7d'] });
+      stats.gone++;
+    }
+    await d.store.updateService(row.id, patch);
+  }
+  return stats;
+}
+
 // ─── One full cycle ───────────────────────────────────────────────────────────
 
-export type CycleStats = { discovery: Record<string, DiscoveryStats>; probe: ProbeStats; queue: QueueStats; source_errors: Record<string, string> };
+export type CycleStats = {
+  discovery: Record<string, DiscoveryStats>; probe: ProbeStats; queue: QueueStats;
+  sweep: SweepStats | null; source_errors: Record<string, string>;
+};
 
 async function recorded<T>(d: Deps, kind: string, fn: () => Promise<T>): Promise<T> {
   const runId = await d.store.startRun(kind);
+  const t0 = Date.now();
   try {
     const out = await fn();
-    await d.store.finishRun(runId, true, out as unknown as Record<string, unknown>);
+    await d.store.finishRun(runId, true, { ...(out as unknown as Record<string, unknown>), duration_ms: Date.now() - t0 });
     return out;
   } catch (err) {
     await d.store.finishRun(runId, false, {}, err instanceof Error ? err.message : String(err)).catch(() => {});
@@ -437,11 +530,12 @@ async function recorded<T>(d: Deps, kind: string, fn: () => Promise<T>): Promise
 // failed) — idle ticks every 30s would otherwise flood cori_runs. Liveness
 // comes from the heartbeat row instead.
 async function quietlyRecorded<T>(d: Deps, kind: string, fn: () => Promise<T>, didWork: (t: T) => boolean): Promise<T> {
+  const t0 = Date.now();
   try {
     const out = await fn();
     if (didWork(out)) {
       const id = await d.store.startRun(kind);
-      await d.store.finishRun(id, true, out as unknown as Record<string, unknown>);
+      await d.store.finishRun(id, true, { ...(out as unknown as Record<string, unknown>), duration_ms: Date.now() - t0 });
     }
     return out;
   } catch (err) {
@@ -453,18 +547,21 @@ async function quietlyRecorded<T>(d: Deps, kind: string, fn: () => Promise<T>, d
 
 export async function runCycle(d: Deps, opts: { forceSources?: boolean; maxProbeBatches?: number } = {}): Promise<CycleStats> {
   const at = nowOf(d);
+  d.passLog ??= new Map();
   const out: CycleStats = {
-    discovery: {}, source_errors: {},
-    probe: { probed: 0, rescheduled_rate_limit: 0, outcomes: {}, classes: {} },
+    discovery: {}, source_errors: {}, sweep: null,
+    probe: { probed: 0, rescheduled_rate_limit: 0, budget_left: 0, outcomes: {}, classes: {} },
     queue: { queued: 0, skipped_linked: 0, skipped_existing: 0, cap: d.config.dailyQueueCap, cap_hit: false },
   };
 
-  for (const source of await d.store.loadSources()) {
+  const sources = await d.store.loadSources();
+  for (const source of sources) {
     if (!source.enabled) continue;
     const due = opts.forceSources || !source.last_run_at || at.getTime() - source.last_run_at.getTime() >= source.interval_minutes * 60_000;
     if (!due) continue;
     try {
       out.discovery[source.id] = await recorded(d, `discover:${source.id}`, () => discoverSource(d, source));
+      if (!out.discovery[source.id].truncated) d.passLog.set(source.id, at);
     } catch (err) {
       // One failing source never stops the others (spec §12)
       out.source_errors[source.id] = err instanceof Error ? err.message : String(err);
@@ -475,9 +572,16 @@ export async function runCycle(d: Deps, opts: { forceSources?: boolean; maxProbe
     }
   }
 
+  // Disappearance only changes after a pass, so sweep right after one
+  if (Object.keys(out.discovery).length > 0) {
+    out.sweep = await quietlyRecorded(d, 'sweep', () => sweepDisappeared(d, sources), (x) => x.disappeared > 0);
+  }
+
   for (let i = 0; i < (opts.maxProbeBatches ?? 1); i++) {
+    if (d.signal?.aborted) break;
     const s = await quietlyRecorded(d, 'probe', () => probeDue(d), (x) => x.probed + x.rescheduled_rate_limit > 0);
     out.probe.probed += s.probed;
+    out.probe.budget_left = s.budget_left;
     out.probe.rescheduled_rate_limit += s.rescheduled_rate_limit;
     for (const [k, v] of Object.entries(s.outcomes)) out.probe.outcomes[k] = (out.probe.outcomes[k] ?? 0) + v;
     for (const [k, v] of Object.entries(s.classes)) out.probe.classes[k] = (out.probe.classes[k] ?? 0) + v;

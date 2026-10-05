@@ -14,7 +14,7 @@ let eco: FakeEcosystem;
 before(async () => { eco = await startFakeEcosystem(); });
 after(() => eco.close());
 
-function setup(overrides: { cap?: number } = {}) {
+function setup(overrides: { cap?: number; globalMaxPerHour?: number } = {}) {
   eco.items = standardListings(eco);
   eco.hits.length = 0;
   let clock = new Date('2026-09-28T10:00:00Z');
@@ -29,9 +29,10 @@ function setup(overrides: { cap?: number } = {}) {
   });
   const deps: Deps = {
     store,
-    config: defaultConfig({ dailyQueueCap: overrides.cap ?? 25, bazaarPageLimit: 5, perHostMinIntervalMs: 0 }),
+    // The fake ecosystem listens on a random port; production allows 443 only
+    config: defaultConfig({ dailyQueueCap: overrides.cap ?? 25, bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port] }),
     log: silentLogger,
-    limiter: new HostLimiter(0, 1000),
+    limiter: new HostLimiter(0, 1000, { globalMaxPerHour: overrides.globalMaxPerHour }),
     now: () => clock,
     fetchOptions: eco.fetchOptions,
     sleep: async () => {},
@@ -59,7 +60,7 @@ test('one cycle: discovers, dedupes, classifies, probes for free, queues', async
 
   assert.deepEqual(byName(store), {
     'v2-get': 'eligible',
-    'v1-post': 'eligible',         // GET 405 → POST with the Bazaar example body → 402
+    'v1-post': 'eligible',         // GET 405 → POST {} → 402 (the Bazaar example is kept for later, never sent)
     'v2-get-2': 'eligible',
     'post-noex': 'needs_input',
     expensive: 'too_expensive',
@@ -194,4 +195,161 @@ test('a failing source is recorded, does not stop the cycle, and backs off', asy
   advance(30 * 60_000);
   await runCycle(deps);
   assert.equal(attempts(), 2, 'retried after 30 minutes');
+});
+
+// ─── Phase B2: memory, safer probes, disappearance (spec v2) ─────────────────
+
+const svcRow = (store: MemoryStore, name: string) => [...store.services.values()].find((r) => r.service_name === name)!;
+
+test('POST probes send {} — never the body from a listing', async () => {
+  const { deps } = setup();
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  const posts = eco.hits.filter((h) => h.method === 'POST' && h.path.startsWith('/svc/'));
+  assert.ok(posts.some((h) => h.path === '/svc/v1-post'));
+  for (const h of posts) assert.equal(h.body, '{}', `${h.path} got a third-party body`);
+});
+
+test('every probe is kept as an observation, failures included, never overwritten', async () => {
+  const { store, deps, advance } = setup();
+  const s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(store.observations.length, s.probe.probed, 'one observation per probe');
+
+  const v2 = svcRow(store, 'v2-get');
+  const obs = store.observations.find((o) => o.serviceId === v2.id)!;
+  assert.equal(obs.outcome, 'ok');
+  assert.equal(obs.method, 'GET');
+  assert.equal(obs.price_atomic, '2000');
+  assert.equal(obs.price_usdc, 0.002);
+  assert.equal(obs.pay_to, '0x209693Bc6afc0C5328bA36FaF03C514EF312287C');
+  assert.equal(obs.probe_url, eco.url('svc.test', '/svc/v2-get'));
+  assert.equal(obs.cori_version, deps.config.version);
+
+  const down = store.observations.find((o) => o.serviceId === svcRow(store, 'down').id)!;
+  assert.equal(down.outcome, 'unreachable', "couldn't check is recorded too");
+
+  advance(25 * 3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(store.observations.filter((o) => o.serviceId === v2.id).length, 2, 'history grows, nothing replaced');
+});
+
+test('listing versions: a new row only when the content changes', async () => {
+  const { store, deps, advance } = setup();
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(store.listings.length, 12, 'one version per service');
+
+  advance(7 * 3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(store.listings.length, 12, 'unchanged listings add nothing');
+
+  const item = eco.items.find((i) => (i as { serviceName?: string }).serviceName === 'v2-get-2') as { accepts: Array<Record<string, unknown>> };
+  item.accepts[0].amount = '3000';
+  advance(7 * 3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+
+  const row = svcRow(store, 'v2-get-2');
+  const versions = store.listings.filter((l) => l.serviceId === row.id);
+  assert.equal(versions.length, 2, 'old and new version both kept');
+  assert.deepEqual(versions.map((v) => (v.snapshot.accepts?.[0] as { amount: string }).amount), ['2000', '3000']);
+  const changed = store.events.find((e) => e.serviceId === row.id && e.event === 'listing_changed')!;
+  assert.equal(changed.details?.from_hash, versions[0].hash);
+  assert.equal(changed.details?.to_hash, versions[1].hash);
+});
+
+test('only port 443 (here: the fake port): other ports are blocked from the listing, never contacted', async () => {
+  const { store, deps } = setup();
+  eco.items.push({ resource: `https://svc.test:8443/svc/v2-get`, type: 'http', x402Version: 2, serviceName: 'odd-port',
+    accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }] });
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  const row = svcRow(store, 'odd-port');
+  assert.equal(row.classification, 'blocked');
+  assert.deepEqual(row.classification_reasons, ['blocked:port']);
+  assert.equal(store.observations.filter((o) => o.serviceId === row.id).length, 0, 'never probed');
+});
+
+test('DELETE/PUT/PATCH endpoints are never called', async () => {
+  const { store, deps } = setup();
+  eco.items.push({ resource: eco.url('svc.test', '/svc/del'), type: 'http', x402Version: 2, serviceName: 'del',
+    accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }],
+    extensions: { bazaar: { info: { input: { type: 'http', method: 'DELETE' } } } } });
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(svcRow(store, 'del').classification, 'unsupported_method');
+  assert.equal(eco.hits.filter((h) => h.path === '/svc/del').length, 0);
+});
+
+test('dynamic routes: one service per template, probed and queued at a concrete URL', async () => {
+  const { store, deps } = setup();
+  const user = (id: string) => ({ resource: eco.url('svc.test', `/svc/users/${id}`), type: 'http', x402Version: 2, serviceName: 'users',
+    accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }],
+    extensions: { bazaar: { routeTemplate: '/svc/users/:id', info: { input: { type: 'http', method: 'GET', pathParams: { id } } } } } });
+  eco.items.push(user('1'), user('2'));
+  const s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(s.discovery.cdp_bazaar.duplicates_in_pass, 2, 'the second user URL is the same service');
+
+  const rows = [...store.services.values()].filter((r) => r.service_name === 'users');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].canonical_url, eco.url('svc.test', '/svc/users/:id'));
+  assert.equal(rows[0].route_template, '/svc/users/:id');
+  assert.equal(rows[0].classification, 'eligible');
+  assert.ok(eco.hits.some((h) => h.path === '/svc/users/1'), 'probed at the concrete URL');
+  assert.equal(store.submissions.find((x) => x.name === 'users')!.endpoint_url, eco.url('svc.test', '/svc/users/1'));
+});
+
+test('disappearance: after 7 days unlisted (with complete passes); listing-only classes become gone; reappear', async () => {
+  const { store, deps, advance } = setup();
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  const all = eco.items;
+  const keep = (n: string) => (i: unknown) => (i as { serviceName?: string }).serviceName !== n;
+  eco.items = all.filter(keep('othernet')).filter(keep('v2-get'));
+
+  for (let i = 0; i < 30; i++) { advance(6 * 3_600_000 + 60_000); await runCycle(deps, { maxProbeBatches: 5 }); }
+
+  const othernet = svcRow(store, 'othernet');
+  assert.ok(othernet.disappeared_at, 'marked disappeared');
+  assert.equal(othernet.classification, 'gone');
+  const v2 = svcRow(store, 'v2-get');
+  assert.ok(v2.disappeared_at);
+  assert.equal(v2.classification, 'eligible', 'still answers its free probe: delisted, not dead');
+  assert.equal(store.events.filter((e) => e.serviceId === othernet.id && e.event === 'disappeared').length, 1, 'once');
+
+  eco.items = all;
+  advance(6 * 3_600_000 + 60_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+  const back = svcRow(store, 'othernet');
+  assert.equal(back.disappeared_at, null);
+  assert.equal(back.classification, 'unsupported_network');
+  assert.ok(store.events.some((e) => e.serviceId === othernet.id && e.event === 'reappeared'));
+});
+
+test('a source outage never looks like services disappearing', async () => {
+  const { store, deps, advance } = setup();
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  store.sources[0].url = eco.url('rebind.test', '/discovery/resources'); // every pass now fails
+  for (let i = 0; i < 40; i++) { advance(6 * 3_600_000); await runCycle(deps, { maxProbeBatches: 1 }); }
+  assert.equal(store.events.filter((e) => e.event === 'disappeared').length, 0);
+});
+
+test('global hourly probe budget', async () => {
+  const { deps, advance } = setup({ globalMaxPerHour: 3 });
+  const s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(s.probe.probed, 3);
+  assert.equal(s.probe.budget_left, 0);
+  advance(10 * 60_000);
+  assert.equal((await runCycle(deps, { maxProbeBatches: 5 })).probe.probed, 0, 'still within the hour');
+});
+
+test('shutdown: an aborted signal stops probing between probes', async () => {
+  const { deps } = setup();
+  const ac = new AbortController();
+  ac.abort();
+  const s = await runCycle({ ...deps, signal: ac.signal }, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(s.probe.probed, 0);
+});
+
+test('with several sources, no sweep until every source completed a pass', async () => {
+  const { store, deps, advance } = setup();
+  store.sources.push({ id: 'broken', url: eco.url('rebind.test', '/discovery/resources'), enabled: true, interval_minutes: 360, last_run_at: null });
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  eco.items = eco.items.filter((i) => (i as { serviceName?: string }).serviceName !== 'othernet');
+  for (let i = 0; i < 40; i++) { advance(6 * 3_600_000 + 60_000); await runCycle(deps, { maxProbeBatches: 1 }); }
+  assert.equal(store.events.filter((e) => e.event === 'disappeared').length, 0, 'a broken source could be the one listing it');
 });

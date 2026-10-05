@@ -47,6 +47,7 @@ export const CLASS_LABELS: Record<Classification, string> = {
   unsupported_network: 'Wrong network',
   unsupported_asset: 'Not USDC',
   unsupported_scheme: 'Unsupported payment method',
+  unsupported_method: 'Unsupported HTTP method',
   not_x402: 'Not x402',
   invalid_terms: 'Invalid payment terms',
   unreachable: 'Unreachable',
@@ -58,7 +59,7 @@ export const CLASS_LABELS: Record<Classification, string> = {
 export const CLASS_ORDER: Classification[] = [
   'eligible', 'needs_input', 'pending',
   'already_monitored', 'already_listed', 'already_submitted',
-  'too_expensive', 'unsupported_network', 'unsupported_asset', 'unsupported_scheme',
+  'too_expensive', 'unsupported_network', 'unsupported_asset', 'unsupported_scheme', 'unsupported_method',
   'not_x402', 'invalid_terms', 'unreachable', 'blocked', 'gone',
 ];
 
@@ -92,8 +93,13 @@ export function explainReasons(reasons: string[] | null | undefined): string[] {
         break;
       case 'facilitator': out.push(value === 'published' ? 'Publishes its facilitator' : 'Facilitator not published'); break;
       case 'linked': out.push({ service: 'Already monitored by CORTX', registry: 'Already in the registry', submission: 'Already submitted' }[value] ?? `Linked: ${value}`); break;
-      case 'blocked': out.push(`Blocked: ${value.replace(/_/g, ' ')}`); break;
-      case 'gone': out.push('Gone from sources and unreachable for 7+ days'); break;
+      case 'method': out.push(`${value.toUpperCase()} endpoint — Cori only checks GET and POST ✗`); break;
+      case 'blocked':
+        out.push(value === 'port' ? 'Blocked: not on port 443' : `Blocked: ${value.replace(/_/g, ' ')}`);
+        break;
+      case 'gone':
+        out.push(value === 'not_listed_7d' ? 'Gone from sources for 7+ days' : 'Gone from sources and unreachable for 7+ days');
+        break;
       case 'terms': out.push('Payment terms invalid ✗'); break;
       default: break; // unknown reasons are omitted rather than shown raw
     }
