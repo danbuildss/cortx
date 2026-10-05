@@ -700,6 +700,8 @@ Keep it under 3 minutes. Loom gives you a shareable link instantly.
 - 110 tests.
 - **PR #120 merged + migration 025 run (Oct 4).** `get_spend_totals()` after: today $0.005, October $0.02 — matches 5 Bankr paid checks/day × $0.001 since Oct 1. Report spend now inside the caps.
 
+**Blog (Oct 5–6):** "What 4,500+ x402 checks taught us about measuring reliability" (PR #121, publish Oct 6) — founder edits applied (title/subtitle, opening, principle-based ending, quiet CTAs). Kept the stage-name bug. x402 V1/V2 wording verified against official specs. Numbers from admin Oct 5: 4,663 checks, 351 paid checks ($0.351 USDC). **No success-rate % published** (24h 90.9% includes the founder's always-failing Exa test and only founder services). Aug 29 post got a dated correction note. Cori gets its own post after its first live week.
+
 **Left to build (proposed order):** /report hardening → Phase D (Cori server, with founder) → Phase E (watch a week, review Cori's queue) → cron scaling → `@cortx/check` npm → later Cori phases (Observer/Memory, Verifier queue via DB → Vercel, Investigator, public Reliability Index / weekly report, preflight API/MCP). Biggest non-code gap: outside builders (Phase 1 target 10).
 
 ## Cori — LOCKED DIRECTION (Sep 28, 2026)
