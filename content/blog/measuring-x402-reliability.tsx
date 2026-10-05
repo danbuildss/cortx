@@ -12,7 +12,7 @@ export const meta = {
 export default function Post() {
   return (
     <>
-      <p>CORTX has now run more than 4,500 checks against x402 endpoints.</p>
+      <p>CORTX has now run more than 4,500 checks against x402 endpoints, including 351 paid calls.</p>
       <p>
         For paid checks, we don&apos;t just ping a server. We make a real x402 request and record
         what happens through payment terms, pricing, payment, settlement and delivery.
