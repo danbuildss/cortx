@@ -1,3 +1,5 @@
+import type { CheckContext } from './context';
+
 export type CheckType = 'lightweight' | 'readiness' | 'canary' | 'full';
 
 export type StageName =
@@ -33,6 +35,8 @@ export type CheckResult = {
   check_type: CheckType;
   /** Set when a payment gate decided not to pay: the free stages ran, the paid ones did not */
   paid_skipped?: { reason: string; message: string };
+  /** What the check ran against (stored as checks.context — DATA COMPOUNDS S4) */
+  context?: CheckContext;
 };
 
 /**

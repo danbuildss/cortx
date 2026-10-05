@@ -26,6 +26,7 @@ Rules: append, don't overwrite · never hard-delete evidence · every check reco
 - `redact.ts` exists but isn't called (spec claims it is); all 402 response headers are stored unfiltered; as written it would also blank tx hashes.
 - No privacy policy page.
 - Proposed first batch (needs approval): S1 stop cascades, S2 off-platform backup, S3 config history trigger, S4 per-check context + runner version.
+- **Approved Oct 5: "S1–S4, keep endpoint evidence".** Production FKs confirmed worse than assumed (services also cascaded from profiles; checks/incidents cascaded from services). Built: migration 026 (S1 FKs → set null / restrict + `detach_account_evidence()` on profile delete: soft-delete services, scrub typed input everywhere; S3 `service_config_history` + trigger + baseline; S4 `checks.config_version/context/runner_version/spec_version`), app writes context + runner version (falls back if 026 not run), `ops/backup/` template for S2 (founder sets up private repo + age key). Tested on Postgres 16 with the production FK shape (3 canary-column variants). DB 17 MB, checks 4,819 rows.
 
 ## Company Roadmap (canonical — last updated Aug 2026)
 

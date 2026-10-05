@@ -4,6 +4,8 @@ import { sendTelegramAlert } from '../telegram';
 import { sendDiscordAlert } from '../discord';
 import { canResolveIncident, paidIntervalMinutes, READINESS_INTERVAL_MINUTES, worseStatus } from './schedule';
 import type { CheckResult, CheckType } from './types';
+import { runnerVersion } from './context';
+import { SPEC_VERSION } from './spec-record';
 
 function serviceRoleClient() {
   return createClient(
@@ -28,6 +30,12 @@ type ServiceRow = {
   readiness_check_interval_minutes?: number | null;
 };
 
+// PostgREST: unknown column (PGRST204) or Postgres undefined_column (42703)
+export function isMissingColumn(err: { code?: string; message?: string } | null): boolean {
+  if (!err) return false;
+  return err.code === 'PGRST204' || err.code === '42703' || /column .* (does not exist|could not find)|Could not find the .* column/i.test(err.message ?? '');
+}
+
 export type TriggerSource = 'scheduled' | 'anomaly_recovery' | 'anomaly_latency';
 
 const READINESS_STATUS_FOR: Record<CheckResult['status'], string> = {
@@ -46,24 +54,40 @@ export async function persistCheckResult(
   const isReadiness = result.check_type === 'readiness';
 
   // 1. Insert check record
-  const { data: check, error: insertErr } = await db
+  const row = {
+    service_id: svc.id,
+    user_id: svc.user_id,
+    started_at: result.started_at.toISOString(),
+    completed_at: result.completed_at?.toISOString() ?? null,
+    latency_ms: result.latency_ms,
+    status: result.status,
+    failure_stage: result.failure_stage,
+    stages: result.stages,
+    observed_price: result.observed_price ? parseFloat(result.observed_price) : null,
+    error_message: result.error_message,
+    check_type: result.check_type,
+    trigger_source: triggerSource,
+  };
+  // DATA COMPOUNDS (S4): what the check ran against and which code judged it.
+  // config_version is stamped by a database trigger (migration 026).
+  const provenance = {
+    context: result.context ?? null,
+    runner_version: runnerVersion(),
+    spec_version: SPEC_VERSION,
+  };
+
+  let { data: check, error: insertErr } = await db
     .from('checks')
-    .insert({
-      service_id: svc.id,
-      user_id: svc.user_id,
-      started_at: result.started_at.toISOString(),
-      completed_at: result.completed_at?.toISOString() ?? null,
-      latency_ms: result.latency_ms,
-      status: result.status,
-      failure_stage: result.failure_stage,
-      stages: result.stages,
-      observed_price: result.observed_price ? parseFloat(result.observed_price) : null,
-      error_message: result.error_message,
-      check_type: result.check_type,
-      trigger_source: triggerSource,
-    })
+    .insert({ ...row, ...provenance })
     .select('id')
     .single();
+
+  // Before migration 026 the new columns don't exist: save the check without
+  // them rather than lose it
+  if (insertErr && isMissingColumn(insertErr)) {
+    console.warn('checks provenance columns missing (run migration 026); saving without them');
+    ({ data: check, error: insertErr } = await db.from('checks').insert(row).select('id').single());
+  }
 
   if (insertErr || !check) {
     console.error('Failed to insert check:', insertErr);

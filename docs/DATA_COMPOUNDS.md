@@ -155,3 +155,26 @@ In priority order; each is small and additive. Nothing here rewrites existing da
 
 Recommended first batch: **S1 + S2 + S3 + S4** — they close the irreversible-loss risks and
 make every new check reconstructable. S5–S9 follow.
+
+### Status — first batch approved Oct 5, 2026 ("approve S1–S4, keep endpoint evidence")
+
+Production check (Oct 5): `services.user_id`, `checks.user_id`, `incidents.user_id` cascaded
+from `profiles`, and `checks.service_id`, `incidents.service_id` cascaded from `services` — an
+account deletion erased everything by two paths. Database 17 MB, `checks` 4.9 MB / 4,819 rows.
+
+- **S1 — built (migration 026).** Those five foreign keys now `set null` (user) or `restrict`
+  (service). Deleting a profile runs `detach_account_evidence()`: the account's services are
+  soft-deleted (monitoring stops) and its typed test input / canary payload are removed from the
+  service and from every config version (the documented privacy exception to append-only);
+  checks, incidents and config history stay, with `user_id` null.
+- **S2 — template built, founder setup.** `ops/backup/` — weekly `pg_dump` of the public schema,
+  encrypted with the founder's age key, stored as releases in a private repo.
+- **S3 — built (migration 026).** `service_config_history` (versioned, `change_kind`
+  baseline/created/updated/deleted/restored/account_deleted, `changed_by`, `config`,
+  `config_hash`) written by a trigger on `services`; a baseline version for every existing
+  service.
+- **S4 — built.** `checks.config_version` (stamped by a trigger), `checks.context` (endpoint,
+  method, environment, input source + sha256 + size, schema hash, price limits — never the raw
+  input), `checks.runner_version` (Vercel git SHA) and `checks.spec_version`. The availability
+  stage also records `probe_method`. If 026 hasn't run, checks are saved without these fields
+  rather than lost.

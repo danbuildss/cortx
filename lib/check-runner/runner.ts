@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { StageError, validateAndResolveUrl } from './ssrf';
 import { fetchEndpoint, RESPONSE_BODY_MAX_BYTES, type CheckedFetchInit } from './fetch-endpoint';
+import { buildCheckContext } from './context';
 import { executePayment, type SignedPayment } from './payment';
 import { classifyStatus, isCortxSidePaymentFailure } from './classify';
 import type { ServiceConfig, CanaryConfig, CheckResult, StageResult, StageName } from './types';
@@ -108,6 +109,23 @@ function notReached(stage: StageName): StageResult {
 }
 
 export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> {
+  const trace: { method: string | null } = { method: null };
+  const result = await runFullCheckInner(config, trace);
+  return {
+    ...result,
+    context: buildCheckContext({
+      endpoint_url: config.endpoint_url,
+      method: trace.method,
+      environment: config.environment,
+      test_input: config.test_input,
+      expected_schema: config.expected_schema,
+      max_price: config.max_price,
+      expected_price: config.expected_price,
+    }),
+  };
+}
+
+async function runFullCheckInner(config: ServiceConfig, trace: { method: string | null }): Promise<CheckResult> {
   const started_at = new Date();
   const stages: StageResult[] = [];
   let failure_stage: StageName | null = null;
@@ -203,12 +221,14 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     }
 
     const d3 = Math.round(performance.now() - t3);
+    trace.method = probeMethod;
 
     if (response402.status !== 402) {
       fail(stageAvail, 'UNEXPECTED_STATUS', {
         http_status: response402.status,
         response_time_ms: d3,
         expected: 402,
+        probe_method: probeMethod,
       }, d3);
       markRemaining();
       return buildResult(config.id, started_at, stages, failure_stage, observed_price, 'failed');
@@ -220,6 +240,7 @@ export async function runFullCheck(config: ServiceConfig): Promise<CheckResult> 
     stages.push(makeStage(stageAvail, true, d3, {
       http_status: 402,
       response_time_ms: d3,
+      probe_method: probeMethod,
       response_headers: availHeaders,
     }));
 

@@ -20,6 +20,7 @@
 
 import { StageError, validateAndResolveUrl } from './ssrf';
 import { fetchEndpoint, RESPONSE_BODY_MAX_BYTES, type CheckedFetchInit } from './fetch-endpoint';
+import { buildCheckContext, type CheckContext } from './context';
 import { assertSupportedMethod, getCheckAccount, resolveUsdcAsset, signExactAuthorization } from './payment';
 import {
   atomicAmount,
@@ -74,6 +75,8 @@ export type ReadinessResult = {
   verify_invalid_reason: string | null;
   authorization_ttl_seconds: number | null;
   error_message: string | null;
+  /** What the check ran against (DATA COMPOUNDS S4) */
+  context?: CheckContext;
 };
 
 export type ReadinessConfig = {
@@ -194,6 +197,7 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
     failure_stage = s;
   };
 
+  let usedMethod: string | null = null;
   const done = (status: ReadinessStatus, error_message: string | null = null): ReadinessResult => {
     markRemaining();
     return {
@@ -212,6 +216,13 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
       verify_invalid_reason,
       authorization_ttl_seconds,
       error_message: error_message ? redactKey(error_message) : null,
+      context: buildCheckContext({
+        endpoint_url: config.endpoint_url,
+        method: usedMethod,
+        environment: config.environment,
+        test_input: config.test_input,
+        max_price: config.max_price,
+      }),
     };
   };
 
@@ -251,8 +262,9 @@ export async function runReadinessCheck(config: ReadinessConfig): Promise<Readin
     }
 
     const d1 = Date.now() - t1;
+    usedMethod = probeMethod;
     if (response402.status !== 402) {
-      fail(stageAvail, 'UNEXPECTED_STATUS', { http_status: response402.status, expected: 402 }, d1);
+      fail(stageAvail, 'UNEXPECTED_STATUS', { http_status: response402.status, expected: 402, probe_method: probeMethod }, d1);
       return done('not_ready');
     }
     pass(stageAvail, d1, { http_status: 402, response_time_ms: d1, probe_method: probeMethod });
@@ -439,6 +451,7 @@ export function readinessToCheckResult(r: ReadinessResult): CheckResult | null {
     observed_price: null,
     error_message: r.error_message,
     check_type: 'readiness',
+    context: r.context,
   };
 }
 
