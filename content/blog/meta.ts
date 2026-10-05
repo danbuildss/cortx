@@ -1,5 +1,13 @@
 export const BLOG_META = [
   {
+    slug: 'measuring-x402-reliability',
+    title: 'What 4,500+ x402 checks taught us about measuring reliability',
+    date: '2026-10-06',
+    excerpt:
+      'We found bugs in our own monitor, adapted to x402 V2, corrected historical data, and changed what CORTX considers a failure.',
+    readTime: '7 min read',
+  },
+  {
     slug: 'why-x402-needs-end-to-end-monitoring',
     title: 'Why x402 services need end-to-end monitoring, not just uptime checks',
     date: '2026-08-23',
