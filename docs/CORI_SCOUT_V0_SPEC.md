@@ -308,7 +308,7 @@ VPS access: SSH keys only, no root login, user `cori` without sudo. The repo is 
 ## 16. SSRF / network protections
 See D. Two layers:
 - **in code:** an allow-list of addresses checked at connect time, https only, port 443, re-validated redirects, caps
-- **on the server:** `ufw` denies all incoming except SSH; outbound allows 443 (web), 53 (DNS), 123 (time) and 🔧 5432/6543 to the Supabase host only (G11)
+- **on the server:** `ufw` denies all incoming except SSH. Outbound is denied by default, except 53 (DNS), 123 (time), 67/udp (DHCP), 80 (Ubuntu mirrors), 443 (web) and 5432/6543 (Supabase Postgres, G11). Private, shared and link-local ranges are refused before any allow rule. Postgres isn't pinned to Supabase's IPs because they change (a Phase D deviation from v2, decided Oct 5); the code-level 443-only rule means probes can't reach those ports.
 
 Cloud metadata (`169.254.169.254`) is blocked in code, and isn't reachable as a web target through the firewall either.
 
@@ -347,7 +347,11 @@ See H. Today the suite runs 116 tests (115 pass, 1 skipped: the real-Postgres te
 
 ## 24. Deployment (Phase D)
 1. **You:** create the Hetzner project "CORTX" and a small server (shared vCPU, 2 vCPU / 4 GB, Ubuntu 24.04), in the region nearest the Supabase project. Add your SSH key.
-2. **Me:** `ops/cori/setup.sh` (users, firewall, fail2ban, unattended-upgrades, Node 22, journald cap), `ops/cori/cori.service`, and `ops/cori/deploy.sh <git-sha>` (pull → `npm ci` → `npm run build:cori` → restart).
+2. **Me:** these files, all built Oct 5:
+   - `ops/cori/setup.sh`: admin user `cortx` with your key, root/password SSH off, firewall, fail2ban, unattended-upgrades, Node 22 from nodejs.org with checksum verified, user `cori`, read-only clone, journald cap
+   - `ops/cori/cori.service` and `ops/cori/cori-dryrun.service`
+   - `ops/cori/deploy.sh [<git-sha>]`: fetch → `npm ci --ignore-scripts` → `npm run test:cori` → `npm run build:cori` → restart; a failed test deploys nothing
+   - `ops/cori/README.md`: the founder's step-by-step guide
 3. **systemd hardening:**
    - `Restart=always`, `RestartSec=10`, `TimeoutStopSec=60`
    - `MemoryMax=512M`, `CPUQuota=50%`, `TasksMax=64`
@@ -355,7 +359,7 @@ See H. Today the suite runs 116 tests (115 pass, 1 skipped: the real-Postgres te
    - `CapabilityBoundingSet=` (empty), `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX`
    - `EnvironmentFile=/etc/cori/cori.env`
 4. **You:** set the `cori_agent` password in the Supabase SQL editor (`alter role cori_agent with login password '…'`) and paste it into `/etc/cori/cori.env` on the server. It never goes in chat.
-5. **Dry run:** `CORI_DRY_RUN=1 --once`. We look at the counts and the live Bazaar fields together. If a field name differs, I fix the parser first.
+5. **Dry run:** `systemctl start cori-dryrun`, a oneshot unit that forces `CORI_DRY_RUN=1` on its command line, so nothing in the env file can turn it off. We look at the counts and the live Bazaar fields together. If a field name differs, I fix the parser first.
 6. **Live:** `systemctl enable --now cori`. The watchdog and `/admin/cori` turn green.
 
 ## 25. Rollback
@@ -373,7 +377,7 @@ See H. Today the suite runs 116 tests (115 pass, 1 skipped: the real-Postgres te
 | B | Scout process, pipeline, stores, tests | — | ✅ merged |
 | C | `/admin/cori`, review write-back, watchdog | — | ✅ merged |
 | **B2** | G1–G11: migration 027 (memory, no cascades), route templates, methods, POST body, port 443, pagination, disappeared sweep, version stamp, env refusal, bundle test, probe budget, stop signal | merge; run 027 | ✅ built (PR open) |
-| **D** | Server go-live: setup script, unit, deploy script; dry run → live | Hetzner project + server, role password, about an hour together | waiting |
+| **D** | Server go-live: setup script, unit, deploy script; dry run → live | Hetzner project + server, role password, about an hour together | scripts ✅ built (rehearsed: clean install with `--ignore-scripts`, Cori tests, build); server waiting on you |
 | **E** | Observe 1 week: review the queue, record real numbers in NOTES (listings, pass-on-paper, eligible, DB growth/day, pass duration) | review candidates | — |
 | next | Separate spec: **Observer V1** (baselines and change detection on the observations B2 starts collecting) | — | ⏳ |
 

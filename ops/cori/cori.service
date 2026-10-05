@@ -1,0 +1,51 @@
+# Cori — CORTX's autonomous reliability agent (Scout V0). Holds no wallet key.
+# Installed by ops/cori/setup.sh and ops/cori/deploy.sh. See ops/cori/README.md.
+[Unit]
+Description=Cori (CORTX reliability agent, Scout V0)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cori
+Group=cori
+WorkingDirectory=/opt/cori/app
+EnvironmentFile=/etc/cori/cori.env
+Environment=NODE_ENV=production
+ExecStart=/usr/local/bin/node /opt/cori/app/agent/cori/dist/cori.mjs
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=60
+SyslogIdentifier=cori
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+TasksMax=64
+
+# Hardening: Cori reads and writes nothing on disk, needs no privileges
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target

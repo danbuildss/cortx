@@ -1,0 +1,50 @@
+# Cori dry run: one read-only cycle (fetch, probe, classify; writes only dry:* run rows).
+# Start with: sudo systemctl start cori-dryrun && journalctl -u cori-dryrun -o cat
+[Unit]
+Description=Cori dry run (one read-only cycle: writes nothing but its run log)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cori
+Group=cori
+WorkingDirectory=/opt/cori/app
+EnvironmentFile=/etc/cori/cori.env
+Environment=NODE_ENV=production
+# Set on the command line so nothing in cori.env can turn the dry run off
+# (EnvironmentFile= would override an Environment= line)
+ExecStart=/usr/bin/env CORI_DRY_RUN=1 /usr/local/bin/node /opt/cori/app/agent/cori/dist/cori.mjs --once
+KillSignal=SIGTERM
+TimeoutStopSec=60
+TimeoutStartSec=2h
+SyslogIdentifier=cori-dryrun
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+TasksMax=64
+
+# Hardening: Cori reads and writes nothing on disk, needs no privileges
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
