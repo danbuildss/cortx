@@ -99,6 +99,9 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
             .post-body a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
             .post-body a:hover { color: var(--text-secondary); }
             .post-body code { font-family: var(--font-geist-mono); font-size: 13px; background: var(--bg-surface); border: 1px solid var(--border-subtle); padding: 2px 6px; border-radius: 4px; color: var(--text-primary); }
+            .post-body blockquote { margin: 0 0 32px; padding: 14px 18px; border-left: 3px solid var(--status-degraded); background: var(--bg-surface); border-radius: 0 6px 6px 0; }
+            .post-body blockquote p { margin: 0; font-size: 14px; line-height: 1.7; }
+            .post-body hr { border: none; border-top: 1px solid var(--border-subtle); margin: 40px 0 24px; }
           `}</style>
           <div className="post-body">
             <PostContent />

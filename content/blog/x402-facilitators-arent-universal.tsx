@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export const meta = {
   slug: 'x402-facilitators-arent-universal',
   title: "x402 facilitators aren't universal — and that's the hidden failure mode nobody talks about",
@@ -10,6 +12,20 @@ export const meta = {
 export default function Post() {
   return (
     <>
+      <blockquote>
+        <p>
+          <strong>Correction, October 6, 2026:</strong> two things in this post are out of date.
+          We no longer recommend falling back to <code>x402.org</code> when a service doesn&apos;t
+          publish its facilitator &mdash; the facilitator is the server&apos;s choice, so the honest
+          result is &ldquo;can&apos;t check&rdquo;, not &ldquo;not ready&rdquo;. And Bankr&apos;s
+          facilitator now requires authentication, so the readiness results below no longer apply
+          to those services. Details:{' '}
+          <Link href="/blog/measuring-x402-reliability">
+            What 4,500+ x402 checks taught us about measuring reliability
+          </Link>
+          .
+        </p>
+      </blockquote>
       <p>
         Most x402 monitoring stops at the wrong question.
       </p>
@@ -176,7 +192,7 @@ export default function Post() {
         . Issues and contributions welcome.
       </p>
       <p>
-        <a href="/signup">Monitor your x402 endpoint with CORTX →</a>
+        <Link href="/signup">Monitor your x402 endpoint with CORTX →</Link>
       </p>
     </>
   );
