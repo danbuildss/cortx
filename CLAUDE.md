@@ -8,6 +8,21 @@ At the start of every session — including after a context clear — read `NOTE
 
 ---
 
+## Permanent principle: DATA COMPOUNDS
+
+CORTX's accumulated reliability history is its moat — the open checker and spec can be copied, the history cannot. Every change must preserve it:
+
+- **Append, don't overwrite.** Observations, config and state changes are new rows/events; current-state columns are caches.
+- **Never hard-delete evidence** (no cascading deletes into checks, incidents or events; soft-delete and detach).
+- **Every check must be reconstructable on its own**: what was checked (URL, method, input reference, limits, schema), by which code (runner/spec version), what the service said (terms, headers, receipt), what we concluded.
+- **Corrections are additive** (record what changed and why; keep originals).
+- **Record "couldn't check"** as an observation, not silence.
+- **Keep evidence, not secrets or payloads**: hash user inputs, strip credential headers, never store signatures/keys, keep bodies to a preview + hash/shape.
+
+Read `docs/DATA_COMPOUNDS.md` before changing the data model, the check runners, persistence or any migration that updates/deletes existing rows.
+
+---
+
 ## gstack (REQUIRED — global install)
 
 **Before doing ANY work, verify gstack is installed:**

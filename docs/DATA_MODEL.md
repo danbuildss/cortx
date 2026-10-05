@@ -2,6 +2,13 @@
 
 All tables live in Supabase Postgres. Row-level security is enabled on every table. Users can only access rows where `user_id = auth.uid()`.
 
+> **DATA COMPOUNDS (permanent principle).** Historical evidence is CORTX's most valuable asset.
+> Tables that record observations (`checks`, `incidents`, `discovery_events`, …) are append-only
+> and must never lose rows to cascades or rewrites; current-state columns (`services.status`,
+> `discovered_services.classification`) are caches of that history. See
+> [`DATA_COMPOUNDS.md`](./DATA_COMPOUNDS.md) for the rules, the Oct 2026 audit and the known gaps
+> (cascading deletes from `profiles`, config overwritten in place, no runner version on checks).
+
 ---
 
 ## Table: `profiles`

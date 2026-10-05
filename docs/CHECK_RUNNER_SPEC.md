@@ -479,6 +479,16 @@ function classifyStatus(stages: StageResult[], latency_ms: number, config: Servi
 
 **Security:** Redaction runs before any DB write. Redaction uses a denylist of field name patterns (`private_key`, `secret`, `authorization`, `bearer`, `api_key`) and value patterns (base58 strings of key-like length).
 
+> **Status (Oct 2026 audit): not implemented as described.** `lib/check-runner/redact.ts` exists
+> but is not called; the runners only redact the wallet key from error text, and the
+> availability stage stores all 402 response headers. As written, its `0x`+64-hex pattern would
+> also erase transaction hashes. See `DATA_COMPOUNDS.md` (S5).
+
+**DATA COMPOUNDS:** a stored check must be reconstructable on its own — endpoint and config it
+ran with, method and input reference, runner and spec version, payment terms, receipt and
+conclusion. Never overwrite or delete stored checks; corrections are recorded, not rewritten.
+See [`DATA_COMPOUNDS.md`](./DATA_COMPOUNDS.md).
+
 ---
 
 ## Stage 14: Create or Resolve Incident

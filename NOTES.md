@@ -12,6 +12,21 @@ Stack: Next.js 16.3.0 (App Router), Supabase (Postgres + Auth + RLS), AJV (JSON 
 
 **Official domain: usecortx.dev**
 
+## Permanent principle: DATA COMPOUNDS (Oct 5, 2026)
+
+CORTX's historical observations are one of the most valuable things it owns. Preserve the lifecycle — **discovery → endpoint → check → payment terms → price → payment attempt → settlement → delivery → parsing/schema → evidence → incident → recovery → repeated behaviour → historical reliability** — and keep the underlying evidence and its changes over time, never just a current healthy/unhealthy state. **The open checker/spec can be copied; the accumulated real-world reliability history cannot.**
+
+Rules: append, don't overwrite · never hard-delete evidence · every check reconstructable on its own (what, with which config, by which code, what the service said, what we concluded) · corrections are additive · record "couldn't check" · keep evidence, not secrets or payloads · back the data up off-platform. Full audit and proposed changes: `docs/DATA_COMPOUNDS.md`.
+
+**Audit (Oct 5), headline findings — nothing changed yet:**
+- 🔥 Deleting a user account **cascades and deletes all their checks and incidents** (`user_id … on delete cascade`).
+- 🔥 No off-platform backup.
+- Editing a service **overwrites** URL / test input / schema / price limits and checks don't record what they ran with → old checks can't be reconstructed after an edit.
+- No runner/code version on checks; V1 payment terms, request method, healthy response headers, authorization nonce and readiness "unavailable" observations are not kept; service status/readiness history overwritten; data repairs (020, 022) rewrote rows in place.
+- `redact.ts` exists but isn't called (spec claims it is); all 402 response headers are stored unfiltered; as written it would also blank tx hashes.
+- No privacy policy page.
+- Proposed first batch (needs approval): S1 stop cascades, S2 off-platform backup, S3 config history trigger, S4 per-check context + runner version.
+
 ## Company Roadmap (canonical — last updated Aug 2026)
 
 ```
@@ -274,6 +289,7 @@ All app pages have `loading.tsx` skeleton screens (no more blank screens during 
 
 | Date | Decision | Reasoning |
 |------|----------|-----------|
+| 2026-10-05 | **DATA COMPOUNDS** — preserve evidence and its history; append, never overwrite or hard-delete | The checker/spec is open and copyable; the accumulated real-world reliability history is the moat (`docs/DATA_COMPOUNDS.md`) |
 | 2026-08-05 | Base **mainnet** only, real USDC | Test with real stakes — testnet doesn't reflect production reliability |
 | 2026-08-05 | x402/client npm package for payment signing | Coinbase's reference client handles EIP-712 domain correctly |
 | 2026-08-05 | cron-job.org instead of Vercel cron | Vercel Hobby plan only allows daily crons; cron-job.org gives per-minute scheduling free |
