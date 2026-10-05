@@ -132,6 +132,16 @@ test('V1 service: passes, every stage named correctly, settlement confirmed', as
   assert.equal(received['v1-ok'].payload.x402Version, 1);
 });
 
+test('every check records what it ran against (DATA COMPOUNDS)', async () => {
+  const r = await run('v1-ok');
+  assert.equal(stage(r, 'availability').evidence?.probe_method, 'POST');
+  assert.equal(r.context?.endpoint_url, `${base}/v1-ok`);
+  assert.equal(r.context?.method, 'POST');
+  assert.equal(r.context?.input_source, 'none');
+  assert.equal(r.context?.max_price, '0.10');
+  assert.match(r.context?.schema_hash ?? '', /^[0-9a-f]{64}$/);
+});
+
 test('V2 service: pays with PAYMENT-SIGNATURE, valid EIP-3009 signature, settlement confirmed', async () => {
   const r = await run('v2-ok');
   assert.equal(r.status, 'passed', JSON.stringify(r.stages));

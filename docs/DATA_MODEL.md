@@ -8,6 +8,11 @@ All tables live in Supabase Postgres. Row-level security is enabled on every tab
 > `discovered_services.classification`) are caches of that history. See
 > [`DATA_COMPOUNDS.md`](./DATA_COMPOUNDS.md) for the rules, the Oct 2026 audit and the known gaps
 > (cascading deletes from `profiles`, config overwritten in place, no runner version on checks).
+>
+> **Since migration 026:** account deletion detaches (`user_id` → null) instead of deleting
+> services/checks/incidents; services can't be hard-deleted while evidence exists; every config
+> change is a row in `service_config_history`; every check carries `config_version`, `context`,
+> `runner_version`, `spec_version`.
 
 ---
 

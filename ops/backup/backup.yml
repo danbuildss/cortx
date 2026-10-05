@@ -1,0 +1,54 @@
+# CORTX weekly database backup — TEMPLATE.
+# Copy this file to .github/workflows/backup.yml in a PRIVATE repo
+# (e.g. danbuildss/cortx-backups). Do not enable it in the public cortx repo.
+#
+# Needs two secrets in that private repo (Settings → Secrets and variables → Actions):
+#   CORTX_DATABASE_URL           Supabase "Session pooler" connection string (with the DB password)
+#   CORTX_BACKUP_AGE_PUBLIC_KEY  your age public key (starts with "age1…")
+#
+# Each run stores ONE encrypted file as a GitHub release. Only the holder of the
+# matching age private key can read it — GitHub, and anyone else, sees only ciphertext.
+name: CORTX database backup
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'   # Mondays 03:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Dump the public schema (checks, incidents, services, history…)
+        env:
+          DATABASE_URL: ${{ secrets.CORTX_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          docker run --rm -e DATABASE_URL postgres:17 \
+            sh -c 'pg_dump "$DATABASE_URL" --schema=public --format=custom --no-owner --no-privileges' > cortx.dump
+          test -s cortx.dump
+          ls -lh cortx.dump
+
+      - name: Encrypt with your age public key
+        env:
+          AGE_RECIPIENT: ${{ secrets.CORTX_BACKUP_AGE_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq age
+          out="cortx-$(date -u +%F).dump.age"
+          age -r "$AGE_RECIPIENT" -o "$out" cortx.dump
+          shred -u cortx.dump || rm -f cortx.dump
+          echo "FILE=$out" >> "$GITHUB_ENV"
+
+      - name: Keep it as a release (permanent)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="backup-$(date -u +%F)"
+          gh release create "$tag" "$FILE" --repo "$GITHUB_REPOSITORY" \
+            --title "$tag" --notes "Encrypted pg_dump of the CORTX public schema."

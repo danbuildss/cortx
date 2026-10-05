@@ -1,6 +1,7 @@
 import type { CheckResult } from './types';
 import { fetchEndpoint } from './fetch-endpoint';
 import { StageError } from './ssrf';
+import { buildCheckContext } from './context';
 
 const TIMEOUT_MS = 5_000; // per request; HEAD then GET stays within the old 10 s
 // Codes that mean CORTX won't call this address at all (not a HEAD problem)
@@ -15,6 +16,7 @@ export async function runLightweightCheck(
   try {
     let status: number;
     let latency_ms: number;
+    let method = 'HEAD';
 
     try {
       const t0 = Date.now();
@@ -25,6 +27,7 @@ export async function runLightweightCheck(
       // A refused address is final; anything else may just mean HEAD isn't supported
       if (err instanceof StageError && REFUSED.has(err.code)) throw err;
       const t0 = Date.now();
+      method = 'GET';
       const res = await fetchEndpoint(endpointUrl, { method: 'GET' }, TIMEOUT_MS);
       latency_ms = Date.now() - t0;
       status = res.status;
@@ -45,13 +48,14 @@ export async function runLightweightCheck(
           stage: 'availability',
           passed: reachable,
           duration_ms: latency_ms,
-          evidence: { http_status: status },
+          evidence: { http_status: status, method },
           error: reachable ? undefined : `HTTP ${status}`,
         },
       ],
       observed_price: null,
       error_message: null,
       check_type: 'lightweight',
+      context: buildCheckContext({ endpoint_url: endpointUrl, method }),
     };
   } catch (err) {
     const completed_at = new Date();
@@ -67,6 +71,7 @@ export async function runLightweightCheck(
       observed_price: null,
       error_message: msg,
       check_type: 'lightweight',
+      context: buildCheckContext({ endpoint_url: endpointUrl, method: null }),
     };
   }
 }
