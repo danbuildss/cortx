@@ -8,8 +8,11 @@
  *   resource, type, x402Version, accepts[], lastUpdated, description,
  *   mimeType, serviceName, tags[], iconUrl, extensions
  * Input metadata lives in extensions.bazaar (v2) or accepts[].outputSchema (v1).
+ * Dynamic routes carry extensions.bazaar.routeTemplate (e.g. /users/:userId),
+ * which is the catalog key (specs/extensions/bazaar.md).
  * Field names are validated leniently — confirm against live data on the first
- * dry run and tighten here.
+ * dry run and tighten here. Listing content is untrusted (the spec warns that
+ * catalogs can be poisoned): it is data, never instructions.
  */
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -58,31 +61,52 @@ const MAX_TAGS = 20;
 const MAX_TAG = 40;
 const MAX_METADATA_BYTES = 16 * 1024;
 const MAX_EXAMPLE_BYTES = 8 * 1024;
+const MAX_SNAPSHOT_BYTES = 16 * 1024;
+const MAX_TEMPLATE = 512;
 
 export type ListingInput = {
   method: 'GET' | 'POST' | 'OTHER';
+  /** The method as listed, upper-cased (GET, POST, HEAD, DELETE, PUT, PATCH, …) */
+  rawMethod: string;
   hasExample: boolean;
   /** GET: example query params; POST: example JSON body. Size-capped. */
   example: Record<string, unknown> | null;
 };
 
+// What Cori keeps of each listing version (discovery_listings)
+export type ListingSnapshot = {
+  resource: string;
+  x402Version: number | null;
+  sourceLastUpdated: string | null;
+  accepts: unknown[] | null;                       // null if over the cap
+  resourceMeta: Record<string, unknown> | null;
+  extensions: Record<string, unknown> | null;      // null if over the cap
+  itemBytes: number;
+};
+
 export type Listing = {
+  /** Identity: origin + routeTemplate for dynamic routes, else the canonical resource URL */
   canonicalUrl: string;
+  /** The concrete URL a probe calls (path params filled from the listing's example) */
+  probeUrl: string;
+  routeTemplate: string | null;
   resource: string;
   type: string;
   x402Version: number | null;
   serviceName: string | null;
   description: string | null;
   tags: string[];
-  lastUpdated: string | null;
+  lastUpdated: string | null;                // ISO string when parseable
   parsed: ParsedPaymentRequired | null;
   option: PaymentOption | null;       // the Base + USDC option CORTX would use
   priceUsdc: number | null;
   priceAtomic: string | null;
   facilitatorUrl: string | null;
+  payTo: string | null;
   input: ListingInput;
   metadata: Record<string, unknown> | null; // input/output info, capped
   listingHash: string;                       // detects listing changes
+  snapshot: ListingSnapshot;
 };
 
 export type ListingError = { ok: false; reason: 'invalid_item' | 'not_http' | 'invalid_url'; resource?: string };
@@ -122,7 +146,7 @@ export function extractInput(item: BazaarItem): { input: ListingInput; metadata:
     .find((x) => x != null) ?? null;
   const src = v2Input ?? v1Input;
 
-  const methodRaw = String(src?.method ?? 'GET').toUpperCase();
+  const methodRaw = String(src?.method ?? 'GET').toUpperCase().slice(0, 16);
   const method: ListingInput['method'] = methodRaw === 'GET' || methodRaw === 'POST' ? methodRaw : 'OTHER';
 
   let example: Record<string, unknown> | null = null;
@@ -136,9 +160,45 @@ export function extractInput(item: BazaarItem): { input: ListingInput; metadata:
 
   return {
     // GET needs no body: x402 middleware answers 402 before reading params
-    input: { method, hasExample: method === 'GET' || (method === 'POST' && example != null), example },
+    input: { method, rawMethod: methodRaw, hasExample: method === 'GET' || (method === 'POST' && example != null), example },
     metadata,
   };
+}
+
+/**
+ * routeTemplate validation, as the x402 bazaar spec requires: starts with "/",
+ * only safe path characters and :params, and after percent-decoding no ".."
+ * and no "://". Anything else is ignored (fall back to the concrete URL).
+ */
+export function validRouteTemplate(v: unknown): string | null {
+  if (typeof v !== 'string' || v.length === 0 || v.length > MAX_TEMPLATE) return null;
+  if (!/^\/[a-zA-Z0-9_/:.\-~%]+$/.test(v)) return null;
+  let decoded: string;
+  try { decoded = decodeURIComponent(v); } catch { return null; }
+  if (decoded.includes('..') || decoded.includes('://')) return null;
+  return v;
+}
+
+// Fill ":name" path segments from the listing's example pathParams
+function fillPathParams(url: string, params: Record<string, unknown> | null): string {
+  if (!params) return url;
+  const u = new URL(url);
+  u.pathname = u.pathname.split('/').map((seg) => {
+    if (!seg.startsWith(':')) return seg;
+    const v = params[seg.slice(1)];
+    return typeof v === 'string' || typeof v === 'number' ? encodeURIComponent(String(v)) : seg;
+  }).join('/');
+  return u.toString();
+}
+
+function capArray(v: unknown, maxBytes: number): unknown[] | null {
+  return Array.isArray(v) && Buffer.byteLength(JSON.stringify(v)) <= maxBytes ? v : null;
+}
+
+function isoOrNull(v: string | undefined): string | null {
+  if (!v) return null;
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
 export function parseBazaarItem(raw: unknown): Listing | ListingError {
@@ -149,8 +209,14 @@ export function parseBazaarItem(raw: unknown): Listing | ListingError {
   const type = (item.type ?? 'http').toLowerCase();
   if (type !== 'http') return { ok: false, reason: 'not_http', resource: item.resource };
 
-  const canonical = canonicalUrl(item.resource);
-  if (!canonical) return { ok: false, reason: 'invalid_url', resource: item.resource };
+  const concrete = canonicalUrl(item.resource);
+  if (!concrete) return { ok: false, reason: 'invalid_url', resource: item.resource };
+
+  const bazaar = asRecord(item.extensions?.bazaar);
+  const routeTemplate = validRouteTemplate(bazaar?.routeTemplate);
+  const identity = routeTemplate ? canonicalUrl(new URL(concrete).origin + routeTemplate) ?? concrete : concrete;
+  const pathParams = asRecord(asRecord(asRecord(bazaar?.info)?.input)?.pathParams);
+  const probeUrl = canonicalUrl(fillPathParams(concrete, pathParams)) ?? concrete;
 
   // Reuse the runner's parser: the listing's accepts[] is a PaymentRequired body
   const parsed = parsePaymentRequired(
@@ -161,26 +227,42 @@ export function parseBazaarItem(raw: unknown): Listing | ListingError {
   const price = option ? priceToUsdc(option) : null;
   const { input, metadata } = extractInput(item);
 
+  const resourceMeta = capJson({
+    serviceName: item.serviceName, description: item.description, tags: item.tags, mimeType: item.mimeType,
+  }, MAX_SNAPSHOT_BYTES);
+
   return {
-    canonicalUrl: canonical,
+    canonicalUrl: identity,
+    probeUrl,
+    routeTemplate,
     resource: item.resource,
     type,
     x402Version: item.x402Version ?? null,
     serviceName: clean(item.serviceName, MAX_NAME),
     description: clean(item.description, MAX_DESCRIPTION),
     tags: (item.tags ?? []).slice(0, MAX_TAGS).map((t) => clean(t, MAX_TAG)).filter((t): t is string => t != null),
-    lastUpdated: item.lastUpdated ?? null,
+    lastUpdated: isoOrNull(item.lastUpdated),
     parsed,
     option,
     priceUsdc: price?.usdc ?? null,
     priceAtomic: option?.amount ?? null,
     facilitatorUrl: parsed && option ? findFacilitatorUrl(parsed, option) : null,
+    payTo: (option ?? parsed?.options[0])?.payTo || null,
     input,
     metadata,
     listingHash: createHash('sha256')
       .update(stableStringify({ accepts: item.accepts ?? [], serviceName: item.serviceName, description: item.description, tags: item.tags, extensions: item.extensions }))
       .digest('hex')
       .slice(0, 32),
+    snapshot: {
+      resource: item.resource.slice(0, 2048),
+      x402Version: item.x402Version ?? null,
+      sourceLastUpdated: isoOrNull(item.lastUpdated),
+      accepts: capArray(item.accepts ?? [], MAX_SNAPSHOT_BYTES),
+      resourceMeta,
+      extensions: capJson(item.extensions, MAX_SNAPSHOT_BYTES),
+      itemBytes: Buffer.byteLength(JSON.stringify(raw)),
+    },
   };
 }
 

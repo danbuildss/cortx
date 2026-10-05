@@ -39,6 +39,7 @@ before(async () => {
       if (p === '/402') { res.writeHead(402, { 'payment-required': 'abc', 'content-type': 'application/json' }); return res.end('{"accepts":[]}'); }
       if (p === '/to-private') { res.writeHead(302, { location: url('rebind.test', '/402') }); return res.end(); }
       if (p === '/to-http') { res.writeHead(302, { location: 'http://good.test/402' }); return res.end(); }
+      if (p === '/to-other-port') { res.writeHead(302, { location: 'https://good.test:8443/402' }); return res.end(); }
       if (p === '/loop') { res.writeHead(302, { location: '/loop' }); return res.end(); }
       if (p === '/post-redirect') { res.writeHead(307, { location: '/402' }); return res.end(); }
       if (p === '/big') { res.writeHead(200); return res.end('x'.repeat(200_000)); }
@@ -110,4 +111,13 @@ test('body cap and timeout', async () => {
 
 test('unknown host → UNREACHABLE', async () => {
   assert.equal(await code(safeFetch(url('nowhere.test', '/'), opts)), 'UNREACHABLE');
+});
+
+test('allowedPorts: only listed ports, on every redirect hop', async () => {
+  const before = hits.length;
+  assert.equal(await code(safeFetch('https://good.test:8443/402', { ...opts, allowedPorts: [443, port] })), 'BLOCKED_PORT');
+  assert.equal(hits.length, before, 'refused before connecting');
+  assert.equal(await code(safeFetch(url('good.test', '/402'), { ...opts, allowedPorts: [443] })), 'BLOCKED_PORT');
+  assert.equal(await code(safeFetch(url('good.test', '/402'), { ...opts, allowedPorts: [443, port] })), 'OK');
+  assert.equal(await code(safeFetch(url('good.test', '/to-other-port'), { ...opts, allowedPorts: [443, port] })), 'BLOCKED_PORT');
 });

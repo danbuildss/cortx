@@ -29,6 +29,8 @@ export type SafeFetchOptions = {
   timeoutMs?: number;       // whole request incl. redirects (default 10s)
   maxBytes?: number;        // response body cap (default 64 KB)
   maxRedirects?: number;    // default 2
+  /** If set, only these ports are allowed (every redirect hop included). Cori: [443]. */
+  allowedPorts?: readonly number[];
   // Test seams — production code never sets these
   resolver?: typeof dnsLookup;
   isBlockedAddress?: (address: string) => boolean;
@@ -46,7 +48,7 @@ export type SafeFetchResponse = {
 
 type LookupCallback = (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void;
 
-function assertSafeUrl(raw: string, isBlocked: (a: string) => boolean): URL {
+function assertSafeUrl(raw: string, isBlocked: (a: string) => boolean, allowedPorts?: readonly number[]): URL {
   let url: URL;
   try {
     url = new URL(raw);
@@ -57,6 +59,7 @@ function assertSafeUrl(raw: string, isBlocked: (a: string) => boolean): URL {
   if (url.username || url.password) throw new SafeFetchError('CREDENTIALS_IN_URL', 'URLs with credentials are refused');
   const port = url.port ? Number(url.port) : 443;
   if (BLOCKED_PORTS.has(port)) throw new SafeFetchError('BLOCKED_PORT', `Port ${port} is blocked`);
+  if (allowedPorts && !allowedPorts.includes(port)) throw new SafeFetchError('BLOCKED_PORT', `Port ${port} is not allowed`);
   // IP literals skip DNS lookup entirely, so check them here
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (isIP(host) && isBlocked(host)) throw new SafeFetchError('SSRF_BLOCKED', `Address ${host} is not public`);
@@ -140,7 +143,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
   const started = Date.now();
 
   try {
-    let url = assertSafeUrl(rawUrl, isBlocked);
+    let url = assertSafeUrl(rawUrl, isBlocked, options.allowedPorts);
     let hopOpts = opts;
     for (let redirects = 0; ; redirects++) {
       const res = await once(url, hopOpts, controller.signal, isBlocked);
@@ -148,7 +151,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
       if (res.status >= 300 && res.status < 400 && location) {
         if (redirects >= maxRedirects) throw new SafeFetchError('TOO_MANY_REDIRECTS', `More than ${maxRedirects} redirects`);
         // Each hop is re-validated (https only, public address, allowed port)
-        url = assertSafeUrl(new URL(location, url).toString(), isBlocked);
+        url = assertSafeUrl(new URL(location, url).toString(), isBlocked, options.allowedPorts);
         // Never replay a body to a redirect target
         hopOpts = { ...opts, method: 'GET', body: undefined };
         continue;

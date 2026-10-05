@@ -1,6 +1,6 @@
 // Runs the Scout pipeline against real Postgres, connected as the
 // least-privilege `cori_agent` role — proving Cori can do its whole job with
-// only the grants from migrations 023/024.
+// only the grants from migrations 023/024/027.
 //
 // Skipped unless CORI_TEST_ADMIN_DATABASE_URL points at a disposable Postgres
 // superuser connection (it creates and drops its own database), e.g.
@@ -55,7 +55,8 @@ before(async () => {
   const dbUrl = new URL(ADMIN_URL); dbUrl.pathname = `/${DB}`;
   dbAdmin = postgres(dbUrl.toString(), { onnotice: () => {} });
   await dbAdmin.unsafe(BASELINE);
-  for (const m of ['023_cori_scout.sql', '024_fix_endpoint_submissions_columns.sql']) {
+  for (const m of ['023_cori_scout.sql', '024_fix_endpoint_submissions_columns.sql', '027_cori_memory.sql', '027_cori_memory.sql']) {
+    // 027 twice: it must be safe to re-run
     await dbAdmin.unsafe(readFileSync(new URL(`../../supabase/migrations/${m}`, import.meta.url), 'utf8'));
   }
   await dbAdmin.unsafe(`alter role cori_agent with login password 'integration-test-only'`);
@@ -77,8 +78,8 @@ after(async () => {
 test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL && 'set CORI_TEST_ADMIN_DATABASE_URL' }, async () => {
   eco.items = standardListings(eco);
   const deps: Deps = {
-    store: new PgStore(cori),
-    config: defaultConfig({ bazaarPageLimit: 5, perHostMinIntervalMs: 0 }),
+    store: new PgStore(cori, { version: 'it-version' }),
+    config: defaultConfig({ bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port], version: 'it-version' }),
     log: silentLogger,
     limiter: new HostLimiter(0, 1000),
     fetchOptions: eco.fetchOptions,
@@ -119,6 +120,29 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   assert.equal(events, 12);
   const runs = await dbAdmin`select kind, ok from public.cori_runs order by id`;
   assert.ok(runs.some((r) => r.kind === 'discover:cdp_bazaar' && r.ok === true));
+
+  // Memory (027): every probe and every listing version kept, stamped with the version
+  const [{ obs, probes }] = await dbAdmin`
+    select (select count(*)::int from public.discovery_observations) as obs,
+           (select coalesce(sum((stats->>'probed')::int), 0)::int from public.cori_runs where kind = 'probe') as probes`;
+  assert.equal(obs, probes, 'one observation per probe');
+  const [v2obs] = await dbAdmin`
+    select o.outcome, o.method, o.price_atomic::text as price_atomic, o.pay_to, o.cori_version
+    from public.discovery_observations o join public.discovered_services s on s.id = o.discovered_service_id
+    where s.service_name = 'v2-get' order by o.id limit 1`;
+  assert.deepEqual({ ...v2obs }, { outcome: 'ok', method: 'GET', price_atomic: '2000', pay_to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C', cori_version: 'it-version' });
+  const [{ listings }] = await dbAdmin`select count(*)::int as listings from public.discovery_listings`;
+  assert.equal(listings, 12, 'second pass, same content: no new versions');
+  assert.ok(runs.length > 0);
+  const [{ stamped }] = await dbAdmin`select count(*)::int as stamped from public.cori_runs where cori_version = 'it-version'`;
+  assert.equal(stamped, runs.length, 'every run row carries the Cori version');
+
+  // History is append-only for Cori, and can't be cascaded away
+  await assert.rejects(cori`update public.discovery_observations set outcome = 'ok'`, /permission denied/);
+  await assert.rejects(cori`delete from public.discovery_observations`, /permission denied/);
+  await assert.rejects(cori`update public.discovery_events set event = 'queued'`, /permission denied/);
+  await assert.rejects(cori`update public.discovery_listings set accepts = null`, /permission denied/);
+  await assert.rejects(dbAdmin`delete from public.discovered_services`, /foreign key/, 'even an admin delete is refused while history exists');
 
   // The role still can't see what it shouldn't
   await assert.rejects(cori`select name from public.services`, /permission denied/);

@@ -39,7 +39,7 @@ test('rule order and every class', () => {
     ['too_expensive', {}, { priceUsdc: 0.06 }],
     ['pending', { probe: null }],
     ['needs_input', { input: { method: 'POST', hasExample: false } }],
-    ['needs_input', { input: { method: 'OTHER', hasExample: false } }],
+    ['unsupported_method', { input: { method: 'OTHER', rawMethod: 'DELETE', hasExample: false } }],
     ['eligible', { input: { method: 'POST', hasExample: true } }],
     ['eligible', {}, { network: 'base', asset: 'USDC', transferMethod: 'eip3009' }],
     ['eligible', {}, { priceUsdc: 0.05 }], // exactly at the cap
@@ -57,4 +57,11 @@ test('reasons explain the decision', () => {
   assert.deepEqual(run({}, { priceUsdc: 2 }).reasons, ['network:base', 'asset:usdc', 'scheme:exact', 'price:2>0.05']);
   assert.ok(run({ input: { method: 'POST', hasExample: false } }).reasons.includes('input:post_without_example'));
   assert.ok(run({}, { facilitatorPublished: true }).reasons.includes('facilitator:published'));
+});
+
+test('unsupported methods are named, after the already-known checks', () => {
+  const r = run({ input: { method: 'OTHER', rawMethod: 'DELETE', hasExample: false } });
+  assert.deepEqual(r.reasons, ['method:delete']);
+  assert.equal(run({ linked: 'monitored', input: { method: 'OTHER', rawMethod: 'PUT', hasExample: false } }).classification, 'already_monitored');
+  assert.equal(QUEUEABLE.has('unsupported_method'), false);
 });

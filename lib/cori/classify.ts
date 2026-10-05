@@ -21,6 +21,7 @@ export type Classification =
   | 'unsupported_network'
   | 'unsupported_asset'
   | 'unsupported_scheme'
+  | 'unsupported_method' // HEAD / DELETE / PUT / PATCH: never probed, never sent
   | 'too_expensive'
   | 'needs_input'
   | 'eligible'
@@ -46,7 +47,7 @@ export type ClassifyInput = {
   probe?: 'ok' | 'unreachable' | 'not_x402' | 'invalid_terms' | null;
   /** From the probe when it succeeded, otherwise from the listing */
   terms: Terms | null;
-  input: { method: 'GET' | 'POST' | 'OTHER'; hasExample: boolean };
+  input: { method: 'GET' | 'POST' | 'OTHER'; rawMethod?: string; hasExample: boolean };
   maxPriceUsdc: number;
 };
 
@@ -61,6 +62,12 @@ export function classify(c: ClassifyInput): ClassifyResult {
   if (c.linked === 'monitored') { reasons.push('linked:service'); return done('already_monitored'); }
   if (c.linked === 'listed') { reasons.push('linked:registry'); return done('already_listed'); }
   if (c.linked === 'submitted') { reasons.push('linked:submission'); return done('already_submitted'); }
+
+  // Cori only ever sends GET and POST; other methods may change state
+  if (c.input.method === 'OTHER') {
+    reasons.push(`method:${(c.input.rawMethod ?? 'other').toLowerCase()}`);
+    return done('unsupported_method');
+  }
 
   if (c.probe === 'unreachable') { reasons.push('probe:unreachable'); return done('unreachable'); }
   if (c.probe === 'not_x402') { reasons.push('probe:no_402_terms'); return done('not_x402'); }

@@ -1,6 +1,7 @@
-// Free probe (spec §6): "does this URL answer with valid x402 payment terms?"
+// Free probe (spec §9): "does this URL answer with valid x402 payment terms?"
 // It can never pay: no payment headers, no signing, no wallet, no cookies or
-// auth. Only GET, plus POST with the Bazaar example body when GET didn't 402.
+// auth. Only GET, plus POST with an empty JSON body when GET didn't 402 —
+// never a body taken from a listing (third parties control listings).
 import { safeFetch, SafeFetchError, type SafeFetchOptions } from '../../lib/net/safe-fetch';
 import {
   findFacilitatorUrl,
@@ -12,16 +13,18 @@ import type { ProbeRecord } from './store';
 
 const BLOCKED_CODES = new Set(['SSRF_BLOCKED', 'NON_HTTPS', 'BLOCKED_PORT', 'CREDENTIALS_IN_URL', 'INVALID_URL']);
 const MAX_PROBE_BYTES = 64 * 1024;
-const MAX_POST_BODY_BYTES = 8 * 1024;
+// x402 middleware answers 402 before reading the body, so the body never needs content
+const POST_BODY = '{}';
 
 export type ProbeTarget = {
-  canonical_url: string;
+  /** Concrete URL to call */
+  url: string;
   http_method: string;
-  input_example: Record<string, unknown> | null;
 };
 
 export type ProbeDeps = {
   userAgent: string;
+  allowedPorts?: readonly number[];
   fetchOptions?: SafeFetchOptions; // test seams only
 };
 
@@ -37,28 +40,29 @@ export function probeHeaders(userAgent: string, json = false): Record<string, st
 function record(partial: Partial<ProbeRecord> & Pick<ProbeRecord, 'outcome'>): ProbeRecord {
   return {
     at: new Date().toISOString(),
-    http_status: null, latency_ms: null, error: null, terms_source: null, x402_version: null,
-    network: null, asset: null, scheme: null, transfer_method: null, price_usdc: null,
-    facilitator_published: false,
+    method: null, http_status: null, latency_ms: null, error: null, terms_source: null, x402_version: null,
+    network: null, asset: null, scheme: null, transfer_method: null, price_atomic: null, price_usdc: null,
+    pay_to: null, facilitator_published: false,
     ...partial,
   };
 }
 
 export async function probe(target: ProbeTarget, deps: ProbeDeps): Promise<ProbeRecord> {
-  const base = { timeoutMs: 10_000, maxBytes: MAX_PROBE_BYTES, maxRedirects: 2, ...deps.fetchOptions };
+  const base = { timeoutMs: 10_000, maxBytes: MAX_PROBE_BYTES, maxRedirects: 2, allowedPorts: deps.allowedPorts, ...deps.fetchOptions };
   let res;
+  let method: 'GET' | 'POST' = 'GET';
   try {
-    res = await safeFetch(target.canonical_url, { ...base, method: 'GET', headers: probeHeaders(deps.userAgent) });
-    const body = target.input_example ? JSON.stringify(target.input_example) : null;
-    if (res.status !== 402 && target.http_method === 'POST' && body && Buffer.byteLength(body) <= MAX_POST_BODY_BYTES) {
-      res = await safeFetch(target.canonical_url, { ...base, method: 'POST', headers: probeHeaders(deps.userAgent, true), body });
+    res = await safeFetch(target.url, { ...base, method: 'GET', headers: probeHeaders(deps.userAgent) });
+    if (res.status !== 402 && target.http_method === 'POST') {
+      method = 'POST';
+      res = await safeFetch(target.url, { ...base, method: 'POST', headers: probeHeaders(deps.userAgent, true), body: POST_BODY });
     }
   } catch (err) {
     const code = err instanceof SafeFetchError ? err.code : 'UNREACHABLE';
-    return record({ outcome: BLOCKED_CODES.has(code) ? 'blocked' : 'unreachable', error: code });
+    return record({ outcome: BLOCKED_CODES.has(code) ? 'blocked' : 'unreachable', method, error: code });
   }
 
-  const meta = { http_status: res.status, latency_ms: res.durationMs };
+  const meta = { method, http_status: res.status, latency_ms: res.durationMs };
   if (res.status >= 500) return record({ outcome: 'unreachable', ...meta, error: `HTTP_${res.status}` });
   if (res.status !== 402) return record({ outcome: 'not_x402', ...meta });
 
@@ -80,7 +84,9 @@ export async function probe(target: ProbeTarget, deps: ProbeDeps): Promise<Probe
     asset: option.asset,
     scheme: option.scheme,
     transfer_method: typeof transfer === 'string' ? transfer : null,
+    price_atomic: option.amount,
     price_usdc: priceToUsdc(option)?.usdc ?? null,
+    pay_to: option.payTo,
     facilitator_published: findFacilitatorUrl(parsed, option) != null,
   });
 }

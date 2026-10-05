@@ -37,7 +37,7 @@ test('V2 item: picks the Base USDC option, amount in atomic units, POST example 
   assert.equal(l.option?.network, 'eip155:8453');
   assert.equal(l.priceUsdc, 0.002);
   assert.equal(l.priceAtomic, '2000');
-  assert.deepEqual(l.input, { method: 'POST', hasExample: true, example: { city: 'Lagos' } });
+  assert.deepEqual(l.input, { method: 'POST', rawMethod: 'POST', hasExample: true, example: { city: 'Lagos' } });
   assert.equal(l.serviceName, 'Weather Forecast', 'control characters stripped');
   assert.equal(l.facilitatorUrl, null);
   assert.ok(l.metadata && 'info' in l.metadata);
@@ -48,7 +48,7 @@ test('V1 item: maxAmountRequired, published facilitator, GET with query example'
   assert.equal(l.option?.network, 'base');
   assert.equal(l.priceUsdc, 0.001);
   assert.equal(l.facilitatorUrl, 'https://api.bankr.bot/facilitator');
-  assert.deepEqual(l.input, { method: 'GET', hasExample: true, example: { symbol: 'BTC' } });
+  assert.deepEqual(l.input, { method: 'GET', rawMethod: 'GET', hasExample: true, example: { symbol: 'BTC' } });
 });
 
 test('POST without an example → hasExample false', () => {
@@ -95,4 +95,58 @@ test('page schema tolerates extra fields and missing pagination', () => {
   assert.ok(BazaarPageSchema.safeParse({ items: [], extra: 1 }).success);
   assert.ok(BazaarPageSchema.safeParse({ x402Version: 2, items: [v2Item], pagination: { limit: 100, offset: 0, total: 16170 } }).success);
   assert.equal(BazaarPageSchema.safeParse({ nope: [] }).success, false);
+});
+
+test('dynamic routes: identity is origin + routeTemplate; probe URL fills path params', () => {
+  const item = (id: string) => ({
+    ...v2Item,
+    resource: `https://api.users.example/users/${id}`,
+    extensions: { bazaar: { routeTemplate: '/users/:userId', info: { input: { type: 'http', method: 'GET', pathParams: { userId: id } } } } },
+  });
+  const a = parseBazaarItem(item('123')) as Listing;
+  const b = parseBazaarItem(item('456')) as Listing;
+  assert.equal(a.canonicalUrl, 'https://api.users.example/users/:userId');
+  assert.equal(a.canonicalUrl, b.canonicalUrl, 'one service per template');
+  assert.equal(a.routeTemplate, '/users/:userId');
+  assert.equal(a.probeUrl, 'https://api.users.example/users/123');
+
+  // Listed with the template itself as the path: filled from the example
+  const t = parseBazaarItem({ ...item('789'), resource: 'https://api.users.example/users/:userId' }) as Listing;
+  assert.equal(t.probeUrl, 'https://api.users.example/users/789');
+});
+
+test('route templates are validated as the bazaar spec requires', async () => {
+  const { validRouteTemplate } = await import('./bazaar.ts');
+  assert.equal(validRouteTemplate('/weather/:country/:city'), '/weather/:country/:city');
+  for (const bad of ['', 'users/:id', '/users/../admin', '/a/%2e%2e/b', '/x/http://evil.example', '/sp ace', '/%zz', 42, null]) {
+    assert.equal(validRouteTemplate(bad), null, String(bad));
+  }
+  // An invalid template is ignored: identity falls back to the concrete URL
+  const l = parseBazaarItem({ ...v2Item, extensions: { bazaar: { routeTemplate: '/../etc', info: { input: { type: 'http', method: 'GET' } } } } }) as Listing;
+  assert.equal(l.routeTemplate, null);
+  assert.equal(l.canonicalUrl, 'https://api.weather.example/forecast');
+});
+
+test('methods other than GET/POST are kept as listed (never probed)', () => {
+  for (const m of ['DELETE', 'put', 'PATCH', 'HEAD']) {
+    const l = parseBazaarItem({ ...v2Item, extensions: { bazaar: { info: { input: { type: 'http', method: m, body: {} } } } } }) as Listing;
+    assert.equal(l.input.method, 'OTHER');
+    assert.equal(l.input.rawMethod, m.toUpperCase());
+  }
+});
+
+test('listing snapshot: what Cori keeps of each version, capped', () => {
+  const l = parseBazaarItem(v2Item) as Listing;
+  assert.equal(l.payTo, '0x2222222222222222222222222222222222222222', 'raw pay-to of the Base option');
+  assert.equal(l.lastUpdated, '2026-09-27T10:00:00.000Z');
+  assert.equal(l.snapshot.resource, v2Item.resource, 'the URL exactly as listed');
+  assert.deepEqual(l.snapshot.accepts, v2Item.accepts);
+  assert.deepEqual(l.snapshot.extensions, v2Item.extensions);
+  assert.equal(l.snapshot.resourceMeta?.description, 'Hourly forecast');
+  assert.ok(l.snapshot.itemBytes > 100);
+
+  const big = parseBazaarItem({ ...v2Item, lastUpdated: 'not a date', extensions: { bazaar: { blob: 'z'.repeat(20_000) } } }) as Listing;
+  assert.equal(big.snapshot.extensions, null, 'oversized extensions dropped');
+  assert.ok(big.snapshot.itemBytes > 20_000, 'but the size is kept, so the drop is visible');
+  assert.equal(big.lastUpdated, null);
 });

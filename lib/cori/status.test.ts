@@ -90,3 +90,13 @@ test('watchdog state survives storage round-trips and bad values', () => {
   assert.equal(parseWatchdogState('not json'), null);
   assert.deepEqual(parseWatchdogState('{}'), { down: false, last_alert_at: null });
 });
+
+test('B2 reasons and class read in plain English', () => {
+  assert.deepEqual(explainReasons(['method:delete', 'blocked:port', 'gone:not_listed_7d']), [
+    'DELETE endpoint — Cori only checks GET and POST ✗',
+    'Blocked: not on port 443',
+    'Gone from sources for 7+ days',
+  ]);
+  assert.equal(CLASS_LABELS.unsupported_method, 'Unsupported HTTP method');
+  assert.ok(CLASS_ORDER.includes('unsupported_method'));
+});

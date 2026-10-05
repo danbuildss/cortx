@@ -1,6 +1,6 @@
 # Cori Scout V0 — Technical Spec (v2, re-audited against the canonical brief)
 
-**Status:** v2 PROPOSED Oct 5, 2026, **waiting for founder approval**. v1 was approved Sep 28 and is built (Phases A–C, merged #114–#117). Nothing is running yet (Phase D, the server, comes next).
+**Status:** v2 **APPROVED Oct 5, 2026** ("approve spec v2, all 4 recommendations"). v1 (Sep 28) is built and merged (Phases A–C, #114–#117). **Phase B2 built** (Oct 5, see the status at the end). Nothing is running yet: Phase D, the server, comes next.
 **Source of truth:** [`CORI_BRIEF.md`](CORI_BRIEF.md) (canonical brief, Oct 5) + [`DATA_COMPOUNDS.md`](DATA_COMPOUNDS.md).
 **Scope:** discovery only. Zero USDC. No public failure claims. No LLM.
 
@@ -30,7 +30,7 @@ I re-audited the built code against the brief. Most of it holds, but it falls sh
 
 Phase B2 is about one PR: migration `027`, about 300 lines of code and tests. It doesn't change Phases A–C or the admin pages.
 
-**Decisions I need from you** (my recommendation first):
+**Decisions (approved Oct 5, all four as recommended):**
 1. **Do B2 before go-live** (recommended, about a day), or go live now and add memory after. The cost of waiting: the first days of observations are lost for good.
 2. **Store the raw pay-to address** of discovered services (recommended). It's public on-chain data and the 402 response already shows it. The Investigator will need it to trace settlement. Today Cori keeps only a fingerprint (the earlier "no raw address in logs" rule was about logs).
 3. **POST probes never forward third-party bodies** (recommended, G5). Services that price by request body then land in `needs_input` for a human to look at.
@@ -372,7 +372,7 @@ See H. Today the suite runs 116 tests (115 pass, 1 skipped: the real-Postgres te
 | A | Groundwork: migration 023, role, safe fetch, normalize, classify | run 023 ✅ | ✅ merged |
 | B | Scout process, pipeline, stores, tests | — | ✅ merged |
 | C | `/admin/cori`, review write-back, watchdog | — | ✅ merged |
-| **B2** | G1–G11: migration 027 (memory, no cascades), route templates, methods, POST body, port 443, pagination, disappeared sweep, version stamp, env refusal, bundle test, probe budget, stop signal | approve this spec + 4 decisions; merge; run 027 | 🔧 proposed |
+| **B2** | G1–G11: migration 027 (memory, no cascades), route templates, methods, POST body, port 443, pagination, disappeared sweep, version stamp, env refusal, bundle test, probe budget, stop signal | merge; run 027 | ✅ built (PR open) |
 | **D** | Server go-live: setup script, unit, deploy script; dry run → live | Hetzner project + server, role password, about an hour together | waiting |
 | **E** | Observe 1 week: review the queue, record real numbers in NOTES (listings, pass-on-paper, eligible, DB growth/day, pass duration) | review candidates | — |
 | next | Separate spec: **Observer V1** (baselines and change detection on the observations B2 starts collecting) | — | ⏳ |
@@ -417,3 +417,35 @@ See B. Also not built because CORTX already has it: no new admin UI, alerting ch
 - **Sep 28 — Phase B built:** `agent/cori/` (Bazaar client, pipeline, probe, limiter, Postgres + memory stores, lock, dry run, `--once`, heartbeat). esbuild bundle. A failed source is retried after 30 min; idle ticks write no run rows; `unreachable` after 3 failures; rejected candidates aren't re-queued. 69 tests, including the fake-ecosystem pipeline and real Postgres as `cori_agent`.
 - **Sep 28 — Phase C built:** `/admin/cori` page plus sidebar health dot, candidate cards, approve/reject write-back, Telegram watchdog. 77 tests.
 - **Oct 5 — v2 (this document):** re-audited against the canonical brief (`CORI_BRIEF.md`) and DATA COMPOUNDS. Found G1–G11, proposed Phase B2, answered A–H, corrected the Bazaar listing assumption against the official x402 specs.
+
+## Phase B2 status (built Oct 5)
+
+- **`supabase/migrations/027_cori_memory.sql`** (additive, re-runnable; tested twice in a row on Postgres 16):
+  - `discovery_observations` and `discovery_listings`
+  - new columns `route_template`, `resource_url`, `pay_to`, `source_last_updated`, `disappeared_at` and `cori_runs.cori_version`
+  - class `unsupported_method`
+  - events and sources-seen changed from cascade to restrict
+  - `cori_agent`: insert-only on observations, no update on events, listings update `last_seen_at` only
+- **Parser** (`lib/cori/bazaar.ts`):
+  - `routeTemplate` validated as the bazaar spec requires
+  - identity = origin + template; probe URL filled from `pathParams`
+  - methods kept as listed
+  - listing snapshot (accepts / resource meta / extensions, 16 KB caps, item size kept)
+  - raw `payTo`
+  - `lastUpdated` as ISO
+- **Classifier:** `unsupported_method` (after the `already_*` checks); `blocked:port`.
+- **Probe:** GET, or POST `{}`, never a listing's body. Port allow-list on every redirect hop (`safeFetch` `allowedPorts`). Records method, atomic price and pay-to.
+- **Pipeline:**
+  - one observation per probe (failures included)
+  - a listing version only on content change (`listing_changed` carries from/to hash)
+  - identity and concrete URL both linked against CORTX records
+  - candidates queued with the concrete URL
+  - disappearance sweep after passes, only when every enabled source completed a full pass in the last 24 h; listing-only classes → `gone`; reappearance clears it
+  - global probe budget
+  - stop signal checked between probes
+  - `duration_ms` on runs
+- **Config:** `CORI_ALLOWED_PORTS` (443), `CORI_MAX_PROBES_PER_HOUR` (600), `CORI_BAZAAR_MAX_PAGES` 500, `CORI_VERSION`. Refuses to start if a `*PRIVATE_KEY*` / `*SERVICE_ROLE*` / `*WALLET*` / `MNEMONIC` / `SEED_PHRASE` variable is set.
+- **Build:** `agent/cori/build.mjs` stamps the git SHA as `cori_version`. A test asserts the bundle contains no viem / x402 client / CORTX payment, runner or readiness code.
+- **Tests:** suite 137 (136 pass, 1 skipped without a database). 21 new: parser, classifier, labels, port allow-list, POST body, observations, listing versions, port and method blocking, route templates, disappearance + reappearance, outage and multi-source guards, probe budget, shutdown, config, bundle. The real-Postgres test as `cori_agent` covers 027: observations = probes, versions only on change, every run stamped, history append-only for the role, and a delete with history is refused even for an admin.
+- **Smoke test:** the built bundle against Postgres 16 as `cori_agent` covers startup, the source failure being recorded with `cori_version`, the key-refusal exit, and SIGTERM stopping in ~0.2 s.
+- **Order for go-live:** run 027 **before** deploying this code (run rows now write `cori_version`).

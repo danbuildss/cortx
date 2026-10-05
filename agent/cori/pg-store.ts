@@ -3,8 +3,9 @@
 // role's grants: Cori's own tables, a few id/url columns for deduplication,
 // and inserting pending candidates into endpoint_submissions.
 import type { Sql } from 'postgres';
+import type { ListingSnapshot } from '../../lib/cori/bazaar';
 import type {
-  DiscoveryEvent, KnownRecords, NewService, NewSubmission, ServicePatch, ServiceRow, SourceRow, Store,
+  DiscoveryEvent, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow, SourceRow, Store,
 } from './store';
 
 const JSON_COLUMNS = new Set(['bazaar_metadata', 'input_example', 'last_probe']);
@@ -17,6 +18,7 @@ const PATCHABLE = new Set([
   'x402_version', 'network', 'asset', 'scheme', 'transfer_method', 'price_atomic', 'price_usdc',
   'pay_to_fingerprint', 'facilitator_url', 'listing_hash', 'last_probe_at', 'next_probe_at', 'probe_failures',
   'last_probe', 'classification', 'classification_reasons', 'linked_service_id', 'linked_seed_id', 'linked_submission_id',
+  'pay_to', 'route_template', 'resource_url', 'source_last_updated', 'disappeared_at',
 ]);
 
 type Row = Record<string, unknown>;
@@ -30,9 +32,12 @@ function toServiceRow(r: Row): ServiceRow {
 
 export class PgStore implements Store {
   private readonly sql: Sql;
+  private readonly version: string | null;
 
-  constructor(sql: Sql) {
+  /** `version`: the Cori build (git SHA) stamped on every run row */
+  constructor(sql: Sql, opts: { version?: string } = {}) {
     this.sql = sql;
+    this.version = opts.version ?? null;
   }
 
   // Encode values for the columns that need explicit types
@@ -113,6 +118,41 @@ export class PgStore implements Store {
       values (${serviceId}, ${event}, ${details ? this.sql.json(details as never) : null})`;
   }
 
+  async recordListing(serviceId: string, source: string, hash: string, snap: ListingSnapshot, at: Date) {
+    const json = (v: unknown) => (v == null ? null : this.sql.json(v as never));
+    const [r] = await this.sql`
+      insert into public.discovery_listings
+        (discovered_service_id, source, listing_hash, first_seen_at, last_seen_at, source_last_updated,
+         resource, x402_version, accepts, resource_meta, extensions, item_bytes)
+      values (${serviceId}, ${source}, ${hash}, ${at}, ${at}, ${snap.sourceLastUpdated},
+              ${snap.resource}, ${snap.x402Version}, ${json(snap.accepts)}, ${json(snap.resourceMeta)},
+              ${json(snap.extensions)}, ${snap.itemBytes})
+      on conflict (discovered_service_id, source, listing_hash) do update set last_seen_at = excluded.last_seen_at
+      returning (xmax = 0) as inserted`;
+    return { newVersion: Boolean(r.inserted) };
+  }
+
+  async addObservation(serviceId: string, o: Observation) {
+    await this.sql`
+      insert into public.discovery_observations
+        (discovered_service_id, at, probe_url, method, outcome, error_code, http_status, latency_ms, terms_source,
+         x402_version, network, asset, scheme, transfer_method, price_atomic, price_usdc, pay_to,
+         facilitator_published, cori_version)
+      values (${serviceId}, ${o.at}, ${o.probe_url}, ${o.method}, ${o.outcome}, ${o.error}, ${o.http_status},
+              ${o.latency_ms}, ${o.terms_source}, ${o.x402_version}, ${o.network}, ${o.asset}, ${o.scheme},
+              ${o.transfer_method}, ${o.price_atomic}, ${o.price_usdc}, ${o.pay_to}, ${o.facilitator_published},
+              ${o.cori_version})`;
+  }
+
+  async notSeenSince(cutoff: Date, limit: number) {
+    const rows = await this.sql`
+      select * from public.discovered_services
+      where disappeared_at is null and last_seen_at < ${cutoff}
+      order by last_seen_at
+      limit ${limit}`;
+    return rows.map(toServiceRow);
+  }
+
   async dueProbes(now: Date, limit: number) {
     const rows = await this.sql`
       select * from public.discovered_services
@@ -159,7 +199,7 @@ export class PgStore implements Store {
   }
 
   async startRun(kind: string) {
-    const [r] = await this.sql`insert into public.cori_runs (kind) values (${kind}) returning id`;
+    const [r] = await this.sql`insert into public.cori_runs (kind, cori_version) values (${kind}, ${this.version}) returning id`;
     return Number(r.id);
   }
 
