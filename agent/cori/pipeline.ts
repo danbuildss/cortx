@@ -12,7 +12,7 @@ import type { Logger } from './log';
 import { HostLimiter } from './limiter';
 import { probe } from './probe';
 import { fetchBazaarItems, type BazaarPassStats } from './sources/bazaar';
-import type { KnownRecords, ProbeRecord, ServicePatch, ServiceRow, SourceRow, Store } from './store';
+import type { IndexRow, KnownRecords, ProbeRecord, ServicePatch, ServiceRow, SourceRow, Store } from './store';
 
 export type Deps = {
   store: Store;
@@ -37,6 +37,8 @@ const SOURCE_RETRY_MS = 30 * 60_000;
 // The disappearance sweep only runs when every enabled source completed a full pass this recently
 const SWEEP_NEEDS_PASS_WITHIN_MS = 24 * HOUR;
 const SWEEP_BATCH = 500;
+// An unchanged listing only refreshes last_seen_at this often (disappearance works in days)
+const TOUCH_EVERY_MS = 20 * HOUR;
 
 // Classes decided from the listing alone never need a probe until the listing changes
 const NO_PROBE: ReadonlySet<Classification> = new Set([
@@ -129,7 +131,7 @@ function listingPatch(l: Listing): ServicePatch {
     service_name: l.serviceName,
     description: l.description,
     tags: l.tags,
-    bazaar_metadata: l.metadata,
+    // Bazaar metadata lives in discovery_listings (one copy per version); not duplicated here
     http_method: l.input.rawMethod,
     input_example: l.input.example,
     x402_version: l.x402Version,
@@ -174,8 +176,31 @@ function inputOf(row: Pick<ServiceRow, 'http_method' | 'input_example'>): Classi
 export type DiscoveryStats = BazaarPassStats & {
   invalid_items: number; skipped_non_http: number; new_services: number;
   changed_listings: number; new_listing_versions: number; reappeared: number; duplicates_in_pass: number;
+  unchanged: number; touched: number;
   classes: Record<string, number>;
 };
+
+const LINKED_CLASS = { monitored: 'already_monitored', listed: 'already_listed', submitted: 'already_submitted' } as const;
+
+/**
+ * Fast path: same listing content from the same source, still listed, and
+ * nothing around it changed (CORTX links, denylist, ports) — the stored
+ * classification still holds, so the item needs no writes at all.
+ */
+function isUnchanged(
+  known: IndexRow, l: Listing, sourceId: string, host: string, denylist: Set<string>, idx: LinkIndex, ports: readonly number[],
+): boolean {
+  if (known.listing_hash !== l.listingHash) return false;
+  if (!known.sources.includes(sourceId)) return false;
+  if (known.disappeared_at != null || known.classification === 'gone') return false;
+  if (denylist.has(host) || !portAllowed(l.probeUrl, ports)) return known.classification === 'blocked';
+  if (known.classification === 'blocked') return false;
+  const link = linkFor([l.canonicalUrl, l.probeUrl], known.id, idx);
+  if (link.patch.linked_service_id !== known.linked_service_id || link.patch.linked_seed_id !== known.linked_seed_id) return false;
+  const linkedClass = link.linked ? LINKED_CLASS[link.linked] : null;
+  const storedLinked = known.classification.startsWith('already_') ? known.classification : null;
+  return linkedClass === storedLinked;
+}
 
 export async function discoverSource(d: Deps, source: SourceRow): Promise<DiscoveryStats> {
   const { store, config } = d;
@@ -183,9 +208,13 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
   const at = nowOf(d);
   const idx = buildLinkIndex(await store.loadKnown());
   const denylist = await store.loadDenylist();
+  // One query for everything we already know; unchanged listings then cost no per-item queries (B3)
+  const index = await store.loadIndex();
+  const toTouch: string[] = [];
   const stats: DiscoveryStats = {
     pages: 0, items: 0, truncated: false, total: null,
     invalid_items: 0, skipped_non_http: 0, new_services: 0, changed_listings: 0, new_listing_versions: 0, reappeared: 0,
+    unchanged: 0, touched: 0,
     duplicates_in_pass: 0, classes: {},
   };
   const seenThisPass = new Set<string>();
@@ -210,6 +239,13 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     seenThisPass.add(l.canonicalUrl);
 
     const host = hostOf(l.canonicalUrl);
+    const known = index.get(l.canonicalUrl);
+    if (known && isUnchanged(known, l, source.id, host, denylist, idx, config.allowedPorts)) {
+      stats.unchanged++;
+      stats.classes[known.classification] = (stats.classes[known.classification] ?? 0) + 1;
+      if (at.getTime() - known.last_seen_at.getTime() >= TOUCH_EVERY_MS) toTouch.push(known.id);
+      continue;
+    }
     let row = await store.getByUrl(l.canonicalUrl);
     const isNew = row == null;
     if (!row) {
@@ -271,6 +307,8 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     stats.classes[result.classification] = (stats.classes[result.classification] ?? 0) + 1;
   }
 
+  if (toTouch.length > 0) await store.touchSeen(toTouch, source.id, at);
+  stats.touched = toTouch.length;
   await store.markSourceRun(source.id, at);
   log.info('discovery_pass_done', { ...stats });
   return stats;
@@ -368,7 +406,12 @@ export async function probeDue(d: Deps, limit = d.config.probeBatch): Promise<Pr
   const budget = d.limiter.globalRemaining();
   stats.budget_left = budget;
   if (budget === 0 || d.signal?.aborted) return stats;
-  const due = await store.dueProbes(nowOf(d), Math.min(limit, budget));
+  // Company-first (B3): a few rows per host per batch, hosts never probed first,
+  // hosts that used up today's checks skipped
+  const due = await store.dueProbes(nowOf(d), Math.min(limit, budget), {
+    perHost: config.probePerHostPerBatch,
+    excludeHosts: d.limiter.cappedHosts(),
+  });
   if (due.length === 0) return stats;
 
   const idx = buildLinkIndex(await store.loadKnown());
@@ -423,7 +466,11 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
   if (remaining === 0) return stats;
 
   const idx = buildLinkIndex(await store.loadKnown());
-  const candidates = await store.queueCandidates(remaining);
+  // At most queuePerHostPerDay new candidates per host per UTC day (B3: a fair review page)
+  const queuedToday = new Map<string, number>();
+  for (const h of await store.hostsQueuedSince(startOfUtcDay(at))) queuedToday.set(h, (queuedToday.get(h) ?? 0) + 1);
+  const full = [...queuedToday].filter(([, n]) => n >= config.queuePerHostPerDay).map(([h]) => h);
+  const candidates = await store.queueCandidates(remaining, { perHost: config.queuePerHostPerDay, excludeHosts: full });
   for (const row of candidates) {
     // Re-check against CORTX records right before queueing
     const link = linkFor([row.canonical_url, row.resource_url], row.id, idx);

@@ -1,7 +1,9 @@
 // Politeness (spec §9, §17): per host, at most one request at a time, every
-// `minIntervalMs`, and at most `maxPerHour` per rolling hour; across all hosts,
-// at most `globalMaxPerHour` per rolling hour.
+// `minIntervalMs`, at most `maxPerHour` per rolling hour and `maxPerDay` per
+// rolling day (B3: company-first — one big host can't take all the checks);
+// across all hosts, at most `globalMaxPerHour` per rolling hour.
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 
 export class HostLimiter {
   private last = new Map<string, number>();
@@ -11,14 +13,32 @@ export class HostLimiter {
 
   private readonly minIntervalMs: number;
   private readonly maxPerHour: number;
+  private readonly maxPerDay: number;
   private readonly globalMaxPerHour: number;
   private readonly now: () => number;
 
-  constructor(minIntervalMs: number, maxPerHour: number, opts: { globalMaxPerHour?: number; now?: () => number } = {}) {
+  constructor(minIntervalMs: number, maxPerHour: number, opts: { globalMaxPerHour?: number; maxPerDay?: number; now?: () => number } = {}) {
     this.minIntervalMs = minIntervalMs;
     this.maxPerHour = maxPerHour;
+    this.maxPerDay = opts.maxPerDay ?? Infinity;
     this.globalMaxPerHour = opts.globalMaxPerHour ?? Infinity;
     this.now = opts.now ?? Date.now;
+  }
+
+  private recentFor(host: string): number[] {
+    const dayAgo = this.now() - DAY;
+    const recent = (this.recent.get(host) ?? []).filter((x) => x > dayAgo);
+    this.recent.set(host, recent);
+    return recent;
+  }
+
+  /** Hosts that used up their hourly or daily allowance — skip them when picking work */
+  cappedHosts(): string[] {
+    const hourAgo = this.now() - HOUR;
+    return [...this.recent.keys()].filter((h) => {
+      const r = this.recentFor(h);
+      return r.length >= this.maxPerDay || r.filter((x) => x > hourAgo).length >= this.maxPerHour;
+    });
   }
 
   /** Probes still allowed in the current rolling hour, across all hosts */
@@ -36,9 +56,9 @@ export class HostLimiter {
   reserve(host: string): number {
     const t = this.now();
     const hourAgo = t - HOUR;
-    const recent = (this.recent.get(host) ?? []).filter((x) => x > hourAgo);
-    this.recent.set(host, recent);
-    if (recent.length >= this.maxPerHour || this.globalRemaining() === 0) return -1;
+    const recent = this.recentFor(host);
+    const lastHour = recent.filter((x) => x > hourAgo).length;
+    if (lastHour >= this.maxPerHour || recent.length >= this.maxPerDay || this.globalRemaining() === 0) return -1;
     if (this.busy.has(host)) return Math.max(this.minIntervalMs, 50);
     const wait = (this.last.get(host) ?? 0) + this.minIntervalMs - t;
     if (wait > 0) return wait;

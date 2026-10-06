@@ -5,7 +5,8 @@
 import type { Sql } from 'postgres';
 import type { ListingSnapshot } from '../../lib/cori/bazaar';
 import type {
-  DiscoveryEvent, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow, SourceRow, Store,
+  DiscoveryEvent, HostSpread, IndexRow, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow,
+  SourceRow, Store,
 } from './store';
 
 const JSON_COLUMNS = new Set(['bazaar_metadata', 'input_example', 'last_probe']);
@@ -23,8 +24,12 @@ const PATCHABLE = new Set([
 
 type Row = Record<string, unknown>;
 
+const TOUCH_BATCH = 1000;
+
 function toServiceRow(r: Row): ServiceRow {
   const out = { ...r } as Record<string, unknown>;
+  delete out.host_rank;   // helper columns from the spread queries
+  delete out.host_probed;
   for (const c of NUMERIC_COLUMNS) out[c] = r[c] == null ? null : Number(r[c]);
   out.price_atomic = r.price_atomic == null ? null : String(r.price_atomic);
   return out as unknown as ServiceRow;
@@ -77,6 +82,43 @@ export class PgStore implements Store {
   async getByUrl(url: string) {
     const [r] = await this.sql`select * from public.discovered_services where canonical_url = ${url}`;
     return r ? toServiceRow(r) : null;
+  }
+
+  async loadIndex() {
+    const rows = await this.sql`
+      select s.id, s.canonical_url, s.listing_hash, s.classification, s.last_seen_at, s.disappeared_at,
+             s.linked_service_id, s.linked_seed_id,
+             coalesce(array_agg(ss.source) filter (where ss.source is not null), '{}') as sources
+      from public.discovered_services s
+      left join public.discovery_sources_seen ss on ss.discovered_service_id = s.id
+      group by s.id`;
+    const out = new Map<string, IndexRow>();
+    for (const r of rows) {
+      out.set(String(r.canonical_url), {
+        id: String(r.id), listing_hash: r.listing_hash ?? null, classification: r.classification,
+        last_seen_at: r.last_seen_at, disappeared_at: r.disappeared_at ?? null,
+        linked_service_id: r.linked_service_id ?? null, linked_seed_id: r.linked_seed_id ?? null,
+        sources: (r.sources as string[]) ?? [],
+      });
+    }
+    return out;
+  }
+
+  async touchSeen(ids: string[], source: string, at: Date) {
+    for (let i = 0; i < ids.length; i += TOUCH_BATCH) {
+      const batch = this.sql.array(ids.slice(i, i + TOUCH_BATCH), 25 /* text */);
+      await this.sql`
+        update public.discovered_services set last_seen_at = ${at}, updated_at = now()
+        where id = any(${batch}::uuid[])`;
+      await this.sql`
+        update public.discovery_sources_seen set last_seen_at = ${at}
+        where source = ${source} and discovered_service_id = any(${batch}::uuid[])`;
+      await this.sql`
+        update public.discovery_listings l set last_seen_at = ${at}
+        from public.discovered_services s
+        where s.id = l.discovered_service_id and l.listing_hash = s.listing_hash and l.source = ${source}
+          and s.id = any(${batch}::uuid[])`;
+    }
   }
 
   async insertService(f: NewService, at: Date): Promise<ServiceRow> {
@@ -153,23 +195,66 @@ export class PgStore implements Store {
     return rows.map(toServiceRow);
   }
 
-  async dueProbes(now: Date, limit: number) {
+  async dueProbes(now: Date, limit: number, spread?: HostSpread) {
+    if (!spread) {
+      const rows = await this.sql`
+        select * from public.discovered_services
+        where next_probe_at is not null and next_probe_at <= ${now}
+        order by next_probe_at
+        limit ${limit}`;
+      return rows.map(toServiceRow);
+    }
+    // At most perHost rows per host; hosts never probed first (company-first, B3)
+    const exclude = this.sql.array(spread.excludeHosts, 25 /* text */);
     const rows = await this.sql`
-      select * from public.discovered_services
-      where next_probe_at is not null and next_probe_at <= ${now}
-      order by next_probe_at
+      with probed as (
+        select distinct host from public.discovered_services where last_probe_at is not null
+      ), due as (
+        select s.*, row_number() over (partition by s.host order by s.next_probe_at, s.first_seen_at) as host_rank
+        from public.discovered_services s
+        where s.next_probe_at is not null and s.next_probe_at <= ${now} and s.host <> all(${exclude}::text[])
+      )
+      select due.*, (due.host in (select host from probed)) as host_probed
+      from due
+      where host_rank <= ${spread.perHost}
+      order by host_probed, next_probe_at, first_seen_at
       limit ${limit}`;
     return rows.map(toServiceRow);
   }
 
-  async queueCandidates(limit: number) {
+  async queueCandidates(limit: number, spread?: HostSpread) {
+    if (!spread) {
+      const rows = await this.sql`
+        select * from public.discovered_services
+        where classification in ('eligible', 'needs_input')
+          and linked_submission_id is null and linked_service_id is null and linked_seed_id is null
+        order by case classification when 'eligible' then 0 else 1 end, first_seen_at
+        limit ${limit}`;
+      return rows.map(toServiceRow);
+    }
+    const exclude = this.sql.array(spread.excludeHosts, 25 /* text */);
     const rows = await this.sql`
-      select * from public.discovered_services
-      where classification in ('eligible', 'needs_input')
-        and linked_submission_id is null and linked_service_id is null and linked_seed_id is null
+      select * from (
+        select s.*, row_number() over (
+                 partition by s.host
+                 order by case s.classification when 'eligible' then 0 else 1 end, s.first_seen_at) as host_rank
+        from public.discovered_services s
+        where s.classification in ('eligible', 'needs_input')
+          and s.linked_submission_id is null and s.linked_service_id is null and s.linked_seed_id is null
+          and s.host <> all(${exclude}::text[])
+      ) c
+      where host_rank <= ${spread.perHost}
       order by case classification when 'eligible' then 0 else 1 end, first_seen_at
       limit ${limit}`;
     return rows.map(toServiceRow);
+  }
+
+  async hostsQueuedSince(since: Date) {
+    const rows = await this.sql`
+      select s.host from public.discovery_events e
+      join public.discovered_services s on s.id = e.discovered_service_id
+      where e.event = 'queued' and e.at >= ${since}`;
+    return rows.map((r) => String(r.host));
   }
 
   async countQueuedSince(since: Date) {

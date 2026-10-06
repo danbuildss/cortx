@@ -8,8 +8,23 @@
 import { randomUUID } from 'node:crypto';
 import type { ListingSnapshot } from '../../lib/cori/bazaar';
 import type {
-  DiscoveryEvent, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow, SourceRow, Store,
+  DiscoveryEvent, HostSpread, IndexRow, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow,
+  SourceRow, Store,
 } from './store';
+
+// Keep at most `perHost` rows per host (in the given order), skipping excluded hosts
+function spreadByHost(rows: ServiceRow[], spread?: HostSpread): ServiceRow[] {
+  if (!spread) return rows;
+  const skip = new Set(spread.excludeHosts);
+  const taken = new Map<string, number>();
+  return rows.filter((r) => {
+    if (skip.has(r.host)) return false;
+    const n = taken.get(r.host) ?? 0;
+    if (n >= spread.perHost) return false;
+    taken.set(r.host, n + 1);
+    return true;
+  });
+}
 
 export type MemorySeed = {
   sources?: SourceRow[];
@@ -27,6 +42,7 @@ export class MemoryStore implements Store {
   services = new Map<string, ServiceRow>();       // by id
   private byUrl = new Map<string, string>();      // canonical_url → id
   sourcesSeen = new Map<string, { first: Date; last: Date; hash: string }>(); // `${id}|${source}`
+  private sourcesById = new Map<string, string[]>();
   events: Array<{ serviceId: string; event: DiscoveryEvent; at: Date; details?: Record<string, unknown> }> = [];
   submissions: Array<NewSubmission & { id: string; status: string; source: string; submitted_at: Date }> = [];
   runs: Array<{ id: number; kind: string; ok?: boolean; stats?: Record<string, unknown>; error?: string | null }> = [];
@@ -68,6 +84,30 @@ export class MemoryStore implements Store {
     return row ? { ...row } : null;
   }
 
+  async loadIndex() {
+    const out = new Map<string, IndexRow>();
+    for (const r of this.services.values()) {
+      out.set(r.canonical_url, {
+        id: r.id, listing_hash: r.listing_hash, classification: r.classification, last_seen_at: r.last_seen_at,
+        disappeared_at: r.disappeared_at, linked_service_id: r.linked_service_id, linked_seed_id: r.linked_seed_id,
+        sources: await this.sourcesFor(r.id),
+      });
+    }
+    return out;
+  }
+
+  async touchSeen(ids: string[], source: string, at: Date) {
+    for (const id of ids) {
+      const row = this.services.get(id);
+      if (!row) continue;
+      this.services.set(id, { ...row, last_seen_at: at });
+      const seen = this.sourcesSeen.get(`${id}|${source}`);
+      if (seen) seen.last = at;
+      const i = this.listingKeys.get(`${id}|${source}|${row.listing_hash}`);
+      if (i != null) this.listings[i].last = at;
+    }
+  }
+
   // Lean mode keeps facts, not payloads: classification only needs to know
   // whether an example input exists
   private slim(patch: ServicePatch): ServicePatch {
@@ -107,11 +147,12 @@ export class MemoryStore implements Store {
     const key = `${serviceId}|${source}`;
     const prev = this.sourcesSeen.get(key);
     this.sourcesSeen.set(key, { first: prev?.first ?? at, last: at, hash });
+    if (!prev) this.sourcesById.set(serviceId, [...(this.sourcesById.get(serviceId) ?? []), source]);
     return { seenBefore: prev != null };
   }
 
   async sourcesFor(serviceId: string) {
-    return [...this.sourcesSeen.keys()].filter((k) => k.startsWith(`${serviceId}|`)).map((k) => k.split('|')[1]);
+    return [...(this.sourcesById.get(serviceId) ?? [])];
   }
 
   async addEvent(serviceId: string, event: DiscoveryEvent, details?: Record<string, unknown>) {
@@ -139,22 +180,32 @@ export class MemoryStore implements Store {
       .map((s) => ({ ...s }));
   }
 
-  async dueProbes(now: Date, limit: number) {
-    return [...this.services.values()]
+  async dueProbes(now: Date, limit: number, spread?: HostSpread) {
+    const probedHosts = new Set([...this.services.values()].filter((s) => s.last_probe_at != null).map((s) => s.host));
+    const due = [...this.services.values()]
       .filter((s) => s.next_probe_at != null && s.next_probe_at.getTime() <= now.getTime())
-      .sort((a, b) => a.next_probe_at!.getTime() - b.next_probe_at!.getTime())
-      .slice(0, limit)
-      .map((s) => ({ ...s }));
+      .sort((a, b) => a.next_probe_at!.getTime() - b.next_probe_at!.getTime() || a.first_seen_at.getTime() - b.first_seen_at.getTime());
+    // Hosts never probed come first (Postgres store does the same)
+    const ordered = spread
+      ? [...due.filter((s) => !probedHosts.has(s.host)), ...due.filter((s) => probedHosts.has(s.host))]
+      : due;
+    return spreadByHost(ordered, spread).slice(0, limit).map((s) => ({ ...s }));
   }
 
-  async queueCandidates(limit: number) {
+  async queueCandidates(limit: number, spread?: HostSpread) {
     const rank = (c: string) => (c === 'eligible' ? 0 : 1);
-    return [...this.services.values()]
+    const rows = [...this.services.values()]
       .filter((s) => (s.classification === 'eligible' || s.classification === 'needs_input')
         && !s.linked_submission_id && !s.linked_service_id && !s.linked_seed_id)
-      .sort((a, b) => rank(a.classification) - rank(b.classification) || a.first_seen_at.getTime() - b.first_seen_at.getTime())
-      .slice(0, limit)
-      .map((s) => ({ ...s }));
+      .sort((a, b) => rank(a.classification) - rank(b.classification) || a.first_seen_at.getTime() - b.first_seen_at.getTime());
+    return spreadByHost(rows, spread).slice(0, limit).map((s) => ({ ...s }));
+  }
+
+  async hostsQueuedSince(since: Date) {
+    return this.events
+      .filter((e) => e.event === 'queued' && e.at.getTime() >= since.getTime())
+      .map((e) => this.services.get(e.serviceId)?.host)
+      .filter((h): h is string => !!h);
   }
 
   async countQueuedSince(since: Date) {
