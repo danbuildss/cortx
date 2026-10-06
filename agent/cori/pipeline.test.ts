@@ -249,7 +249,7 @@ test('listing versions: a new row only when the content changes', async () => {
   const row = svcRow(store, 'v2-get-2');
   const versions = store.listings.filter((l) => l.serviceId === row.id);
   assert.equal(versions.length, 2, 'old and new version both kept');
-  assert.deepEqual(versions.map((v) => (v.snapshot.accepts?.[0] as { amount: string }).amount), ['2000', '3000']);
+  assert.deepEqual(versions.map((v) => (v.snapshot?.accepts?.[0] as { amount: string }).amount), ['2000', '3000']);
   const changed = store.events.find((e) => e.serviceId === row.id && e.event === 'listing_changed')!;
   assert.equal(changed.details?.from_hash, versions[0].hash);
   assert.equal(changed.details?.to_hash, versions[1].hash);
@@ -352,4 +352,25 @@ test('with several sources, no sweep until every source completed a pass', async
   eco.items = eco.items.filter((i) => (i as { serviceName?: string }).serviceName !== 'othernet');
   for (let i = 0; i < 40; i++) { advance(6 * 3_600_000 + 60_000); await runCycle(deps, { maxProbeBatches: 1 }); }
   assert.equal(store.events.filter((e) => e.event === 'disappeared').length, 0, 'a broken source could be the one listing it');
+});
+
+test('dry-run (lean) store: same classes and queue, without keeping payloads', async () => {
+  const full = setup();
+  await runCycle(full.deps, { forceSources: true, maxProbeBatches: 5 });
+
+  eco.items = standardListings(eco);
+  const lean = new MemoryStore({
+    lean: true,
+    sources: [{ id: 'cdp_bazaar', url: eco.bazaarUrl, enabled: true, interval_minutes: 360, last_run_at: null }],
+    known: { services: [{ id: 'svc-1', endpoint_url: eco.url('svc.test', '/svc/monitored') }], seeds: [],
+      submissions: [{ id: 'sub-1', endpoint_url: eco.url('svc.test', '/svc/submitted'), status: 'pending', source: 'public', discovered_service_id: null }] },
+  });
+  await runCycle({ ...full.deps, store: lean }, { forceSources: true, maxProbeBatches: 5 });
+
+  assert.deepEqual(byName(lean), byName(full.store), 'classification unchanged');
+  assert.deepEqual(lean.submissions.map((s) => s.name).sort(), full.store.submissions.map((s) => s.name).sort());
+  assert.ok([...lean.services.values()].every((r) => r.bazaar_metadata == null), 'no Bazaar metadata kept');
+  assert.ok(lean.listings.every((l) => l.snapshot == null), 'no listing snapshots kept');
+  assert.equal(lean.observations.length, 0);
+  assert.equal(lean.observationCount, full.store.observations.length, 'probes still counted');
 });
