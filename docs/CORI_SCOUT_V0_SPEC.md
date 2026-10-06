@@ -377,7 +377,7 @@ See H. Today the suite runs 116 tests (115 pass, 1 skipped: the real-Postgres te
 | B | Scout process, pipeline, stores, tests | — | ✅ merged |
 | C | `/admin/cori`, review write-back, watchdog | — | ✅ merged |
 | **B2** | G1–G11: migration 027 (memory, no cascades), route templates, methods, POST body, port 443, pagination, disappeared sweep, version stamp, env refusal, bundle test, probe budget, stop signal | merge; run 027 | ✅ built (PR open) |
-| **D** | Server go-live: setup script, unit, deploy script; dry run → live | Hetzner project + server, role password, about an hour together | scripts ✅ built (rehearsed: clean install with `--ignore-scripts`, Cori tests, build); server waiting on you |
+| **D** | Server go-live: setup script, unit, deploy script; dry run → live | Hetzner server, role password | ✅ **live Oct 6, 22:14 UTC** (CX23 `cori`, Nuremberg; after B3) |
 | **E** | Observe 1 week: review the queue, record real numbers in NOTES (listings, pass-on-paper, eligible, DB growth/day, pass duration) | review candidates | — |
 | next | Separate spec: **Observer V1** (baselines and change detection on the observations B2 starts collecting) | — | ⏳ |
 
