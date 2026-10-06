@@ -24,7 +24,7 @@ Cori's server is a small Hetzner VPS in its own **CORTX** project, separate from
    - **Type:** CX23 (Cost-Optimized x86, 2 vCPU / 4 GB): the same as the Luca server.
    - **Networking:** keep **IPv4 and IPv6** on.
    - **SSH key:** add your public key.
-   - **Name:** `cori-prod-01`.
+   - **Name:** `cori`.
 3. Note the server's IPv4 address.
 
 ## 2. Set up the server
