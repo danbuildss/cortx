@@ -20,6 +20,7 @@ const LOCK_KEY = 4_020_402; // pg advisory lock: one Cori instance at a time
 // run log so the watchdog can see it's alive.
 async function dryRunStore(pg: PgStore): Promise<Store> {
   const mem = new MemoryStore({
+    lean: true,
     sources: await pg.loadSources(),
     denylist: [...(await pg.loadDenylist())],
     known: await pg.loadKnown(),

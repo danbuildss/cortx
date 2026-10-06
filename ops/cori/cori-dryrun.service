@@ -14,14 +14,15 @@ EnvironmentFile=/etc/cori/cori.env
 Environment=NODE_ENV=production
 # Set on the command line so nothing in cori.env can turn the dry run off
 # (EnvironmentFile= would override an Environment= line)
-ExecStart=/usr/bin/env CORI_DRY_RUN=1 /usr/local/bin/node /opt/cori/app/agent/cori/dist/cori.mjs --once
+ExecStart=/usr/bin/env CORI_DRY_RUN=1 /usr/local/bin/node --max-old-space-size=768 /opt/cori/app/agent/cori/dist/cori.mjs --once
 KillSignal=SIGTERM
 TimeoutStopSec=60
 TimeoutStartSec=2h
 SyslogIdentifier=cori-dryrun
 
 # Resource limits
-MemoryMax=512M
+# A dry run holds the whole Bazaar in memory (lean), so it gets more room than the daemon
+MemoryMax=1G
 CPUQuota=50%
 TasksMax=64
 

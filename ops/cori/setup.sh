@@ -61,6 +61,9 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes
 CONF
+# Ubuntu 24.04 starts sshd on demand (ssh.socket), so this directory may not
+# exist yet; `sshd -t` refuses to check the config without it
+install -d -m 755 /run/sshd
 sshd -t
 systemctl reload-or-restart ssh
 

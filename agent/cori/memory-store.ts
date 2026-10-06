@@ -1,5 +1,10 @@
 // In-memory Store: dry runs (seeded with read-only data from the database)
 // and tests. Nothing written here ever reaches the database.
+//
+// `lean` (dry runs): keeps only what classification, queueing and the summary
+// need. Listing snapshots, Bazaar metadata and observation rows are dropped —
+// a dry run never saves them, and across the whole Bazaar they don't fit in
+// memory (the first live dry run ran out of heap, Oct 6).
 import { randomUUID } from 'node:crypto';
 import type { ListingSnapshot } from '../../lib/cori/bazaar';
 import type {
@@ -12,6 +17,7 @@ export type MemorySeed = {
   known?: KnownRecords;
   /** Clock for event and submission timestamps (the database uses now()); tests pass their fake clock */
   now?: () => Date;
+  lean?: boolean;
 };
 
 export class MemoryStore implements Store {
@@ -19,16 +25,21 @@ export class MemoryStore implements Store {
   denylist: Set<string>;
   known: KnownRecords;
   services = new Map<string, ServiceRow>();       // by id
+  private byUrl = new Map<string, string>();      // canonical_url → id
   sourcesSeen = new Map<string, { first: Date; last: Date; hash: string }>(); // `${id}|${source}`
   events: Array<{ serviceId: string; event: DiscoveryEvent; at: Date; details?: Record<string, unknown> }> = [];
   submissions: Array<NewSubmission & { id: string; status: string; source: string; submitted_at: Date }> = [];
   runs: Array<{ id: number; kind: string; ok?: boolean; stats?: Record<string, unknown>; error?: string | null }> = [];
-  listings: Array<{ serviceId: string; source: string; hash: string; first: Date; last: Date; snapshot: ListingSnapshot }> = [];
+  listings: Array<{ serviceId: string; source: string; hash: string; first: Date; last: Date; snapshot: ListingSnapshot | null }> = [];
+  private listingKeys = new Map<string, number>(); // `${id}|${source}|${hash}` → index in listings
   observations: Array<Observation & { serviceId: string }> = [];
+  observationCount = 0;
+  readonly lean: boolean;
   private readonly now: () => Date;
 
   constructor(seed: MemorySeed = {}) {
     this.now = seed.now ?? (() => new Date());
+    this.lean = seed.lean ?? false;
     this.sources = seed.sources ?? [];
     this.denylist = new Set(seed.denylist ?? []);
     this.known = seed.known ?? { services: [], seeds: [], submissions: [] };
@@ -52,8 +63,19 @@ export class MemoryStore implements Store {
   }
 
   async getByUrl(url: string) {
-    for (const s of this.services.values()) if (s.canonical_url === url) return { ...s };
-    return null;
+    const id = this.byUrl.get(url);
+    const row = id ? this.services.get(id) : undefined;
+    return row ? { ...row } : null;
+  }
+
+  // Lean mode keeps facts, not payloads: classification only needs to know
+  // whether an example input exists
+  private slim(patch: ServicePatch): ServicePatch {
+    if (!this.lean) return patch;
+    const out = { ...patch };
+    if ('bazaar_metadata' in out) out.bazaar_metadata = null;
+    if ('input_example' in out) out.input_example = out.input_example ? {} : null;
+    return out;
   }
 
   async insertService(f: NewService, at: Date): Promise<ServiceRow> {
@@ -69,15 +91,16 @@ export class MemoryStore implements Store {
       last_probe_at: null, next_probe_at: null, probe_failures: 0, last_probe: null,
       classification: 'pending', classification_reasons: [],
       linked_service_id: null, linked_seed_id: null, linked_submission_id: null,
-      ...f, // canonical_url, host, first_source (+ any facts)
+      ...this.slim(f) as NewService, // canonical_url, host, first_source (+ any facts)
     };
     this.services.set(row.id, row);
+    this.byUrl.set(row.canonical_url, row.id);
     return { ...row };
   }
 
   async updateService(id: string, patch: ServicePatch) {
     const row = this.services.get(id);
-    if (row) this.services.set(id, { ...row, ...patch });
+    if (row) this.services.set(id, { ...row, ...this.slim(patch) });
   }
 
   async touchSource(serviceId: string, source: string, at: Date, hash: string) {
@@ -96,14 +119,17 @@ export class MemoryStore implements Store {
   }
 
   async recordListing(serviceId: string, source: string, hash: string, snapshot: ListingSnapshot, at: Date) {
-    const prev = this.listings.find((l) => l.serviceId === serviceId && l.source === source && l.hash === hash);
-    if (prev) { prev.last = at; return { newVersion: false }; }
-    this.listings.push({ serviceId, source, hash, first: at, last: at, snapshot });
+    const key = `${serviceId}|${source}|${hash}`;
+    const i = this.listingKeys.get(key);
+    if (i != null) { this.listings[i].last = at; return { newVersion: false }; }
+    this.listingKeys.set(key, this.listings.length);
+    this.listings.push({ serviceId, source, hash, first: at, last: at, snapshot: this.lean ? null : snapshot });
     return { newVersion: true };
   }
 
   async addObservation(serviceId: string, o: Observation) {
-    this.observations.push({ ...o, serviceId });
+    this.observationCount++;
+    if (!this.lean) this.observations.push({ ...o, serviceId });
   }
 
   async notSeenSince(cutoff: Date, limit: number) {
