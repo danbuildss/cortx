@@ -79,7 +79,10 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   eco.items = standardListings(eco);
   const deps: Deps = {
     store: new PgStore(cori, { version: 'it-version' }),
-    config: defaultConfig({ bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port], version: 'it-version' }),
+    config: defaultConfig({
+      bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port], version: 'it-version',
+      probePerHostPerBatch: 100, queuePerHostPerDay: 100,
+    }),
     log: silentLogger,
     limiter: new HostLimiter(0, 1000),
     fetchOptions: eco.fetchOptions,
@@ -136,6 +139,19 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   assert.ok(runs.length > 0);
   const [{ stamped }] = await dbAdmin`select count(*)::int as stamped from public.cori_runs where cori_version = 'it-version'`;
   assert.equal(stamped, runs.length, 'every run row carries the Cori version');
+
+  // B3 queries run on real Postgres as cori_agent
+  const store = deps.store as PgStore;
+  const index = await store.loadIndex();
+  assert.equal(index.size, 12);
+  assert.deepEqual([...index.values()][0].sources, ['cdp_bazaar']);
+  await store.touchSeen([...index.values()].map((r) => r.id), 'cdp_bazaar', new Date());
+  const later = new Date(Date.now() + 30 * 86_400_000);
+  const spread = await store.dueProbes(later, 50, { perHost: 1, excludeHosts: [] });
+  assert.equal(new Set(spread.map((r) => r.host)).size, spread.length, 'one row per host');
+  assert.deepEqual(await store.dueProbes(later, 50, { perHost: 5, excludeHosts: ['svc.test', 'down.test', 'rebind.test'] }), []);
+  assert.equal((await store.hostsQueuedSince(new Date(0))).length, 4);
+  assert.ok((await store.queueCandidates(10, { perHost: 1, excludeHosts: ['svc.test'] })).every((r) => r.host !== 'svc.test'));
 
   // History is append-only for Cori, and can't be cascaded away
   await assert.rejects(cori`update public.discovery_observations set outcome = 'ok'`, /permission denied/);

@@ -29,6 +29,12 @@ const DNS: Record<string, string> = {
   'bazaar.test': '127.0.0.1',
   'svc.test': '127.0.0.1',
   'rebind.test': '10.0.0.9',        // "public" name resolving to a private IP
+  // More "companies" on the same fake server (B3 host-spread tests)
+  'big.test': '127.0.0.1',
+  'a.test': '127.0.0.1',
+  'b.test': '127.0.0.1',
+  'c.test': '127.0.0.1',
+  'd.test': '127.0.0.1',
 };
 
 export async function startFakeEcosystem(): Promise<FakeEcosystem> {

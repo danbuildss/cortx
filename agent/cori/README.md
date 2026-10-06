@@ -42,7 +42,10 @@ Only one instance runs at a time (Postgres advisory lock). `SIGTERM` stops it cl
 | `CORI_PROBE_CONCURRENCY` | `4` | parallel probes |
 | `CORI_PER_HOST_MIN_INTERVAL_MS` | `2000` | min gap between requests to one host |
 | `CORI_PER_HOST_MAX_PER_HOUR` | `30` | max probes per host per hour |
-| `CORI_PROBE_RECHECK_HOURS` | `24` | re-probe cadence for healthy services |
+| `CORI_PROBE_RECHECK_HOURS` | `168` | re-probe cadence for healthy services (weekly) |
+| `CORI_PER_HOST_MAX_PER_DAY` | `5` | max free checks per host per rolling day (company-first) |
+| `CORI_PROBE_PER_HOST_PER_BATCH` | `1` | max rows per host in one probe batch; hosts never checked go first |
+| `CORI_QUEUE_PER_HOST_PER_DAY` | `1` | max new review candidates per host per UTC day |
 | `CORI_BAZAAR_PAGE_LIMIT` / `CORI_BAZAAR_MAX_PAGES` | `100` / `500` | pagination (up to 50k listings per pass) |
 | `CORI_ALLOWED_PORTS` | `443` | ports Cori may contact (comma-separated) |
 | `CORI_MAX_PROBES_PER_HOUR` | `600` | global probe budget across all hosts |

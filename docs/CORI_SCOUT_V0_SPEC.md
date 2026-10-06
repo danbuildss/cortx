@@ -453,3 +453,27 @@ See B. Also not built because CORTX already has it: no new admin UI, alerting ch
 - **Tests:** suite 137 (136 pass, 1 skipped without a database). 21 new: parser, classifier, labels, port allow-list, POST body, observations, listing versions, port and method blocking, route templates, disappearance + reappearance, outage and multi-source guards, probe budget, shutdown, config, bundle. The real-Postgres test as `cori_agent` covers 027: observations = probes, versions only on change, every run stamped, history append-only for the role, and a delete with history is refused even for an admin.
 - **Smoke test:** the built bundle against Postgres 16 as `cori_agent` covers startup, the source failure being recorded with `cori_version`, the key-refusal exit, and SIGTERM stopping in ~0.2 s.
 - **Order for go-live:** run 027 **before** deploying this code (run rows now write `cori_version`).
+
+## Phase B3 (approved and built Oct 6): company-first, fair queue, lean writes
+
+**Why:** the first live dry run (Oct 6) showed the real Bazaar is 35,080 listings from only **2,126 hosts**, with one host (`market.datapackvibe.com`) holding **13,775 (39%)** and the top 10 holding ~58%. 32,573 pass on paper and 98% of the first 600 free checks answered with valid terms. Checking every listing daily was impossible (54 h for one round at 600/h) and would have filled the free database. Depth over breadth.
+
+- **Company-first probing:**
+  - at most **5 free checks per host per rolling day** (`CORI_PER_HOST_MAX_PER_DAY`)
+  - each probe batch takes **1 row per host** (`CORI_PROBE_PER_HOST_PER_BATCH`), with **hosts never checked first**
+  - hosts that used up their allowance are skipped in the query, so there are no reschedule writes
+  - healthy services are re-checked **weekly** (`CORI_PROBE_RECHECK_HOURS` 168)
+  - all 2,126 hosts get a first check within days; the rest of a big host's listings wait as `pending`
+- **Fair review queue:** at most **1 new candidate per host per UTC day** (`CORI_QUEUE_PER_HOST_PER_DAY`), still 25/day in total.
+- **Lean writes:**
+  - one `loadIndex()` query per pass (canonical URL → hash, class, links, sources, last seen)
+  - a listing that is unchanged (same hash, same source, still listed, same CORTX links, no denylist/port change) costs **no per-item query**
+  - its `last_seen_at` (service, source row, current listing version) is refreshed **in bulk at most every 20 h**
+  - `bazaar_metadata` is no longer duplicated on `discovered_services`; it lives once per version in `discovery_listings`
+  - expected footprint: ~100 MB initially, then only changes
+- **Heartbeat on its own timer:** the first live pass (35k new listings, about 6 queries each) can take a while, depending on the database distance, and must not trip the 30-minute watchdog.
+- **Tests:**
+  - suite 142 (141 pass, 1 DB-gated skip)
+  - new: big host capped at 5/day and continued the next day; never-checked hosts first under a 1-check budget; one candidate per host per day; unchanged listings cause no per-item lookups, with a bulk refresh after 20 h; no duplicated metadata
+  - real-Postgres test as `cori_agent` covers `loadIndex`, `touchSeen`, the host-spread probe/queue queries and `hostsQueuedSince`
+  - dry-run scale rehearsal: 20k listings in 27 s at a 76 MB heap

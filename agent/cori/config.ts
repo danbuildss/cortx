@@ -37,7 +37,10 @@ const EnvSchema = z.object({
   CORI_PROBE_BATCH: z.coerce.number().int().min(1).default(200),
   CORI_PER_HOST_MIN_INTERVAL_MS: z.coerce.number().int().min(0).default(2000),
   CORI_PER_HOST_MAX_PER_HOUR: z.coerce.number().int().min(1).default(30),
-  CORI_PROBE_RECHECK_HOURS: z.coerce.number().positive().default(24),
+  CORI_PROBE_RECHECK_HOURS: z.coerce.number().positive().default(168),
+  CORI_PER_HOST_MAX_PER_DAY: z.coerce.number().int().min(1).default(5),
+  CORI_PROBE_PER_HOST_PER_BATCH: z.coerce.number().int().min(1).default(1),
+  CORI_QUEUE_PER_HOST_PER_DAY: z.coerce.number().int().min(1).default(1),
   CORI_BAZAAR_PAGE_LIMIT: z.coerce.number().int().min(1).max(1000).default(100),
   CORI_BAZAAR_MAX_PAGES: z.coerce.number().int().min(1).default(500),
   CORI_ALLOWED_PORTS: ports.default([443]),
@@ -59,6 +62,9 @@ export type CoriConfig = {
   perHostMinIntervalMs: number;
   perHostMaxPerHour: number;
   probeRecheckHours: number;
+  perHostMaxPerDay: number;
+  probePerHostPerBatch: number;
+  queuePerHostPerDay: number;
   bazaarPageLimit: number;
   bazaarMaxPages: number;
   tickSeconds: number;
@@ -83,6 +89,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoriConfig {
     perHostMinIntervalMs: e.CORI_PER_HOST_MIN_INTERVAL_MS,
     perHostMaxPerHour: e.CORI_PER_HOST_MAX_PER_HOUR,
     probeRecheckHours: e.CORI_PROBE_RECHECK_HOURS,
+    perHostMaxPerDay: e.CORI_PER_HOST_MAX_PER_DAY,
+    probePerHostPerBatch: e.CORI_PROBE_PER_HOST_PER_BATCH,
+    queuePerHostPerDay: e.CORI_QUEUE_PER_HOST_PER_DAY,
     bazaarPageLimit: e.CORI_BAZAAR_PAGE_LIMIT,
     bazaarMaxPages: e.CORI_BAZAAR_MAX_PAGES,
     tickSeconds: e.CORI_TICK_SECONDS,

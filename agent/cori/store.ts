@@ -91,6 +91,21 @@ export type DiscoveryEvent =
 // One free probe, as kept forever in discovery_observations
 export type Observation = ProbeRecord & { probe_url: string; cori_version: string };
 
+// Just enough of a known service to tell, without loading it, that a listing hasn't changed
+export type IndexRow = {
+  id: string;
+  listing_hash: string | null;
+  classification: Classification;
+  last_seen_at: Date;
+  disappeared_at: Date | null;
+  linked_service_id: string | null;
+  linked_seed_id: string | null;
+  sources: string[];
+};
+
+// Host spread (spec v2 B3): which rows a batch may take per host, and hosts to skip
+export type HostSpread = { perHost: number; excludeHosts: string[] };
+
 export type NewSubmission = {
   endpoint_url: string;
   name: string;
@@ -108,6 +123,10 @@ export interface Store {
   loadKnown(): Promise<KnownRecords>;
 
   getByUrl(canonicalUrl: string): Promise<ServiceRow | null>;
+  /** One query per pass: every known service by canonical URL, light columns only */
+  loadIndex(): Promise<Map<string, IndexRow>>;
+  /** Bulk "still listed": last_seen_at on the service, its source row and its current listing version */
+  touchSeen(ids: string[], source: string, at: Date): Promise<void>;
   insertService(fields: NewService, at: Date): Promise<ServiceRow>;
   updateService(id: string, patch: ServicePatch): Promise<void>;
   /** Upsert (service, source). Returns whether this source had listed it before. */
@@ -121,9 +140,13 @@ export interface Store {
   /** Services no source has listed since `cutoff`, not yet marked disappeared */
   notSeenSince(cutoff: Date, limit: number): Promise<ServiceRow[]>;
 
-  dueProbes(now: Date, limit: number): Promise<ServiceRow[]>;
-  /** eligible first, then needs_input; oldest first; not yet queued; not linked to CORTX records */
-  queueCandidates(limit: number): Promise<ServiceRow[]>;
+  /** Due rows, at most `spread.perHost` per host, hosts never probed first, skipping `spread.excludeHosts` */
+  dueProbes(now: Date, limit: number, spread?: HostSpread): Promise<ServiceRow[]>;
+  /** eligible first, then needs_input; oldest first; not yet queued; not linked to CORTX records;
+   *  at most `spread.perHost` per host, skipping `spread.excludeHosts` */
+  queueCandidates(limit: number, spread?: HostSpread): Promise<ServiceRow[]>;
+  /** The host of every candidate queued since `since` (one entry per candidate, so it can be counted) */
+  hostsQueuedSince(since: Date): Promise<string[]>;
   countQueuedSince(since: Date): Promise<number>;
   /** Returns the new submission id, or null if one is already pending for this service */
   insertSubmission(s: NewSubmission): Promise<string | null>;

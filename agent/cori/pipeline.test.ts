@@ -30,7 +30,11 @@ function setup(overrides: { cap?: number; globalMaxPerHour?: number } = {}) {
   const deps: Deps = {
     store,
     // The fake ecosystem listens on a random port; production allows 443 only
-    config: defaultConfig({ dailyQueueCap: overrides.cap ?? 25, bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port] }),
+    // Most fake services share one host; the B3 per-host limits get their own tests
+    config: defaultConfig({
+      dailyQueueCap: overrides.cap ?? 25, bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port],
+      probePerHostPerBatch: 100, queuePerHostPerDay: 100, probeRecheckHours: 24,
+    }),
     log: silentLogger,
     limiter: new HostLimiter(0, 1000, { globalMaxPerHour: overrides.globalMaxPerHour }),
     now: () => clock,
@@ -373,4 +377,80 @@ test('dry-run (lean) store: same classes and queue, without keeping payloads', a
   assert.ok(lean.listings.every((l) => l.snapshot == null), 'no listing snapshots kept');
   assert.equal(lean.observations.length, 0);
   assert.equal(lean.observationCount, full.store.observations.length, 'probes still counted');
+});
+
+// ─── Phase B3: company-first probing, fair queue, no writes for unchanged listings ─
+
+const onHost = (host: string, q = '') => ({
+  resource: `${eco.url(host, '/svc/v2-get')}${q}`, type: 'http', x402Version: 2, serviceName: `${host}${q}`,
+  accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }],
+});
+
+function b3Setup(opts: { globalMaxPerHour?: number } = {}) {
+  const s = setup();
+  eco.items = [...Array.from({ length: 20 }, (_, i) => onHost('big.test', `?i=${i}`)), onHost('a.test'), onHost('b.test'), onHost('c.test')];
+  s.deps.config = { ...s.deps.config, probePerHostPerBatch: 1, queuePerHostPerDay: 1, perHostMaxPerDay: 5 };
+  s.deps.limiter = new HostLimiter(0, 1000, { maxPerDay: 5, globalMaxPerHour: opts.globalMaxPerHour, now: () => s.deps.now!().getTime() });
+  return s;
+}
+const hostHits = (host: string) => eco.hits.filter((h) => h.host === host && h.path.startsWith('/svc/')).length;
+
+test('company-first: one big host gets at most 5 checks a day; every company gets checked', async () => {
+  const { store, deps, advance } = b3Setup();
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 30 });
+  assert.equal(hostHits('big.test'), 5, 'the big host is capped at 5 a day');
+  for (const h of ['a.test', 'b.test', 'c.test']) assert.equal(hostHits(h), 1, `${h} checked`);
+  assert.equal([...store.services.values()].filter((r) => r.host === 'big.test' && r.classification === 'pending').length, 15, 'the rest wait');
+
+  advance(24 * 3_600_000 + 60_000);
+  await runCycle(deps, { maxProbeBatches: 30 });
+  assert.equal(hostHits('big.test'), 10, 'five more the next day');
+});
+
+test('hosts never checked go first', async () => {
+  const { deps, advance } = b3Setup();
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 30 });
+  eco.items.push(onHost('d.test'));
+  advance(24 * 3_600_000 + 60_000);
+  // A budget of exactly one check: it must go to the new company, not the big one
+  deps.limiter = new HostLimiter(0, 1000, { maxPerDay: 5, globalMaxPerHour: 1, now: () => deps.now!().getTime() });
+  const s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(s.probe.probed, 1);
+  assert.equal(hostHits('d.test'), 1);
+});
+
+test('fair review queue: at most one new candidate per company per day', async () => {
+  const { store, deps, advance } = b3Setup();
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 30 });
+  const hosts = store.submissions.map((x) => new URL(x.endpoint_url).hostname).sort();
+  assert.deepEqual(hosts, ['a.test', 'b.test', 'big.test', 'c.test'], 'one each, though big.test has 5 eligible');
+
+  await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(store.submissions.length, 4, 'not again the same day');
+
+  advance(24 * 3_600_000 + 60_000);
+  await runCycle(deps, { maxProbeBatches: 30 });
+  assert.equal(store.submissions.filter((x) => x.endpoint_url.includes('big.test')).length, 2, 'the next one from big.test the next day');
+});
+
+test('unchanged listings cost no per-item queries; last seen refreshed once a day in bulk', async () => {
+  const { store, deps, advance } = setup();
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.ok([...store.services.values()].every((r) => r.bazaar_metadata == null), 'Bazaar metadata kept once, in listing versions');
+
+  let lookups = 0;
+  const getByUrl = store.getByUrl.bind(store);
+  store.getByUrl = async (u) => { lookups++; return getByUrl(u); };
+
+  advance(7 * 3_600_000);
+  let s = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.ok(s.discovery.cdp_bazaar.unchanged >= 11, `unchanged: ${s.discovery.cdp_bazaar.unchanged}`);
+  assert.ok(lookups <= 1, `per-item lookups: ${lookups} (only the SSRF-blocked one re-checks)`);
+  assert.equal(s.discovery.cdp_bazaar.touched, 0, 'seen 7 h ago: no write');
+
+  advance(14 * 3_600_000);
+  const before = svcRow(store, 'v2-get').last_seen_at.getTime();
+  s = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.ok(s.discovery.cdp_bazaar.touched >= 11, 'refreshed after 20 h');
+  assert.ok(svcRow(store, 'v2-get').last_seen_at.getTime() > before);
 });

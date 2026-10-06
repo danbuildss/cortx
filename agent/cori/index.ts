@@ -68,7 +68,9 @@ async function main() {
     store,
     config,
     log,
-    limiter: new HostLimiter(config.perHostMinIntervalMs, config.perHostMaxPerHour, { globalMaxPerHour: config.maxProbesPerHour }),
+    limiter: new HostLimiter(config.perHostMinIntervalMs, config.perHostMaxPerHour, {
+      globalMaxPerHour: config.maxProbesPerHour, maxPerDay: config.perHostMaxPerDay,
+    }),
     signal: shutdown.signal,
   };
 
@@ -80,6 +82,8 @@ async function main() {
   log.info('started', {
     mode: once ? 'once' : 'daemon', cori_version: config.version, max_price_usdc: config.maxEligiblePriceUsdc,
     daily_queue_cap: config.dailyQueueCap, allowed_ports: config.allowedPorts, max_probes_per_hour: config.maxProbesPerHour,
+    per_host_max_per_day: config.perHostMaxPerDay, queue_per_host_per_day: config.queuePerHostPerDay,
+    probe_recheck_hours: config.probeRecheckHours,
   });
 
   try {
@@ -90,7 +94,16 @@ async function main() {
       return;
     }
 
-    let lastHeartbeat = 0;
+    // Heartbeat on its own timer: a long first Bazaar pass (35k listings) must
+    // not look like Cori went silent to the watchdog
+    const beat = async () => {
+      const id = await store.startRun('heartbeat').catch(() => null);
+      if (id != null) await store.finishRun(id, true, {}).catch(() => {});
+    };
+    await beat();
+    const heartbeat = setInterval(() => { void beat(); }, config.heartbeatSeconds * 1000);
+    shutdown.signal.addEventListener('abort', () => clearInterval(heartbeat));
+
     while (!stopping) {
       const t0 = Date.now();
       try {
@@ -98,11 +111,6 @@ async function main() {
       } catch (err) {
         // Stay alive through DB/network hiccups; systemd restarts on crash
         log.error('cycle_failed', { error: err instanceof Error ? err.message : String(err) });
-      }
-      if (Date.now() - lastHeartbeat >= config.heartbeatSeconds * 1000) {
-        const id = await store.startRun('heartbeat').catch(() => null);
-        if (id != null) await store.finishRun(id, true, {}).catch(() => {});
-        lastHeartbeat = Date.now();
       }
       const wait = Math.max(0, config.tickSeconds * 1000 - (Date.now() - t0));
       for (let waited = 0; waited < wait && !stopping; waited += 1000) {
