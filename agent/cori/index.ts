@@ -23,6 +23,7 @@ async function dryRunStore(pg: PgStore): Promise<Store> {
     lean: true,
     sources: await pg.loadSources(),
     denylist: [...(await pg.loadDenylist())],
+    watchlist: [...(await pg.loadWatchlist())],
     known: await pg.loadKnown(),
   });
   mem.startRun = (kind) => pg.startRun(`dry:${kind}`);

@@ -39,11 +39,15 @@ install -m 644 "$APP/ops/cori/cori-dryrun.service" /etc/systemd/system/cori-dryr
 systemctl daemon-reload
 
 echo "$SHA $(date -u +%FT%TZ)" >> /opt/cori/DEPLOYS
-if systemctl is-enabled --quiet cori; then
+# Restart only if Cori is running now: a deliberately stopped Cori stays stopped
+# (Oct 8: a deploy restarted Cori that the founder had paused)
+if systemctl is-active --quiet cori; then
   systemctl restart cori
   sleep 3
   systemctl --no-pager --lines=5 status cori || true
   echo "Deployed $SHA and restarted Cori."
+elif systemctl is-enabled --quiet cori; then
+  echo "Built $SHA. Cori is stopped and stays stopped (start with: sudo systemctl start cori)."
 else
   echo "Built $SHA. Cori isn't enabled yet (go live with: sudo systemctl enable --now cori)."
 fi
