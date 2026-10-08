@@ -32,10 +32,12 @@ async function dryRunStore(pg: PgStore): Promise<Store> {
 
 async function summary(store: Store, log: Logger) {
   const classes = await store.countByClassification();
-  const sample = (await store.queueCandidates(10)).map((r) => ({
-    name: r.service_name, url: r.canonical_url, price_usdc: r.last_probe?.price_usdc ?? r.price_usdc, class: r.classification,
+  const companies = await store.countCompanies();
+  const sample = (await store.queueCompanies(10)).map((c) => ({
+    company: c.domain, name: c.name, services: c.services_total, site_ok: c.site_ok,
+    price_usdc: c.services[0]?.last_probe?.price_usdc ?? c.services[0]?.price_usdc ?? null,
   }));
-  log.info('summary', { classes, sample_candidates: sample });
+  log.info('summary', { classes, companies, sample_companies: sample });
 }
 
 async function main() {

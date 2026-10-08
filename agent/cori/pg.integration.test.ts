@@ -55,7 +55,7 @@ before(async () => {
   const dbUrl = new URL(ADMIN_URL); dbUrl.pathname = `/${DB}`;
   dbAdmin = postgres(dbUrl.toString(), { onnotice: () => {} });
   await dbAdmin.unsafe(BASELINE);
-  for (const m of ['023_cori_scout.sql', '024_fix_endpoint_submissions_columns.sql', '027_cori_memory.sql', '027_cori_memory.sql']) {
+  for (const m of ['023_cori_scout.sql', '024_fix_endpoint_submissions_columns.sql', '027_cori_memory.sql', '027_cori_memory.sql', '028_cori_quality.sql']) {
     // 027 twice: it must be safe to re-run
     await dbAdmin.unsafe(readFileSync(new URL(`../../supabase/migrations/${m}`, import.meta.url), 'utf8'));
   }
@@ -79,7 +79,7 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   // Includes a listing with NUL characters, which Postgres rejects in text and jsonb (Oct 7)
   eco.items = [...standardListings(eco), {
     resource: eco.url('svc.test', '/svc/nul'), type: 'http', x402Version: 2, serviceName: 'nul\u0000name',
-    description: 'has a \u0000 inside', tags: ['a\u0000'],
+    description: 'has a \u0000 inside, and is otherwise a real description', tags: ['a\u0000'],
     accepts: [{ scheme: 'exact', network: 'eip155:1', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C', extra: { note: 'x\u0000y' } }],
     extensions: { bazaar: { info: { input: { type: 'http', method: 'GET', queryParams: { q: '\u0000' } } } } },
   }];
@@ -87,17 +87,18 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
     store: new PgStore(cori, { version: 'it-version' }),
     config: defaultConfig({
       bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port], version: 'it-version',
-      probePerHostPerBatch: 100, queuePerHostPerDay: 100,
+      probePerHostPerBatch: 100, queuePerHostPerDay: 100, maxServicesPerCompany: 100,
     }),
     log: silentLogger,
     limiter: new HostLimiter(0, 1000),
     fetchOptions: eco.fetchOptions,
     sleep: async () => {},
+    siteUrls: (domain: string) => [eco.url(domain, '/')],
   };
 
   const first = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
   assert.deepEqual(first.source_errors, {});
-  assert.equal(first.queue.queued, 4);
+  assert.equal(first.queue.queued, 1, 'one card per company (Q1)');
 
   const classes = Object.fromEntries(
     (await dbAdmin`select service_name, classification from public.discovered_services`).map((r) => [r.service_name, r.classification])
@@ -110,7 +111,7 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   assert.equal(classes.expensive, 'too_expensive');
 
   const subs = await dbAdmin`select name, status, source, description, website_url, candidate_metadata from public.endpoint_submissions order by name`;
-  assert.equal(subs.length, 4);
+  assert.equal(subs.length, 1);
   for (const s of subs) {
     assert.equal(s.status, 'pending');
     assert.equal(s.source, 'cori_scout');
@@ -122,7 +123,7 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   assert.equal(second.queue.queued, 0);
   assert.equal(second.discovery.cdp_bazaar.new_services, 0);
   const [{ n }] = await dbAdmin`select count(*)::int as n from public.endpoint_submissions`;
-  assert.equal(n, 4);
+  assert.equal(n, 1);
 
   // History and run log written
   const [{ events }] = await dbAdmin`select count(*)::int as events from public.discovery_events where event = 'first_seen'`;
@@ -156,7 +157,24 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   const spread = await store.dueProbes(later, 50, { perHost: 1, excludeHosts: [] });
   assert.equal(new Set(spread.map((r) => r.host)).size, spread.length, 'one row per host');
   assert.deepEqual(await store.dueProbes(later, 50, { perHost: 5, excludeHosts: ['svc.test', 'down.test', 'rebind.test'] }), []);
-  assert.equal((await store.hostsQueuedSince(new Date(0))).length, 4);
+  assert.equal((await store.hostsQueuedSince(new Date(0))).length, 1);
+
+  // Q1 on real Postgres: companies, append-only website checks, read-only watch list
+  const companies = await dbAdmin`select domain, site_ok, linked_submission_id is not null as queued from public.discovered_companies order by domain`;
+  assert.ok(companies.some((c) => c.domain === 'svc.test' && c.site_ok === true && c.queued === true));
+  const [{ checks }] = await dbAdmin`select count(*)::int as checks from public.discovery_site_checks`;
+  assert.ok(checks >= 1);
+  await assert.rejects(cori`update public.discovery_site_checks set ok = true`, /permission denied/);
+  await assert.rejects(cori`insert into public.cori_watchlist (domain) values ('x.example')`, /permission denied/);
+  assert.equal((await store.queueCompanies(10)).length, 0, 'svc.test already proposed: never twice');
+
+  // 028's one-time correction sets aside pending endpoint-level cards (kept, with a reason)
+  await dbAdmin.unsafe(readFileSync(new URL('../../supabase/migrations/028_cori_quality.sql', import.meta.url), 'utf8'));
+  const [card] = await dbAdmin`select status, rejection_reason from public.endpoint_submissions where source = 'cori_scout'`;
+  assert.equal(card.status, 'rejected');
+  assert.match(card.rejection_reason, /Superseded by company-level review/);
+  const [{ freed }] = await dbAdmin`select count(*)::int as freed from public.discovered_services where linked_submission_id is not null`;
+  assert.equal(freed, 0, 'its service is free again');
   assert.ok((await store.queueCandidates(10, { perHost: 1, excludeHosts: ['svc.test'] })).every((r) => r.host !== 'svc.test'));
 
   // History is append-only for Cori, and can't be cascaded away

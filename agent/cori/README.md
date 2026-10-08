@@ -10,6 +10,8 @@ memory (append-only): every listing version (discovery_listings), every probe
 incl. failures (discovery_observations), every change (discovery_events)
 ```
 
+**Quality over noise (Q1):** Cori keeps only listings on an own domain (not free app hosting) with a real name and description, at most 10 per company. A company is proposed for review **once**, as one card, after its website answers and a service passes the free check. Companies in `cori_watchlist` always pass.
+
 Probes send only GET, or POST with an empty `{}` body — never a body taken from a listing — and only to port 443.
 
 ## Run
@@ -45,7 +47,7 @@ Only one instance runs at a time (Postgres advisory lock). `SIGTERM` stops it cl
 | `CORI_PROBE_RECHECK_HOURS` | `168` | re-probe cadence for healthy services (weekly) |
 | `CORI_PER_HOST_MAX_PER_DAY` | `5` | max free checks per host per rolling day (company-first) |
 | `CORI_PROBE_PER_HOST_PER_BATCH` | `1` | max rows per host in one probe batch; hosts never checked go first |
-| `CORI_QUEUE_PER_HOST_PER_DAY` | `1` | max new review candidates per host per UTC day |
+| `CORI_MAX_SERVICES_PER_COMPANY` | `10` | services kept per company (the oldest); the rest are set aside as noise |
 | `CORI_BAZAAR_PAGE_LIMIT` / `CORI_BAZAAR_MAX_PAGES` | `100` / `500` | pagination (up to 50k listings per pass) |
 | `CORI_ALLOWED_PORTS` | `443` | ports Cori may contact (comma-separated) |
 | `CORI_MAX_PROBES_PER_HOUR` | `600` | global probe budget across all hosts |

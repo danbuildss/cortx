@@ -8,9 +8,18 @@
 import { randomUUID } from 'node:crypto';
 import type { ListingSnapshot } from '../../lib/cori/bazaar';
 import type {
-  DiscoveryEvent, HostSpread, IndexRow, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow,
+  CompanyCandidate, DiscoveryEvent, HostSpread, IndexRow, SiteCheck, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow,
   SourceRow, Store,
 } from './store';
+
+// Website checks: never checked → now; ok → weekly; failed → after a day, weekly after 3 failures
+export function isSiteCheckDue(c: { site_checked_at: Date | null; site_ok: boolean | null; site_failures: number }, now: Date): boolean {
+  if (!c.site_checked_at) return true;
+  const age = now.getTime() - c.site_checked_at.getTime();
+  const day = 86_400_000;
+  if (c.site_ok || c.site_failures >= 3) return age >= 7 * day;
+  return age >= day;
+}
 
 // Keep at most `perHost` rows per host (in the given order), skipping excluded hosts
 function spreadByHost(rows: ServiceRow[], spread?: HostSpread): ServiceRow[] {
@@ -29,6 +38,7 @@ function spreadByHost(rows: ServiceRow[], spread?: HostSpread): ServiceRow[] {
 export type MemorySeed = {
   sources?: SourceRow[];
   denylist?: string[];
+  watchlist?: string[];
   known?: KnownRecords;
   /** Clock for event and submission timestamps (the database uses now()); tests pass their fake clock */
   now?: () => Date;
@@ -50,12 +60,20 @@ export class MemoryStore implements Store {
   private listingKeys = new Map<string, number>(); // `${id}|${source}|${hash}` → index in listings
   observations: Array<Observation & { serviceId: string }> = [];
   observationCount = 0;
+  watchlist: Set<string>;
+  companies = new Map<string, {
+    domain: string; name: string | null; first_seen_at: Date; last_seen_at: Date;
+    site_checked_at: Date | null; site_ok: boolean | null; site_status: number | null; site_failures: number;
+    linked_submission_id: string | null;
+  }>();
+  siteChecks: Array<SiteCheck & { domain: string; at: Date }> = [];
   readonly lean: boolean;
   private readonly now: () => Date;
 
   constructor(seed: MemorySeed = {}) {
     this.now = seed.now ?? (() => new Date());
     this.lean = seed.lean ?? false;
+    this.watchlist = new Set(seed.watchlist ?? []);
     this.sources = seed.sources ?? [];
     this.denylist = new Set(seed.denylist ?? []);
     this.known = seed.known ?? { services: [], seeds: [], submissions: [] };
@@ -88,7 +106,7 @@ export class MemoryStore implements Store {
     const out = new Map<string, IndexRow>();
     for (const r of this.services.values()) {
       out.set(r.canonical_url, {
-        id: r.id, listing_hash: r.listing_hash, classification: r.classification, last_seen_at: r.last_seen_at,
+        id: r.id, first_seen_at: r.first_seen_at, company_domain: r.company_domain, listing_hash: r.listing_hash, classification: r.classification, last_seen_at: r.last_seen_at,
         disappeared_at: r.disappeared_at, linked_service_id: r.linked_service_id, linked_seed_id: r.linked_seed_id,
         sources: await this.sourcesFor(r.id),
       });
@@ -127,7 +145,7 @@ export class MemoryStore implements Store {
       http_method: 'GET', input_example: null, x402_version: null, network: null, asset: null,
       scheme: null, transfer_method: null, price_atomic: null, price_usdc: null,
       pay_to_fingerprint: null, pay_to: null, facilitator_url: null, listing_hash: null,
-      route_template: null, resource_url: null, source_last_updated: null, disappeared_at: null,
+      route_template: null, resource_url: null, source_last_updated: null, disappeared_at: null, company_domain: null,
       last_probe_at: null, next_probe_at: null, probe_failures: 0, last_probe: null,
       classification: 'pending', classification_reasons: [],
       linked_service_id: null, linked_seed_id: null, linked_submission_id: null,
@@ -199,6 +217,63 @@ export class MemoryStore implements Store {
         && !s.linked_submission_id && !s.linked_service_id && !s.linked_seed_id)
       .sort((a, b) => rank(a.classification) - rank(b.classification) || a.first_seen_at.getTime() - b.first_seen_at.getTime());
     return spreadByHost(rows, spread).slice(0, limit).map((s) => ({ ...s }));
+  }
+
+  async loadWatchlist() { return new Set(this.watchlist); }
+
+  async upsertCompany(domain: string, name: string | null, at: Date) {
+    const c = this.companies.get(domain);
+    if (c) { c.last_seen_at = at; c.name = c.name ?? name; return; }
+    this.companies.set(domain, {
+      domain, name, first_seen_at: at, last_seen_at: at, site_checked_at: null, site_ok: null, site_status: null,
+      site_failures: 0, linked_submission_id: null,
+    });
+  }
+
+  async dueSiteChecks(now: Date, limit: number, excludeDomains: string[]) {
+    const skip = new Set(excludeDomains);
+    return [...this.companies.values()]
+      .filter((c) => !skip.has(c.domain) && isSiteCheckDue(c, now))
+      .sort((a, b) => a.first_seen_at.getTime() - b.first_seen_at.getTime())
+      .slice(0, limit)
+      .map((c) => c.domain);
+  }
+
+  async recordSiteCheck(domain: string, check: SiteCheck, at: Date) {
+    this.siteChecks.push({ ...check, domain, at });
+    const c = this.companies.get(domain);
+    if (c) Object.assign(c, { site_checked_at: at, site_ok: check.ok, site_status: check.http_status, site_failures: check.ok ? 0 : c.site_failures + 1 });
+  }
+
+  async queueCompanies(limit: number) {
+    const rank = (r: ServiceRow) => (r.classification === 'eligible' ? 0 : 1);
+    const out: CompanyCandidate[] = [];
+    const companies = [...this.companies.values()]
+      .filter((c) => c.linked_submission_id == null && (c.site_ok === true || this.watchlist.has(c.domain)))
+      .sort((a, b) => Number(this.watchlist.has(b.domain)) - Number(this.watchlist.has(a.domain)) || a.first_seen_at.getTime() - b.first_seen_at.getTime());
+    for (const c of companies) {
+      const services = [...this.services.values()]
+        .filter((r) => r.company_domain === c.domain && (r.classification === 'eligible' || r.classification === 'needs_input')
+          && !r.linked_submission_id && !r.linked_service_id && !r.linked_seed_id)
+        .sort((a, b) => rank(a) - rank(b) || (a.price_usdc ?? 0) - (b.price_usdc ?? 0) || a.first_seen_at.getTime() - b.first_seen_at.getTime());
+      if (services.length === 0) continue;
+      out.push({
+        domain: c.domain, name: c.name, first_seen_at: c.first_seen_at, site_ok: c.site_ok, site_status: c.site_status,
+        watched: this.watchlist.has(c.domain), services: services.slice(0, 5).map((r) => ({ ...r })), services_total: services.length,
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  async linkCompanySubmission(domain: string, submissionId: string) {
+    const c = this.companies.get(domain);
+    if (c) c.linked_submission_id = submissionId;
+  }
+
+  async countCompanies() {
+    const all = [...this.companies.values()];
+    return { known: all.length, site_ok: all.filter((c) => c.site_ok).length, queued: all.filter((c) => c.linked_submission_id).length };
   }
 
   async hostsQueuedSince(since: Date) {

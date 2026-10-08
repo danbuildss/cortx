@@ -68,7 +68,9 @@ export function CoriAdminLine({ nav }: { nav: CoriNav | null }) {
 
 // ─── /admin/cori blocks ─────────────────────────────────────────────────────
 
-export function CoriStatusCard({ runs, totalDiscovered, now }: { runs: CoriRun[]; totalDiscovered: number; now: number }) {
+export function CoriStatusCard({ runs, totalDiscovered, companies = 0, companiesSiteOk = 0, now }: {
+  runs: CoriRun[]; totalDiscovered: number; companies?: number; companiesSiteOk?: number; now: number;
+}) {
   const last = runs[0] ?? null;
   const state = heartbeatState(last ? new Date(last.started_at) : null, new Date(now));
   const d = HEARTBEAT_DISPLAY[state];
@@ -104,7 +106,10 @@ export function CoriStatusCard({ runs, totalDiscovered, now }: { runs: CoriRun[]
                 : <>{(dStats.items ?? 0).toLocaleString()} listings · {(dStats.new_services ?? 0).toLocaleString()} new</>}
             </>
           ) : 'none yet'}
-          <span style={{ color: 'var(--text-dim)' }}> · {totalDiscovered.toLocaleString()} services known</span>
+          <span style={{ color: 'var(--text-dim)' }}>
+            {companies > 0 && <> · {companies.toLocaleString()} real companies ({companiesSiteOk.toLocaleString()} with a working website)</>}
+            {' · '}{totalDiscovered.toLocaleString()} services kept
+          </span>
         </div>
       )}
     </div>

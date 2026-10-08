@@ -41,6 +41,7 @@ const EnvSchema = z.object({
   CORI_PER_HOST_MAX_PER_DAY: z.coerce.number().int().min(1).default(5),
   CORI_PROBE_PER_HOST_PER_BATCH: z.coerce.number().int().min(1).default(1),
   CORI_QUEUE_PER_HOST_PER_DAY: z.coerce.number().int().min(1).default(1),
+  CORI_MAX_SERVICES_PER_COMPANY: z.coerce.number().int().min(1).default(10),
   CORI_BAZAAR_PAGE_LIMIT: z.coerce.number().int().min(1).max(1000).default(100),
   CORI_BAZAAR_MAX_PAGES: z.coerce.number().int().min(1).default(500),
   CORI_ALLOWED_PORTS: ports.default([443]),
@@ -65,6 +66,7 @@ export type CoriConfig = {
   perHostMaxPerDay: number;
   probePerHostPerBatch: number;
   queuePerHostPerDay: number;
+  maxServicesPerCompany: number;
   bazaarPageLimit: number;
   bazaarMaxPages: number;
   tickSeconds: number;
@@ -92,6 +94,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoriConfig {
     perHostMaxPerDay: e.CORI_PER_HOST_MAX_PER_DAY,
     probePerHostPerBatch: e.CORI_PROBE_PER_HOST_PER_BATCH,
     queuePerHostPerDay: e.CORI_QUEUE_PER_HOST_PER_DAY,
+    maxServicesPerCompany: e.CORI_MAX_SERVICES_PER_COMPANY,
     bazaarPageLimit: e.CORI_BAZAAR_PAGE_LIMIT,
     bazaarMaxPages: e.CORI_BAZAAR_MAX_PAGES,
     tickSeconds: e.CORI_TICK_SECONDS,
