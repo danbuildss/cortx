@@ -76,7 +76,13 @@ after(async () => {
 });
 
 test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL && 'set CORI_TEST_ADMIN_DATABASE_URL' }, async () => {
-  eco.items = standardListings(eco);
+  // Includes a listing with NUL characters, which Postgres rejects in text and jsonb (Oct 7)
+  eco.items = [...standardListings(eco), {
+    resource: eco.url('svc.test', '/svc/nul'), type: 'http', x402Version: 2, serviceName: 'nul\u0000name',
+    description: 'has a \u0000 inside', tags: ['a\u0000'],
+    accepts: [{ scheme: 'exact', network: 'eip155:1', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C', extra: { note: 'x\u0000y' } }],
+    extensions: { bazaar: { info: { input: { type: 'http', method: 'GET', queryParams: { q: '\u0000' } } } } },
+  }];
   const deps: Deps = {
     store: new PgStore(cori, { version: 'it-version' }),
     config: defaultConfig({
@@ -120,7 +126,7 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
 
   // History and run log written
   const [{ events }] = await dbAdmin`select count(*)::int as events from public.discovery_events where event = 'first_seen'`;
-  assert.equal(events, 12);
+  assert.equal(events, 13);
   const runs = await dbAdmin`select kind, ok from public.cori_runs order by id`;
   assert.ok(runs.some((r) => r.kind === 'discover:cdp_bazaar' && r.ok === true));
 
@@ -135,7 +141,7 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
     where s.service_name = 'v2-get' order by o.id limit 1`;
   assert.deepEqual({ ...v2obs }, { outcome: 'ok', method: 'GET', price_atomic: '2000', pay_to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C', cori_version: 'it-version' });
   const [{ listings }] = await dbAdmin`select count(*)::int as listings from public.discovery_listings`;
-  assert.equal(listings, 12, 'second pass, same content: no new versions');
+  assert.equal(listings, 13, 'second pass, same content: no new versions');
   assert.ok(runs.length > 0);
   const [{ stamped }] = await dbAdmin`select count(*)::int as stamped from public.cori_runs where cori_version = 'it-version'`;
   assert.equal(stamped, runs.length, 'every run row carries the Cori version');
@@ -143,7 +149,7 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   // B3 queries run on real Postgres as cori_agent
   const store = deps.store as PgStore;
   const index = await store.loadIndex();
-  assert.equal(index.size, 12);
+  assert.equal(index.size, 13);
   assert.deepEqual([...index.values()][0].sources, ['cdp_bazaar']);
   await store.touchSeen([...index.values()].map((r) => r.id), 'cdp_bazaar', new Date());
   const later = new Date(Date.now() + 30 * 86_400_000);

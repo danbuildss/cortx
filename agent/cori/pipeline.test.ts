@@ -454,3 +454,22 @@ test('unchanged listings cost no per-item queries; last seen refreshed once a da
   assert.ok(s.discovery.cdp_bazaar.touched >= 11, 'refreshed after 20 h');
   assert.ok(svcRow(store, 'v2-get').last_seen_at.getTime() > before);
 });
+
+test('one failing listing does not stop the pass; many in a row do', async () => {
+  const { store, deps } = setup();
+  const record = store.recordListing.bind(store);
+  store.recordListing = async (id, src, hash, snap, at) => {
+    if (snap?.resource?.includes('/svc/permit2')) throw new Error('unsupported Unicode escape sequence');
+    return record(id, src, hash, snap, at);
+  };
+  const s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.deepEqual(s.source_errors, {}, 'the pass still completes');
+  assert.equal(s.discovery.cdp_bazaar.item_errors, 1);
+  assert.equal(byName(store)['v2-get'], 'eligible', 'listings after the bad one are processed');
+
+  const broken = setup();
+  eco.items.push(...Array.from({ length: 25 }, (_, i) => onHost('a.test', `?n=${i}`)));
+  broken.store.recordListing = async () => { throw new Error('connection lost'); };
+  const b = await runCycle(broken.deps, { forceSources: true, maxProbeBatches: 1 });
+  assert.match(b.source_errors.cdp_bazaar ?? '', /in a row failed: connection lost/, 'a dead database fails the pass (retried in 30 min)');
+});

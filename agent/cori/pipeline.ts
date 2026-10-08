@@ -39,6 +39,8 @@ const SWEEP_NEEDS_PASS_WITHIN_MS = 24 * HOUR;
 const SWEEP_BATCH = 500;
 // An unchanged listing only refreshes last_seen_at this often (disappearance works in days)
 const TOUCH_EVERY_MS = 20 * HOUR;
+// This many failed listings in a row means something is down (not one bad listing): fail the pass
+const MAX_CONSECUTIVE_ITEM_ERRORS = 20;
 
 // Classes decided from the listing alone never need a probe until the listing changes
 const NO_PROBE: ReadonlySet<Classification> = new Set([
@@ -176,7 +178,7 @@ function inputOf(row: Pick<ServiceRow, 'http_method' | 'input_example'>): Classi
 export type DiscoveryStats = BazaarPassStats & {
   invalid_items: number; skipped_non_http: number; new_services: number;
   changed_listings: number; new_listing_versions: number; reappeared: number; duplicates_in_pass: number;
-  unchanged: number; touched: number;
+  unchanged: number; touched: number; item_errors: number;
   classes: Record<string, number>;
 };
 
@@ -214,7 +216,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
   const stats: DiscoveryStats = {
     pages: 0, items: 0, truncated: false, total: null,
     invalid_items: 0, skipped_non_http: 0, new_services: 0, changed_listings: 0, new_listing_versions: 0, reappeared: 0,
-    unchanged: 0, touched: 0,
+    unchanged: 0, touched: 0, item_errors: 0,
     duplicates_in_pass: 0, classes: {},
   };
   const seenThisPass = new Set<string>();
@@ -229,13 +231,29 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     sleep: d.sleep,
   }, stats);
 
+  let consecutiveErrors = 0;
   for await (const raw of items) {
+    try {
+      await discoverItem(raw);
+      consecutiveErrors = 0;
+    } catch (err) {
+      // One bad listing must not stop the pass (Oct 7: one listing blocked
+      // 11k others). Many in a row means the database is down: fail the pass.
+      stats.item_errors++;
+      consecutiveErrors++;
+      const message = err instanceof Error ? err.message : String(err);
+      log.warn('item_failed', { resource: (raw as { resource?: unknown })?.resource ?? null, error: message });
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ITEM_ERRORS) throw new Error(`${consecutiveErrors} listings in a row failed: ${message}`);
+    }
+  }
+
+  async function discoverItem(raw: unknown): Promise<void> {
     const l = parseBazaarItem(raw);
     if (!isListing(l)) {
       if (l.reason === 'not_http') stats.skipped_non_http++; else stats.invalid_items++;
-      continue;
+      return;
     }
-    if (seenThisPass.has(l.canonicalUrl)) { stats.duplicates_in_pass++; continue; }
+    if (seenThisPass.has(l.canonicalUrl)) { stats.duplicates_in_pass++; return; }
     seenThisPass.add(l.canonicalUrl);
 
     const host = hostOf(l.canonicalUrl);
@@ -244,7 +262,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
       stats.unchanged++;
       stats.classes[known.classification] = (stats.classes[known.classification] ?? 0) + 1;
       if (at.getTime() - known.last_seen_at.getTime() >= TOUCH_EVERY_MS) toTouch.push(known.id);
-      continue;
+      return;
     }
     let row = await store.getByUrl(l.canonicalUrl);
     const isNew = row == null;
