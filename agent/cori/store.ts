@@ -58,6 +58,7 @@ export type ServiceRow = {
   resource_url: string | null;        // concrete URL to probe (differs from canonical_url for dynamic routes)
   source_last_updated: Date | null;
   disappeared_at: Date | null;
+  company_domain: string | null;
   listing_hash: string | null;
   last_probe_at: Date | null;
   next_probe_at: Date | null;
@@ -94,6 +95,8 @@ export type Observation = ProbeRecord & { probe_url: string; cori_version: strin
 // Just enough of a known service to tell, without loading it, that a listing hasn't changed
 export type IndexRow = {
   id: string;
+  first_seen_at: Date;
+  company_domain: string | null;
   listing_hash: string | null;
   classification: Classification;
   last_seen_at: Date;
@@ -101,6 +104,21 @@ export type IndexRow = {
   linked_service_id: string | null;
   linked_seed_id: string | null;
   sources: string[];
+};
+
+// Q1: a company (registrable domain) and its website check
+export type SiteCheck = { url: string; http_status: number | null; latency_ms: number | null; error_code: string | null; ok: boolean; cori_version: string };
+
+// Q1: a company ready for review, with its best services (eligible first, cheapest first)
+export type CompanyCandidate = {
+  domain: string;
+  name: string | null;
+  first_seen_at: Date;
+  site_ok: boolean | null;
+  site_status: number | null;
+  watched: boolean;
+  services: ServiceRow[];
+  services_total: number;
 };
 
 // Host spread (spec v2 B3): which rows a batch may take per host, and hosts to skip
@@ -145,6 +163,18 @@ export interface Store {
   /** eligible first, then needs_input; oldest first; not yet queued; not linked to CORTX records;
    *  at most `spread.perHost` per host, skipping `spread.excludeHosts` */
   queueCandidates(limit: number, spread?: HostSpread): Promise<ServiceRow[]>;
+  /** Q1: companies the founder always wants watched */
+  loadWatchlist(): Promise<Set<string>>;
+  /** Q1: create or refresh a company row (last seen; name only if it has none) */
+  upsertCompany(domain: string, name: string | null, at: Date): Promise<void>;
+  /** Q1: companies whose website hasn't been checked, or not recently (failures retried sooner) */
+  dueSiteChecks(now: Date, limit: number, excludeDomains: string[]): Promise<string[]>;
+  /** Q1: append the website check and update the company's current site state */
+  recordSiteCheck(domain: string, check: SiteCheck, at: Date): Promise<void>;
+  /** Q1: companies ready for review — website ok (or watched), never queued, with a usable service */
+  queueCompanies(limit: number): Promise<CompanyCandidate[]>;
+  linkCompanySubmission(domain: string, submissionId: string): Promise<void>;
+  countCompanies(): Promise<{ known: number; site_ok: number; queued: number }>;
   /** The host of every candidate queued since `since` (one entry per candidate, so it can be counted) */
   hostsQueuedSince(since: Date): Promise<string[]>;
   countQueuedSince(since: Date): Promise<number>;

@@ -377,7 +377,7 @@ See H. Today the suite runs 116 tests (115 pass, 1 skipped: the real-Postgres te
 | B | Scout process, pipeline, stores, tests | — | ✅ merged |
 | C | `/admin/cori`, review write-back, watchdog | — | ✅ merged |
 | **B2** | G1–G11: migration 027 (memory, no cascades), route templates, methods, POST body, port 443, pagination, disappeared sweep, version stamp, env refusal, bundle test, probe budget, stop signal | merge; run 027 | ✅ built (PR open) |
-| **D** | Server go-live: setup script, unit, deploy script; dry run → live | Hetzner project + server, role password, about an hour together | scripts ✅ built (rehearsed: clean install with `--ignore-scripts`, Cori tests, build); server waiting on you |
+| **D** | Server go-live: setup script, unit, deploy script; dry run → live | Hetzner server, role password | ✅ **live Oct 6, 22:14 UTC** (CX23 `cori`, Nuremberg; after B3) |
 | **E** | Observe 1 week: review the queue, record real numbers in NOTES (listings, pass-on-paper, eligible, DB growth/day, pass duration) | review candidates | — |
 | next | Separate spec: **Observer V1** (baselines and change detection on the observations B2 starts collecting) | — | ⏳ |
 
@@ -477,3 +477,27 @@ See B. Also not built because CORTX already has it: no new admin UI, alerting ch
   - new: big host capped at 5/day and continued the next day; never-checked hosts first under a 1-check budget; one candidate per host per day; unchanged listings cause no per-item lookups, with a bulk refresh after 20 h; no duplicated metadata
   - real-Postgres test as `cori_agent` covers `loadIndex`, `touchSeen`, the host-spread probe/queue queries and `hostsQueuedSince`
   - dry-run scale rehearsal: 20k listings in 27 s at a 76 MB heap
+
+## Q1 quality gate (approved Oct 8, built): quality over noise
+
+**Why:** live since Oct 6, the founder saw the review page fill with endpoints from hobby/test projects (e.g. `*.up.railway.app`) and one host's thousands of listings. Decision: *"actual companies, actual products … quality over noise."*
+
+- **Listing gate** (`lib/cori/quality.ts`, pure). A listing is kept only if:
+  - it's on an **own domain**, not free app hosting (railway, vercel, netlify, render, heroku, fly, workers/pages, ngrok, replit, glitch, github.io, firebase, cloud run, supabase, lovable, …)
+  - it has a **real name** (≥ 3 chars, not test/demo/example/hello/placeholder…) and a **real description** (≥ 20 chars, not a short test/demo text)
+  - its company has **≤ 10 services** (`CORI_MAX_SERVICES_PER_COMPANY`); the oldest are kept, so the set is stable
+- **What happens to failures:** new noise is never stored or checked. Noise stored before Q1 becomes `low_quality` (kept, never probed, one `classification_changed` event).
+- **Company** = registrable domain (`dns.intel.rallylive.ca` → `rallylive.ca`), in `discovered_companies`.
+- **Website check per company** (`https://domain/`, then `https://www.domain/`):
+  - status < 500 counts as answering (a big page still counts)
+  - re-checked weekly; failures retried after a day, then weekly after 3
+  - polite (same per-host spacing as probes), doesn't use probe allowances, honours the opt-out list
+  - every check kept in `discovery_site_checks` (append-only)
+- **Review = one card per company, ever.** A company is proposed when its website answers (or it's on the watch list) and at least one service passes the free check. The card shows the company, the number of paid services, the price range, up to 5 services and "website answers ✓". Still ≤ 25 cards a day.
+- **Watch list** (`cori_watchlist`, founder-edited, read-only for `cori_agent`): those companies always pass the gate and are proposed without the website requirement.
+- **Migration 028:**
+  - adds companies, site checks, the watch list, `company_domain` and class `low_quality`
+  - one-time correction: the 75 endpoint-level cards pending Oct 6–8 were set aside (status `rejected`, reason "Superseded by company-level review"; rows kept), and their services freed so Cori proposes the companies once
+- **Tests:** suite 154 (153 pass).
+  - Pipeline: noise never stored or contacted; the cap demotes the newest extras with no repeated writes; watch-list bypass; a company is proposed only after its website answers, with failed checks retried after a day; pre-Q1 rows get their company; one card per company.
+  - Real Postgres as `cori_agent`: companies and website checks written; checks append-only; watch list read-only; never proposed twice; the 028 correction sets aside a pending card and frees its service.

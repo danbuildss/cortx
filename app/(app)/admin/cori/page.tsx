@@ -14,7 +14,7 @@ export default async function CoriPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.id !== ADMIN_USER_ID) redirect('/overview');
 
-  const { runs, totalDiscovered, events, classCounts, candidates, loadedAt: now } = await loadCoriOverview(adminServiceClient());
+  const { runs, totalDiscovered, companies, companiesSiteOk, events, classCounts, candidates, loadedAt: now } = await loadCoriOverview(adminServiceClient());
   const started = heartbeatState(runs[0] ? new Date(runs[0].started_at) : null, new Date(now)) !== 'not_started';
 
   return (
@@ -31,7 +31,7 @@ export default async function CoriPage() {
         </span>
       </div>
 
-      <CoriStatusCard runs={runs} totalDiscovered={totalDiscovered} now={now} />
+      <CoriStatusCard runs={runs} totalDiscovered={totalDiscovered} companies={companies} companiesSiteOk={companiesSiteOk} now={now} />
 
       {(started || candidates.length > 0) && (
         <>

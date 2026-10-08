@@ -118,11 +118,11 @@ export function standardListings(eco: FakeEcosystem): unknown[] {
   const v2 = (path: string, amount = '2000', over: Record<string, unknown> = {}, accept: Record<string, unknown> = {}) => ({
     resource: svc(path), type: 'http', x402Version: 2,
     accepts: [{ scheme: 'exact', network: 'eip155:8453', amount, asset: USDC, payTo: PAY_TO, ...accept }],
-    serviceName: path.replace('/svc/', ''), tags: ['data'], ...over,
+    serviceName: path.replace('/svc/', ''), description: 'Market data for agents, paid per call.', tags: ['data'], ...over,
   });
   return [
     v2('/svc/v2-get'),
-    { resource: svc('/svc/v1-post'), type: 'http', x402Version: 1, serviceName: 'v1-post',
+    { resource: svc('/svc/v1-post'), type: 'http', x402Version: 1, serviceName: 'v1-post', description: 'Weather forecasts for agents, paid per call.',
       accepts: [{ scheme: 'exact', network: 'base', maxAmountRequired: '1000', asset: USDC, payTo: PAY_TO, outputSchema: { input: { type: 'http', method: 'POST', body: { q: 'weather' } } } }] },
     v2('/svc/post-noex', '2000', { extensions: { bazaar: { info: { input: { type: 'http', method: 'POST' } } } } }),
     v2('/svc/expensive', '5000000'),

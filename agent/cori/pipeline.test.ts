@@ -33,13 +33,15 @@ function setup(overrides: { cap?: number; globalMaxPerHour?: number } = {}) {
     // Most fake services share one host; the B3 per-host limits get their own tests
     config: defaultConfig({
       dailyQueueCap: overrides.cap ?? 25, bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port],
-      probePerHostPerBatch: 100, queuePerHostPerDay: 100, probeRecheckHours: 24,
+      probePerHostPerBatch: 100, queuePerHostPerDay: 100, probeRecheckHours: 24, maxServicesPerCompany: 100,
     }),
     log: silentLogger,
     limiter: new HostLimiter(0, 1000, { globalMaxPerHour: overrides.globalMaxPerHour }),
     now: () => clock,
     fetchOptions: eco.fetchOptions,
     sleep: async () => {},
+    // Company websites are checked on the fake server (its random port)
+    siteUrls: (domain: string) => [eco.url(domain, '/')],
   };
   return { store, deps, advance: (ms: number) => { clock = new Date(clock.getTime() + ms); } };
 }
@@ -82,19 +84,25 @@ test('one cycle: discovers, dedupes, classifies, probes for free, queues', async
   assert.ok(down.next_probe_at!.getTime() > Date.parse('2026-09-28T10:00:00Z'), 'backed off');
   assert.ok(down.classification_reasons.some((r) => r.startsWith('probe:retrying')));
 
-  // Queue: eligible first, then needs_input
-  assert.equal(stats.queue.queued, 4);
-  assert.deepEqual(store.submissions.map((s) => s.name).sort(), ['post-noex', 'v1-post', 'v2-get', 'v2-get-2']);
-  const v2 = store.submissions.find((s) => s.name === 'v2-get')!;
-  assert.equal(v2.endpoint_url, eco.url('svc.test', '/svc/v2-get'));
-  assert.equal(v2.candidate_metadata.price_usdc, 0.002);
-  assert.equal(v2.candidate_metadata.network, 'eip155:8453');
-  assert.equal(v2.candidate_metadata.evidence_state, 'observed');
-  assert.deepEqual(v2.candidate_metadata.sources, ['cdp_bazaar']);
+  // Queue (Q1): one card per company — svc.test, whose website answers
+  assert.equal(stats.queue.queued, 1);
+  const card = store.submissions[0];
+  assert.equal(card.name, 'v2-get', 'the company is named after its first listing');
+  assert.equal(card.website_url, 'https://svc.test');
+  const m = card.candidate_metadata as Record<string, unknown>;
+  assert.equal(m.kind, 'company');
+  assert.equal(m.company, 'svc.test');
+  assert.equal(m.services_total, 4, '3 eligible + 1 needs input');
+  assert.equal(card.endpoint_url, eco.url('svc.test', '/svc/v1-post'), 'best service: eligible, cheapest ($0.001)');
+  assert.equal(m.price_min, 0.001);
+  assert.equal(m.price_max, 0.002);
+  assert.equal(m.evidence_state, 'observed');
+  assert.deepEqual(m.sources, ['cdp_bazaar']);
+  assert.equal(stats.sites.checked, 3, 'svc.test, rebind.test, down.test websites checked');
 
   // History
   assert.equal(store.events.filter((e) => e.event === 'first_seen').length, 12);
-  assert.equal(store.events.filter((e) => e.event === 'queued').length, 4);
+  assert.equal(store.events.filter((e) => e.event === 'queued').length, 1);
 });
 
 test('never pays and never probes what the listing already rules out', async () => {
@@ -115,11 +123,11 @@ test('never pays and never probes what the listing already rules out', async () 
   assert.ok(!eco.hits.some((h) => h.host === 'rebind.test'), 'private address never contacted');
 });
 
-test('daily queue cap, then the rest the next day; no duplicates', async () => {
+test('daily queue cap, then the rest the next day; one card per company, ever', async () => {
   const { store, deps, advance } = setup({ cap: 2 });
+  eco.items = ['a.test', 'b.test', 'c.test', 'd.test', 'big.test'].map((h) => onHostItem(h));
   let s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
   assert.equal(s.queue.queued, 2);
-  assert.ok(store.submissions.every((x) => ['v2-get', 'v1-post', 'v2-get-2'].includes(x.name)), 'eligible before needs_input');
 
   s = await runCycle(deps, { forceSources: true });
   assert.equal(s.queue.queued, 0, 'cap reached for today');
@@ -128,12 +136,14 @@ test('daily queue cap, then the rest the next day; no duplicates', async () => {
   advance(24 * 3_600_000);
   s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
   assert.equal(s.queue.queued, 2);
-  assert.equal(store.submissions.length, 4);
+  advance(24 * 3_600_000);
+  s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(s.queue.queued, 1);
 
   advance(24 * 3_600_000);
   s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
-  assert.equal(s.queue.queued, 0, 'nothing is ever queued twice');
-  assert.equal(new Set(store.submissions.map((x) => x.discovered_service_id)).size, 4);
+  assert.equal(s.queue.queued, 0, 'no company is ever queued twice');
+  assert.equal(new Set(store.submissions.map((x) => x.website_url)).size, 5);
   assert.equal(s.discovery.cdp_bazaar.new_services, 0, 'known services are updated, not duplicated');
 });
 
@@ -261,7 +271,7 @@ test('listing versions: a new row only when the content changes', async () => {
 
 test('only port 443 (here: the fake port): other ports are blocked from the listing, never contacted', async () => {
   const { store, deps } = setup();
-  eco.items.push({ resource: `https://svc.test:8443/svc/v2-get`, type: 'http', x402Version: 2, serviceName: 'odd-port',
+  eco.items.push({ resource: `https://svc.test:8443/svc/v2-get`, type: 'http', x402Version: 2, serviceName: 'odd-port', description: 'Market data for agents, paid per call.',
     accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }] });
   await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
   const row = svcRow(store, 'odd-port');
@@ -272,7 +282,7 @@ test('only port 443 (here: the fake port): other ports are blocked from the list
 
 test('DELETE/PUT/PATCH endpoints are never called', async () => {
   const { store, deps } = setup();
-  eco.items.push({ resource: eco.url('svc.test', '/svc/del'), type: 'http', x402Version: 2, serviceName: 'del',
+  eco.items.push({ resource: eco.url('svc.test', '/svc/del'), type: 'http', x402Version: 2, serviceName: 'del', description: 'Market data for agents, paid per call.',
     accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }],
     extensions: { bazaar: { info: { input: { type: 'http', method: 'DELETE' } } } } });
   await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
@@ -282,7 +292,7 @@ test('DELETE/PUT/PATCH endpoints are never called', async () => {
 
 test('dynamic routes: one service per template, probed and queued at a concrete URL', async () => {
   const { store, deps } = setup();
-  const user = (id: string) => ({ resource: eco.url('svc.test', `/svc/users/${id}`), type: 'http', x402Version: 2, serviceName: 'users',
+  const user = (id: string) => ({ resource: eco.url('svc.test', `/svc/users/${id}`), type: 'http', x402Version: 2, serviceName: 'users', description: 'User profiles for agents, paid per call.',
     accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }],
     extensions: { bazaar: { routeTemplate: '/svc/users/:id', info: { input: { type: 'http', method: 'GET', pathParams: { id } } } } } });
   eco.items.push(user('1'), user('2'));
@@ -295,7 +305,9 @@ test('dynamic routes: one service per template, probed and queued at a concrete 
   assert.equal(rows[0].route_template, '/svc/users/:id');
   assert.equal(rows[0].classification, 'eligible');
   assert.ok(eco.hits.some((h) => h.path === '/svc/users/1'), 'probed at the concrete URL');
-  assert.equal(store.submissions.find((x) => x.name === 'users')!.endpoint_url, eco.url('svc.test', '/svc/users/1'));
+  const svcCard = store.submissions.find((x) => x.website_url === 'https://svc.test')!;
+  const listed = (svcCard.candidate_metadata.services as Array<{ name: string; url: string }>).find((x) => x.name === 'users')!;
+  assert.equal(listed.url, eco.url('svc.test', '/svc/users/1'), 'listed for review at the concrete URL');
 });
 
 test('disappearance: after 7 days unlisted (with complete passes); listing-only classes become gone; reappear', async () => {
@@ -381,8 +393,9 @@ test('dry-run (lean) store: same classes and queue, without keeping payloads', a
 
 // ─── Phase B3: company-first probing, fair queue, no writes for unchanged listings ─
 
+const onHostItem = (host: string, q = '') => onHost(host, q);
 const onHost = (host: string, q = '') => ({
-  resource: `${eco.url(host, '/svc/v2-get')}${q}`, type: 'http', x402Version: 2, serviceName: `${host}${q}`,
+  resource: `${eco.url(host, '/svc/v2-get')}${q}`, type: 'http', x402Version: 2, serviceName: `Company ${host.split('.')[0]}${q}`, description: 'Market data for agents, paid per call.',
   accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }],
 });
 
@@ -419,18 +432,13 @@ test('hosts never checked go first', async () => {
   assert.equal(hostHits('d.test'), 1);
 });
 
-test('fair review queue: at most one new candidate per company per day', async () => {
-  const { store, deps, advance } = b3Setup();
+test('fair review queue: one card per company, however many services it has', async () => {
+  const { store, deps } = b3Setup();
   await runCycle(deps, { forceSources: true, maxProbeBatches: 30 });
-  const hosts = store.submissions.map((x) => new URL(x.endpoint_url).hostname).sort();
-  assert.deepEqual(hosts, ['a.test', 'b.test', 'big.test', 'c.test'], 'one each, though big.test has 5 eligible');
-
-  await runCycle(deps, { maxProbeBatches: 5 });
-  assert.equal(store.submissions.length, 4, 'not again the same day');
-
-  advance(24 * 3_600_000 + 60_000);
-  await runCycle(deps, { maxProbeBatches: 30 });
-  assert.equal(store.submissions.filter((x) => x.endpoint_url.includes('big.test')).length, 2, 'the next one from big.test the next day');
+  assert.deepEqual(store.submissions.map((x) => x.website_url).sort(), ['https://a.test', 'https://b.test', 'https://big.test', 'https://c.test']);
+  const big = store.submissions.find((x) => x.website_url === 'https://big.test')!;
+  assert.equal(big.candidate_metadata.services_total, 5, 'its 5 checked services are on one card');
+  assert.equal((big.candidate_metadata.services as unknown[]).length, 5);
 });
 
 test('unchanged listings cost no per-item queries; last seen refreshed once a day in bulk', async () => {
@@ -454,3 +462,116 @@ test('unchanged listings cost no per-item queries; last seen refreshed once a da
   assert.ok(s.discovery.cdp_bazaar.touched >= 11, 'refreshed after 20 h');
   assert.ok(svcRow(store, 'v2-get').last_seen_at.getTime() > before);
 });
+
+test('one failing listing does not stop the pass; many in a row do', async () => {
+  const { store, deps } = setup();
+  const record = store.recordListing.bind(store);
+  store.recordListing = async (id, src, hash, snap, at) => {
+    if (snap?.resource?.includes('/svc/permit2')) throw new Error('unsupported Unicode escape sequence');
+    return record(id, src, hash, snap, at);
+  };
+  const s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.deepEqual(s.source_errors, {}, 'the pass still completes');
+  assert.equal(s.discovery.cdp_bazaar.item_errors, 1);
+  assert.equal(byName(store)['v2-get'], 'eligible', 'listings after the bad one are processed');
+
+  const broken = setup();
+  eco.items.push(...Array.from({ length: 25 }, (_, i) => onHost('a.test', `?n=${i}`)));
+  broken.store.recordListing = async () => { throw new Error('connection lost'); };
+  const b = await runCycle(broken.deps, { forceSources: true, maxProbeBatches: 1 });
+  assert.match(b.source_errors.cdp_bazaar ?? '', /in a row failed: connection lost/, 'a dead database fails the pass (retried in 30 min)');
+});
+
+// ─── Q1: quality over noise ───────────────────────────────────────────────────
+
+const item = (host: string, over: Record<string, unknown> = {}, q = '') => ({ ...onHost(host, q), ...over });
+
+test('noise is never stored or checked: free hosting, test listings, no description', async () => {
+  const { store, deps } = setup();
+  eco.items = [
+    item('a.test'),
+    item('x.vercel.app', { resource: 'https://x.vercel.app/api' }),
+    item('b.test', { serviceName: 'Test API' }),
+    item('c.test', { description: 'paid' }),
+  ];
+  const s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  const d = s.discovery.cdp_bazaar;
+  assert.equal(d.skipped_low_quality, 3);
+  assert.deepEqual(d.quality_reasons, { 'quality:free_hosting': 1, 'quality:test_name': 1, 'quality:no_description': 1 });
+  assert.deepEqual([...store.services.values()].map((r) => r.host), ['a.test'], 'only the real product is kept');
+  assert.equal(eco.hits.filter((h) => ['b.test', 'c.test'].includes(h.host)).length, 0, 'noise never contacted');
+  assert.deepEqual([...store.companies.keys()], ['a.test']);
+});
+
+test('at most N services per company; extra ones from earlier are set aside, oldest kept', async () => {
+  const { store, deps, advance } = setup();
+  eco.items = Array.from({ length: 15 }, (_, i) => item('big.test', {}, `?i=${i}`));
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(store.services.size, 15, 'stored before the cap applied (cap 100 in tests)');
+
+  deps.config = { ...deps.config, maxServicesPerCompany: 10 };
+  advance(7 * 3_600_000);
+  const s = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(s.discovery.cdp_bazaar.demoted, 5);
+  const low = [...store.services.values()].filter((r) => r.classification === 'low_quality');
+  assert.equal(low.length, 5);
+  assert.ok(low.every((r) => r.next_probe_at == null && r.classification_reasons[0] === 'quality:company_cap'));
+  assert.ok(low.every((r) => /\?i=(1[0-4])$/.test(r.canonical_url)), 'the 10 oldest are kept');
+  assert.equal(store.events.filter((e) => e.event === 'classification_changed' && e.details?.to === 'low_quality').length, 5);
+
+  // New listings from a full company aren't stored at all
+  eco.items.push(item('big.test', {}, '?i=99'));
+  advance(7 * 3_600_000);
+  const s2 = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(s2.discovery.cdp_bazaar.skipped_low_quality, 1);
+  assert.equal(s2.discovery.cdp_bazaar.demoted, 0, 'already set aside: no repeated writes');
+});
+
+test('watch list: always kept, checked and proposed, even on free hosting without a website', async () => {
+  const { store, deps } = setup();
+  store.watchlist.add('x.vercel.app');
+  eco.items = [item('x.vercel.app', { resource: eco.url('x.vercel.app', '/svc/v2-get'), serviceName: undefined, description: undefined })];
+  // x.vercel.app resolves nowhere in the fake DNS, so give its probe the fake server
+  const { resolver } = eco.fetchOptions as { resolver: (h: string, o: unknown, cb: (e: Error | null, a: unknown) => void) => void };
+  deps.fetchOptions = { ...eco.fetchOptions, resolver: ((h: string, o: unknown, cb: (e: Error | null, a: unknown) => void) => h === 'x.vercel.app' ? cb(null, [{ address: '127.0.0.1', family: 4 }]) : resolver(h, o, cb)) as never };
+  deps.siteUrls = () => ['https://nowhere.invalid/'];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(svcRowByHost(store, 'x.vercel.app').classification, 'eligible');
+  assert.equal(store.submissions.length, 1);
+  assert.equal(store.submissions[0].candidate_metadata.watched, true);
+});
+
+test('a company is proposed only once its website answers', async () => {
+  const { store, deps, advance } = setup();
+  eco.items = [item('a.test')];
+  let siteUp = false;
+  deps.siteUrls = (domain) => [siteUp ? eco.url(domain, '/') : 'https://nowhere.invalid/'];
+  let s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(s.sites.failed, 1);
+  assert.equal(svcRowByHost(store, 'a.test').classification, 'eligible', 'the service itself checks out');
+  assert.equal(store.submissions.length, 0, 'but no website: not proposed');
+  assert.equal(store.siteChecks.length, 1, 'every website check is kept');
+
+  siteUp = true;
+  advance(3_600_000);
+  s = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(s.sites.checked, 0, 'a failed website is retried after a day, not every cycle');
+
+  advance(24 * 3_600_000);
+  s = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(s.sites.ok, 1);
+  assert.equal(store.submissions.length, 1);
+});
+
+test('services from before the quality gate get their company', async () => {
+  const { store, deps, advance } = setup();
+  eco.items = [item('a.test')];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  const row = svcRowByHost(store, 'a.test');
+  await store.updateService(row.id, { company_domain: null });
+  advance(7 * 3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(svcRowByHost(store, 'a.test').company_domain, 'a.test');
+});
+
+const svcRowByHost = (store: MemoryStore, host: string) => [...store.services.values()].find((r) => r.host === host)!;

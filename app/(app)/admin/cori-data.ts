@@ -44,6 +44,9 @@ export async function loadCoriNav(service: SupabaseClient, now = new Date()): Pr
 export type CoriOverview = {
   runs: CoriRun[];
   totalDiscovered: number;
+  /** Q1: companies that passed the quality gate, and those whose website answers (0 before migration 028) */
+  companies: number;
+  companiesSiteOk: number;
   events: CoriEvent[];
   classCounts: Partial<Record<Classification, number>>;
   candidates: CoriCandidate[];
@@ -52,9 +55,11 @@ export type CoriOverview = {
 
 /** Everything the Cori page shows. Counts per class use head-count queries (PostgREST caps row reads at 1000). */
 export async function loadCoriOverview(service: SupabaseClient): Promise<CoriOverview> {
-  const [runsRes, totalRes, eventsRes, candidatesRes, ...classRes] = await Promise.all([
+  const [runsRes, totalRes, companiesRes, siteOkRes, eventsRes, candidatesRes, ...classRes] = await Promise.all([
     service.from('cori_runs').select('kind, started_at, ok, stats, error').order('started_at', { ascending: false }).limit(50),
-    service.from('discovered_services').select('id', { count: 'exact', head: true }),
+    service.from('discovered_services').select('id', { count: 'exact', head: true }).neq('classification', 'low_quality'),
+    service.from('discovered_companies').select('domain', { count: 'exact', head: true }),
+    service.from('discovered_companies').select('domain', { count: 'exact', head: true }).eq('site_ok', true),
     service.from('discovery_events').select('at, event, details, discovered_services(service_name, canonical_url)').order('at', { ascending: false }).limit(20),
     service.from('endpoint_submissions').select('id, endpoint_url, name, description, submitted_at, candidate_metadata')
       .eq('source', 'cori_scout').eq('status', 'pending').order('submitted_at', { ascending: false }).limit(100),
@@ -65,6 +70,8 @@ export async function loadCoriOverview(service: SupabaseClient): Promise<CoriOve
   return {
     runs: (runsRes.data ?? []) as CoriRun[],
     totalDiscovered: totalRes.count ?? 0,
+    companies: companiesRes.count ?? 0,
+    companiesSiteOk: siteOkRes.count ?? 0,
     events: (eventsRes.data ?? []) as unknown as CoriEvent[],
     classCounts,
     candidates: (candidatesRes.data ?? []) as CoriCandidate[],

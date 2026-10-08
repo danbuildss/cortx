@@ -9,6 +9,7 @@ import {
   priceToUsdc,
   selectPaymentOption,
 } from '../../lib/check-runner/x402';
+import { stripNul } from '../../lib/cori/bazaar';
 import type { ProbeRecord } from './store';
 
 const BLOCKED_CODES = new Set(['SSRF_BLOCKED', 'NON_HTTPS', 'BLOCKED_PORT', 'CREDENTIALS_IN_URL', 'INVALID_URL']);
@@ -43,7 +44,8 @@ function record(partial: Partial<ProbeRecord> & Pick<ProbeRecord, 'outcome'>): P
     method: null, http_status: null, latency_ms: null, error: null, terms_source: null, x402_version: null,
     network: null, asset: null, scheme: null, transfer_method: null, price_atomic: null, price_usdc: null,
     pay_to: null, facilitator_published: false,
-    ...partial,
+    // A service's 402 is untrusted too: no NUL characters into the database
+    ...stripNul(partial),
   };
 }
 

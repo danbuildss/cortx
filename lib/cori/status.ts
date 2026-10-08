@@ -53,6 +53,7 @@ export const CLASS_LABELS: Record<Classification, string> = {
   unreachable: 'Unreachable',
   blocked: 'Blocked (unsafe or opted out)',
   gone: 'Gone',
+  low_quality: 'Set aside (noise)',
 };
 
 // Panel order: what needs attention first
@@ -60,7 +61,7 @@ export const CLASS_ORDER: Classification[] = [
   'eligible', 'needs_input', 'pending',
   'already_monitored', 'already_listed', 'already_submitted',
   'too_expensive', 'unsupported_network', 'unsupported_asset', 'unsupported_scheme', 'unsupported_method',
-  'not_x402', 'invalid_terms', 'unreachable', 'blocked', 'gone',
+  'not_x402', 'invalid_terms', 'unreachable', 'blocked', 'gone', 'low_quality',
 ];
 
 // ─── "Why eligible", in plain English ───────────────────────────────────────
@@ -101,6 +102,15 @@ export function explainReasons(reasons: string[] | null | undefined): string[] {
         out.push(value === 'not_listed_7d' ? 'Gone from sources for 7+ days' : 'Gone from sources and unreachable for 7+ days');
         break;
       case 'terms': out.push('Payment terms invalid ✗'); break;
+      case 'quality': {
+        const q: Record<string, string> = {
+          ok: 'Real product ✓', watch_list: 'On your watch list ✓', free_hosting: 'Free app hosting, not an own domain ✗',
+          no_name: 'No name ✗', test_name: 'Test/demo name ✗', no_description: 'No description ✗',
+          test_description: 'Test/demo description ✗', company_cap: 'Company already has enough services listed',
+        };
+        if (q[value]) out.push(q[value]);
+        break;
+      }
       default: break; // unknown reasons are omitted rather than shown raw
     }
   }

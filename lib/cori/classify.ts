@@ -25,7 +25,8 @@ export type Classification =
   | 'too_expensive'
   | 'needs_input'
   | 'eligible'
-  | 'gone';
+  | 'gone'
+  | 'low_quality';       // Q1: noise (free hosting, test listing, over the per-company cap); kept, not checked
 
 // Only these reach the admin review queue
 export const QUEUEABLE: ReadonlySet<Classification> = new Set(['eligible', 'needs_input']);

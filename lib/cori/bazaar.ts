@@ -201,7 +201,23 @@ function isoOrNull(v: string | undefined): string | null {
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
-export function parseBazaarItem(raw: unknown): Listing | ListingError {
+/**
+ * Removes NUL characters (U+0000) from every string and key, deeply. Postgres
+ * can store them in neither text nor jsonb ("unsupported Unicode escape
+ * sequence"), and one such listing stopped the whole first live Bazaar pass
+ * (Oct 7). Listings are untrusted input, so they're cleaned before use.
+ */
+export function stripNul<T>(v: T): T {
+  if (typeof v === 'string') return v.replace(/\u0000/g, '') as T;
+  if (Array.isArray(v)) return v.map(stripNul) as T;
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [stripNul(k), stripNul(x)])) as T;
+  }
+  return v;
+}
+
+export function parseBazaarItem(item0: unknown): Listing | ListingError {
+  const raw = stripNul(item0);
   const res = BazaarItemSchema.safeParse(raw);
   if (!res.success) return { ok: false, reason: 'invalid_item' };
   const item = res.data;

@@ -53,19 +53,23 @@ export class HostLimiter {
    * Returns 0 if reserved now, a positive number of ms to wait before trying
    * again, or -1 if an hourly cap is used up (reschedule, don't wait).
    */
-  reserve(host: string): number {
+  reserve(host: string, opts: { counted?: boolean } = {}): number {
+    const counted = opts.counted ?? true;
     const t = this.now();
     const hourAgo = t - HOUR;
     const recent = this.recentFor(host);
     const lastHour = recent.filter((x) => x > hourAgo).length;
-    if (lastHour >= this.maxPerHour || recent.length >= this.maxPerDay || this.globalRemaining() === 0) return -1;
+    if (counted && (lastHour >= this.maxPerHour || recent.length >= this.maxPerDay || this.globalRemaining() === 0)) return -1;
     if (this.busy.has(host)) return Math.max(this.minIntervalMs, 50);
     const wait = (this.last.get(host) ?? 0) + this.minIntervalMs - t;
     if (wait > 0) return wait;
     this.busy.add(host);
     this.last.set(host, t);
-    recent.push(t);
-    this.global.push(t);
+    // Website checks (Q1) are polite (one at a time, spaced) but don't use up probe allowances
+    if (counted) {
+      recent.push(t);
+      this.global.push(t);
+    }
     return 0;
   }
 

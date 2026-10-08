@@ -5,7 +5,7 @@
 import type { Sql } from 'postgres';
 import type { ListingSnapshot } from '../../lib/cori/bazaar';
 import type {
-  DiscoveryEvent, HostSpread, IndexRow, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow,
+  CompanyCandidate, DiscoveryEvent, HostSpread, IndexRow, SiteCheck, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow,
   SourceRow, Store,
 } from './store';
 
@@ -19,7 +19,7 @@ const PATCHABLE = new Set([
   'x402_version', 'network', 'asset', 'scheme', 'transfer_method', 'price_atomic', 'price_usdc',
   'pay_to_fingerprint', 'facilitator_url', 'listing_hash', 'last_probe_at', 'next_probe_at', 'probe_failures',
   'last_probe', 'classification', 'classification_reasons', 'linked_service_id', 'linked_seed_id', 'linked_submission_id',
-  'pay_to', 'route_template', 'resource_url', 'source_last_updated', 'disappeared_at',
+  'pay_to', 'route_template', 'resource_url', 'source_last_updated', 'disappeared_at', 'company_domain',
 ]);
 
 type Row = Record<string, unknown>;
@@ -86,7 +86,7 @@ export class PgStore implements Store {
 
   async loadIndex() {
     const rows = await this.sql`
-      select s.id, s.canonical_url, s.listing_hash, s.classification, s.last_seen_at, s.disappeared_at,
+      select s.id, s.canonical_url, s.first_seen_at, s.company_domain, s.listing_hash, s.classification, s.last_seen_at, s.disappeared_at,
              s.linked_service_id, s.linked_seed_id,
              coalesce(array_agg(ss.source) filter (where ss.source is not null), '{}') as sources
       from public.discovered_services s
@@ -95,7 +95,7 @@ export class PgStore implements Store {
     const out = new Map<string, IndexRow>();
     for (const r of rows) {
       out.set(String(r.canonical_url), {
-        id: String(r.id), listing_hash: r.listing_hash ?? null, classification: r.classification,
+        id: String(r.id), first_seen_at: r.first_seen_at, company_domain: r.company_domain ?? null, listing_hash: r.listing_hash ?? null, classification: r.classification,
         last_seen_at: r.last_seen_at, disappeared_at: r.disappeared_at ?? null,
         linked_service_id: r.linked_service_id ?? null, linked_seed_id: r.linked_seed_id ?? null,
         sources: (r.sources as string[]) ?? [],
@@ -247,6 +247,89 @@ export class PgStore implements Store {
       order by case classification when 'eligible' then 0 else 1 end, first_seen_at
       limit ${limit}`;
     return rows.map(toServiceRow);
+  }
+
+  async loadWatchlist() {
+    const rows = await this.sql`select domain from public.cori_watchlist`;
+    return new Set(rows.map((r) => String(r.domain).toLowerCase()));
+  }
+
+  async upsertCompany(domain: string, name: string | null, at: Date) {
+    await this.sql`
+      insert into public.discovered_companies (domain, name, first_seen_at, last_seen_at)
+      values (${domain}, ${name}, ${at}, ${at})
+      on conflict (domain) do update set
+        last_seen_at = excluded.last_seen_at,
+        name = coalesce(public.discovered_companies.name, excluded.name),
+        updated_at = now()`;
+  }
+
+  async dueSiteChecks(now: Date, limit: number, excludeDomains: string[]) {
+    // Never checked → now; ok → weekly; failed → after a day, weekly after 3 failures
+    const exclude = this.sql.array(excludeDomains, 25 /* text */);
+    const rows = await this.sql`
+      select domain from public.discovered_companies
+      where domain <> all(${exclude}::text[])
+        and (site_checked_at is null
+             or (coalesce(site_ok, false) = false and site_failures < 3 and site_checked_at <= ${now}::timestamptz - interval '1 day')
+             or site_checked_at <= ${now}::timestamptz - interval '7 days')
+      order by first_seen_at
+      limit ${limit}`;
+    return rows.map((r) => String(r.domain));
+  }
+
+  async recordSiteCheck(domain: string, c: SiteCheck, at: Date) {
+    await this.sql`
+      insert into public.discovery_site_checks (domain, at, url, http_status, latency_ms, error_code, ok, cori_version)
+      values (${domain}, ${at}, ${c.url}, ${c.http_status}, ${c.latency_ms}, ${c.error_code}, ${c.ok}, ${c.cori_version})`;
+    await this.sql`
+      update public.discovered_companies
+      set site_checked_at = ${at}, site_ok = ${c.ok}, site_status = ${c.http_status},
+          site_failures = case when ${c.ok} then 0 else site_failures + 1 end, updated_at = now()
+      where domain = ${domain}`;
+  }
+
+  async queueCompanies(limit: number) {
+    const companies = await this.sql`
+      select c.domain, c.name, c.first_seen_at, c.site_ok, c.site_status, (w.domain is not null) as watched
+      from public.discovered_companies c
+      left join public.cori_watchlist w on lower(w.domain) = c.domain
+      where c.linked_submission_id is null
+        and (c.site_ok = true or w.domain is not null)
+        and exists (
+          select 1 from public.discovered_services s
+          where s.company_domain = c.domain and s.classification in ('eligible', 'needs_input')
+            and s.linked_submission_id is null and s.linked_service_id is null and s.linked_seed_id is null)
+      order by watched desc, c.first_seen_at
+      limit ${limit}`;
+    const out: CompanyCandidate[] = [];
+    for (const c of companies) {
+      const services = await this.sql`
+        select *, count(*) over () as services_total from public.discovered_services
+        where company_domain = ${c.domain} and classification in ('eligible', 'needs_input')
+          and linked_submission_id is null and linked_service_id is null and linked_seed_id is null
+        order by case classification when 'eligible' then 0 else 1 end, price_usdc nulls last, first_seen_at
+        limit 5`;
+      out.push({
+        domain: String(c.domain), name: c.name ?? null, first_seen_at: c.first_seen_at, site_ok: c.site_ok ?? null,
+        site_status: c.site_status ?? null, watched: Boolean(c.watched),
+        services_total: Number(services[0]?.services_total ?? services.length),
+        services: services.map((r) => { const { services_total: _t, ...rest } = r; void _t; return toServiceRow(rest); }),
+      });
+    }
+    return out;
+  }
+
+  async linkCompanySubmission(domain: string, submissionId: string) {
+    await this.sql`update public.discovered_companies set linked_submission_id = ${submissionId}, updated_at = now() where domain = ${domain}`;
+  }
+
+  async countCompanies() {
+    const [r] = await this.sql`
+      select count(*)::int as known, count(*) filter (where site_ok)::int as site_ok,
+             count(*) filter (where linked_submission_id is not null)::int as queued
+      from public.discovered_companies`;
+    return { known: Number(r.known), site_ok: Number(r.site_ok), queued: Number(r.queued) };
   }
 
   async hostsQueuedSince(since: Date) {

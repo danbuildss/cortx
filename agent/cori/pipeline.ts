@@ -6,13 +6,14 @@ import { createHash } from 'node:crypto';
 import { canonicalUrl, hostOf } from '../../lib/cori/normalize';
 import { classify, type Classification, type ClassifyInput, type Terms } from '../../lib/cori/classify';
 import { isListing, parseBazaarItem, type Listing } from '../../lib/cori/bazaar';
-import type { SafeFetchOptions } from '../../lib/net/safe-fetch';
+import { companyOf, listingQuality } from '../../lib/cori/quality';
+import { safeFetch, SafeFetchError, type SafeFetchOptions } from '../../lib/net/safe-fetch';
 import type { CoriConfig } from './config';
 import type { Logger } from './log';
 import { HostLimiter } from './limiter';
 import { probe } from './probe';
 import { fetchBazaarItems, type BazaarPassStats } from './sources/bazaar';
-import type { IndexRow, KnownRecords, ProbeRecord, ServicePatch, ServiceRow, SourceRow, Store } from './store';
+import type { IndexRow, KnownRecords, ProbeRecord, ServicePatch, ServiceRow, SiteCheck, SourceRow, Store } from './store';
 
 export type Deps = {
   store: Store;
@@ -26,6 +27,8 @@ export type Deps = {
   signal?: AbortSignal;
   /** Last complete (not truncated) pass per source, kept across cycles by runCycle */
   passLog?: Map<string, Date>;
+  /** Test seam: where a company's website is checked (default https://<domain>/) */
+  siteUrls?: (domain: string) => string[];
 };
 
 const HOUR = 3_600_000;
@@ -39,17 +42,23 @@ const SWEEP_NEEDS_PASS_WITHIN_MS = 24 * HOUR;
 const SWEEP_BATCH = 500;
 // An unchanged listing only refreshes last_seen_at this often (disappearance works in days)
 const TOUCH_EVERY_MS = 20 * HOUR;
+// This many failed listings in a row means something is down (not one bad listing): fail the pass
+const MAX_CONSECUTIVE_ITEM_ERRORS = 20;
+// Q1: company website checks per cycle
+const SITE_CHECK_BATCH = 30;
 
 // Classes decided from the listing alone never need a probe until the listing changes
 const NO_PROBE: ReadonlySet<Classification> = new Set([
   'blocked', 'already_monitored', 'already_listed', 'already_submitted',
   'unsupported_network', 'unsupported_asset', 'unsupported_scheme', 'unsupported_method', 'too_expensive', 'gone',
+  'low_quality',
 ]);
 
 // Classes decided from the listing alone: when the listing disappears, they become 'gone'
 // (probed classes become 'gone' through the probe rule instead)
 const LISTING_ONLY: ReadonlySet<Classification> = new Set([
   'blocked', 'unsupported_network', 'unsupported_asset', 'unsupported_scheme', 'unsupported_method', 'too_expensive',
+  'low_quality',
 ]);
 
 const nowOf = (d: Deps) => (d.now ? d.now() : new Date());
@@ -176,7 +185,8 @@ function inputOf(row: Pick<ServiceRow, 'http_method' | 'input_example'>): Classi
 export type DiscoveryStats = BazaarPassStats & {
   invalid_items: number; skipped_non_http: number; new_services: number;
   changed_listings: number; new_listing_versions: number; reappeared: number; duplicates_in_pass: number;
-  unchanged: number; touched: number;
+  unchanged: number; touched: number; item_errors: number;
+  skipped_low_quality: number; demoted: number; quality_reasons: Record<string, number>;
   classes: Record<string, number>;
 };
 
@@ -192,6 +202,8 @@ function isUnchanged(
 ): boolean {
   if (known.listing_hash !== l.listingHash) return false;
   if (!known.sources.includes(sourceId)) return false;
+  // Rows from before the quality gate get their company once; a low-quality row that now passes is re-evaluated
+  if (known.company_domain == null || known.classification === 'low_quality') return false;
   if (known.disappeared_at != null || known.classification === 'gone') return false;
   if (denylist.has(host) || !portAllowed(l.probeUrl, ports)) return known.classification === 'blocked';
   if (known.classification === 'blocked') return false;
@@ -211,10 +223,32 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
   // One query for everything we already know; unchanged listings then cost no per-item queries (B3)
   const index = await store.loadIndex();
   const toTouch: string[] = [];
+
+  // Quality gate (Q1): at most maxServicesPerCompany kept per company (the
+  // oldest ones, so the set stays stable); watched companies have no cap
+  const watchlist = await store.loadWatchlist();
+  const cap = config.maxServicesPerCompany;
+  const keptByCompany = new Map<string, number>();
+  const allowedExisting = new Set<string>();
+  {
+    const byCompany = new Map<string, IndexRow[]>();
+    for (const [url, r] of index) {
+      if (r.classification === 'low_quality') continue;
+      const domain = companyOf(hostOf(url));
+      byCompany.set(domain, [...(byCompany.get(domain) ?? []), r]);
+    }
+    for (const [domain, rows] of byCompany) {
+      rows.sort((a, b) => a.first_seen_at.getTime() - b.first_seen_at.getTime());
+      const keep = watchlist.has(domain) ? rows : rows.slice(0, cap);
+      for (const r of keep) allowedExisting.add(r.id);
+      keptByCompany.set(domain, keep.length);
+    }
+  }
+  const companiesSeen = new Set<string>();
   const stats: DiscoveryStats = {
     pages: 0, items: 0, truncated: false, total: null,
     invalid_items: 0, skipped_non_http: 0, new_services: 0, changed_listings: 0, new_listing_versions: 0, reappeared: 0,
-    unchanged: 0, touched: 0,
+    unchanged: 0, touched: 0, item_errors: 0, skipped_low_quality: 0, demoted: 0, quality_reasons: {},
     duplicates_in_pass: 0, classes: {},
   };
   const seenThisPass = new Set<string>();
@@ -229,22 +263,75 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     sleep: d.sleep,
   }, stats);
 
+  let consecutiveErrors = 0;
   for await (const raw of items) {
+    try {
+      await discoverItem(raw);
+      consecutiveErrors = 0;
+    } catch (err) {
+      // One bad listing must not stop the pass (Oct 7: one listing blocked
+      // 11k others). Many in a row means the database is down: fail the pass.
+      stats.item_errors++;
+      consecutiveErrors++;
+      const message = err instanceof Error ? err.message : String(err);
+      log.warn('item_failed', { resource: (raw as { resource?: unknown })?.resource ?? null, error: message });
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ITEM_ERRORS) throw new Error(`${consecutiveErrors} listings in a row failed: ${message}`);
+    }
+  }
+
+  async function discoverItem(raw: unknown): Promise<void> {
     const l = parseBazaarItem(raw);
     if (!isListing(l)) {
       if (l.reason === 'not_http') stats.skipped_non_http++; else stats.invalid_items++;
-      continue;
+      return;
     }
-    if (seenThisPass.has(l.canonicalUrl)) { stats.duplicates_in_pass++; continue; }
+    if (seenThisPass.has(l.canonicalUrl)) { stats.duplicates_in_pass++; return; }
     seenThisPass.add(l.canonicalUrl);
 
     const host = hostOf(l.canonicalUrl);
+    const domain = companyOf(host);
+    const watched = watchlist.has(domain);
     const known = index.get(l.canonicalUrl);
+
+    // Quality gate (Q1): noise is never stored; stored noise is set aside as low_quality
+    const quality = listingQuality({ host, name: l.serviceName, description: l.description, watched });
+    let lowReasons: string[] | null = quality.ok ? null : quality.reasons;
+    if (!lowReasons && !watched) {
+      const withinCap = known && known.classification !== 'low_quality'
+        ? allowedExisting.has(known.id)
+        : (keptByCompany.get(domain) ?? 0) < cap;
+      if (!withinCap) lowReasons = ['quality:company_cap'];
+    }
+    if (lowReasons) {
+      for (const r of lowReasons) stats.quality_reasons[r] = (stats.quality_reasons[r] ?? 0) + 1;
+      if (!known) { stats.skipped_low_quality++; return; }
+      stats.classes.low_quality = (stats.classes.low_quality ?? 0) + 1;
+      if (known.classification === 'low_quality' && known.listing_hash === l.listingHash && known.company_domain) {
+        stats.unchanged++;
+        if (at.getTime() - known.last_seen_at.getTime() >= TOUCH_EVERY_MS) toTouch.push(known.id);
+        return;
+      }
+      await store.updateService(known.id, {
+        company_domain: domain, classification: 'low_quality', classification_reasons: lowReasons,
+        next_probe_at: null, last_seen_at: at, listing_hash: l.listingHash,
+      });
+      if (known.classification !== 'low_quality') {
+        await store.addEvent(known.id, 'classification_changed', { from: known.classification, to: 'low_quality', reasons: lowReasons });
+      }
+      stats.demoted++;
+      return;
+    }
+    if (!companiesSeen.has(domain)) {
+      companiesSeen.add(domain);
+      await store.upsertCompany(domain, l.serviceName, at);
+    }
+    if (known?.classification === 'low_quality') keptByCompany.set(domain, (keptByCompany.get(domain) ?? 0) + 1);
+
     if (known && isUnchanged(known, l, source.id, host, denylist, idx, config.allowedPorts)) {
       stats.unchanged++;
       stats.classes[known.classification] = (stats.classes[known.classification] ?? 0) + 1;
       if (at.getTime() - known.last_seen_at.getTime() >= TOUCH_EVERY_MS) toTouch.push(known.id);
-      continue;
+      return;
     }
     let row = await store.getByUrl(l.canonicalUrl);
     const isNew = row == null;
@@ -252,6 +339,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
       row = await store.insertService({ canonical_url: l.canonicalUrl, host, first_source: source.id }, at);
       await store.addEvent(row.id, 'first_seen', { source: source.id });
       stats.new_services++;
+      keptByCompany.set(domain, (keptByCompany.get(domain) ?? 0) + 1);
     }
 
     const { seenBefore } = await store.touchSource(row.id, source.id, at, l.listingHash);
@@ -290,6 +378,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     const patch: ServicePatch = {
       ...facts,
       ...link.patch,
+      company_domain: domain,
       last_seen_at: at,
       classification: result.classification,
       classification_reasons: result.reasons,
@@ -465,55 +554,119 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
   const stats: QueueStats = { queued: 0, skipped_linked: 0, skipped_existing: 0, cap: config.dailyQueueCap, cap_hit: remaining === 0 };
   if (remaining === 0) return stats;
 
+  // Q1: one review card per company, ever — only companies whose website
+  // answers (or that are on the watch list) and that have a usable service
   const idx = buildLinkIndex(await store.loadKnown());
-  // At most queuePerHostPerDay new candidates per host per UTC day (B3: a fair review page)
-  const queuedToday = new Map<string, number>();
-  for (const h of await store.hostsQueuedSince(startOfUtcDay(at))) queuedToday.set(h, (queuedToday.get(h) ?? 0) + 1);
-  const full = [...queuedToday].filter(([, n]) => n >= config.queuePerHostPerDay).map(([h]) => h);
-  const candidates = await store.queueCandidates(remaining, { perHost: config.queuePerHostPerDay, excludeHosts: full });
-  for (const row of candidates) {
-    // Re-check against CORTX records right before queueing
-    const link = linkFor([row.canonical_url, row.resource_url], row.id, idx);
-    if (link.linked) {
-      const cls = link.linked === 'monitored' ? 'already_monitored' : link.linked === 'listed' ? 'already_listed' : 'already_submitted';
-      await store.updateService(row.id, { ...link.patch, classification: cls, classification_reasons: [`linked:${link.linked}`], next_probe_at: null });
-      stats.skipped_linked++;
-      continue;
+  for (const c of await store.queueCompanies(remaining)) {
+    let best: ServiceRow | null = null;
+    for (const row of c.services) {
+      // Re-check against CORTX records right before queueing
+      const link = linkFor([row.canonical_url, row.resource_url], row.id, idx);
+      if (link.linked) {
+        await store.updateService(row.id, { ...link.patch, classification: LINKED_CLASS[link.linked], classification_reasons: [`linked:${link.linked}`], next_probe_at: null });
+        stats.skipped_linked++;
+        continue;
+      }
+      best = row;
+      break;
     }
-    const origin = new URL(row.canonical_url).origin;
-    const sources = await store.sourcesFor(row.id);
+    if (!best) continue;
+
+    const prices = c.services.map((r) => r.last_probe?.price_usdc ?? r.price_usdc).filter((p): p is number => p != null);
+    const sources = await store.sourcesFor(best.id);
     const submissionId = await store.insertSubmission({
       // Reviewers (and a later paid check) need a callable URL, not a route template
-      endpoint_url: probeUrlOf(row),
-      name: (row.service_name ?? `${row.host}${new URL(row.canonical_url).pathname}`).slice(0, 120),
-      description: row.description,
-      website_url: origin,
-      category: row.tags[0] ?? null,
-      discovered_service_id: row.id,
+      endpoint_url: probeUrlOf(best),
+      name: (c.name ?? c.domain).slice(0, 120),
+      description: best.description,
+      website_url: `https://${c.domain}`,
+      category: best.tags[0] ?? null,
+      discovered_service_id: best.id,
       candidate_metadata: {
         discovered_by: 'cori_scout',
-        classification: row.classification,
-        reasons: row.classification_reasons,
-        network: row.last_probe?.network ?? row.network,
-        asset: row.last_probe?.asset ?? row.asset,
-        price_usdc: row.last_probe?.price_usdc ?? row.price_usdc,
-        x402_version: row.last_probe?.x402_version ?? row.x402_version,
-        http_method: row.http_method,
-        route_template: row.route_template,
-        has_input_example: hasExample(row),
-        facilitator_published: row.last_probe?.facilitator_published ?? row.facilitator_url != null,
-        first_seen_at: row.first_seen_at.toISOString(),
+        kind: 'company',
+        company: c.domain,
+        watched: c.watched,
+        site_ok: c.site_ok,
+        site_status: c.site_status,
+        services_total: c.services_total,
+        services: c.services.map((r) => ({
+          name: r.service_name, url: probeUrlOf(r), price_usdc: r.last_probe?.price_usdc ?? r.price_usdc,
+          http_method: r.http_method, classification: r.classification,
+        })),
+        price_min: prices.length ? Math.min(...prices) : null,
+        price_max: prices.length ? Math.max(...prices) : null,
+        classification: best.classification,
+        reasons: best.classification_reasons,
+        network: best.last_probe?.network ?? best.network,
+        asset: best.last_probe?.asset ?? best.asset,
+        price_usdc: best.last_probe?.price_usdc ?? best.price_usdc,
+        x402_version: best.last_probe?.x402_version ?? best.x402_version,
+        http_method: best.http_method,
+        route_template: best.route_template,
+        has_input_example: hasExample(best),
+        facilitator_published: best.last_probe?.facilitator_published ?? best.facilitator_url != null,
+        first_seen_at: c.first_seen_at.toISOString(),
         sources,
         evidence_state: 'observed',
       },
     });
     if (!submissionId) { stats.skipped_existing++; continue; }
-    await store.updateService(row.id, { linked_submission_id: submissionId });
-    await store.addEvent(row.id, 'queued', { submission_id: submissionId, classification: row.classification });
+    await store.linkCompanySubmission(c.domain, submissionId);
+    await store.updateService(best.id, { linked_submission_id: submissionId });
+    await store.addEvent(best.id, 'queued', { submission_id: submissionId, company: c.domain, classification: best.classification });
     stats.queued++;
   }
   stats.cap_hit = stats.queued >= remaining;
   if (stats.queued + stats.skipped_linked + stats.skipped_existing > 0) log.info('queue_done', { ...stats });
+  return stats;
+}
+
+// ─── Company website checks (Q1) ──────────────────────────────────────────────
+
+export type SiteStats = { checked: number; ok: number; failed: number };
+
+const SITE_OK_ERRORS = new Set(['BODY_TOO_LARGE']); // the site answered, just with a big page
+
+async function checkSite(d: Deps, domain: string): Promise<SiteCheck> {
+  const urls = d.siteUrls ? d.siteUrls(domain) : [`https://${domain}/`, `https://www.${domain}/`];
+  let last: SiteCheck = { url: urls[0], http_status: null, latency_ms: null, error_code: 'NOT_CHECKED', ok: false, cori_version: d.config.version };
+  for (const url of urls) {
+    const t0 = Date.now();
+    try {
+      const res = await safeFetch(url, {
+        timeoutMs: 10_000, maxBytes: 64 * 1024, maxRedirects: 3, allowedPorts: d.config.allowedPorts,
+        headers: { 'user-agent': d.config.userAgent, accept: 'text/html,application/json' }, ...d.fetchOptions,
+      });
+      last = { url, http_status: res.status, latency_ms: res.durationMs, error_code: res.status >= 500 ? `HTTP_${res.status}` : null, ok: res.status < 500, cori_version: d.config.version };
+    } catch (err) {
+      const code = err instanceof SafeFetchError ? err.code : 'UNREACHABLE';
+      last = { url, http_status: null, latency_ms: Date.now() - t0, error_code: code, ok: SITE_OK_ERRORS.has(code), cori_version: d.config.version };
+    }
+    if (last.ok) break;
+  }
+  return last;
+}
+
+export async function checkSites(d: Deps): Promise<SiteStats> {
+  const stats: SiteStats = { checked: 0, ok: 0, failed: 0 };
+  const at = nowOf(d);
+  const denylist = await d.store.loadDenylist();
+  // Opted-out hosts are never contacted, website checks included
+  const optedOut = [...denylist].filter((h) => companyOf(h) === h || h.startsWith('www.')).map((h) => h.replace(/^www\./, ''));
+  for (const domain of await d.store.dueSiteChecks(at, SITE_CHECK_BATCH, optedOut)) {
+    if (denylist.has(domain) || denylist.has(`www.${domain}`)) continue;
+    if (d.signal?.aborted) break;
+    if (d.limiter.reserve(domain, { counted: false }) !== 0) continue; // busy: next cycle
+    try {
+      const check = await checkSite(d, domain);
+      await d.store.recordSiteCheck(domain, check, nowOf(d));
+      stats.checked++;
+      if (check.ok) stats.ok++; else stats.failed++;
+    } finally {
+      d.limiter.release(domain);
+    }
+  }
   return stats;
 }
 
@@ -556,7 +709,7 @@ export async function sweepDisappeared(d: Deps, sources: SourceRow[]): Promise<S
 // ─── One full cycle ───────────────────────────────────────────────────────────
 
 export type CycleStats = {
-  discovery: Record<string, DiscoveryStats>; probe: ProbeStats; queue: QueueStats;
+  discovery: Record<string, DiscoveryStats>; probe: ProbeStats; queue: QueueStats; sites: SiteStats;
   sweep: SweepStats | null; source_errors: Record<string, string>;
 };
 
@@ -596,7 +749,7 @@ export async function runCycle(d: Deps, opts: { forceSources?: boolean; maxProbe
   const at = nowOf(d);
   d.passLog ??= new Map();
   const out: CycleStats = {
-    discovery: {}, source_errors: {}, sweep: null,
+    discovery: {}, source_errors: {}, sweep: null, sites: { checked: 0, ok: 0, failed: 0 },
     probe: { probed: 0, rescheduled_rate_limit: 0, budget_left: 0, outcomes: {}, classes: {} },
     queue: { queued: 0, skipped_linked: 0, skipped_existing: 0, cap: d.config.dailyQueueCap, cap_hit: false },
   };
@@ -623,6 +776,8 @@ export async function runCycle(d: Deps, opts: { forceSources?: boolean; maxProbe
   if (Object.keys(out.discovery).length > 0) {
     out.sweep = await quietlyRecorded(d, 'sweep', () => sweepDisappeared(d, sources), (x) => x.disappeared > 0);
   }
+
+  out.sites = await quietlyRecorded(d, 'sites', () => checkSites(d), (x) => x.checked > 0);
 
   for (let i = 0; i < (opts.maxProbeBatches ?? 1); i++) {
     if (d.signal?.aborted) break;

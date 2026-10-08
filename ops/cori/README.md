@@ -101,3 +101,11 @@ journalctl -u cori -o cat -f              # Ctrl+C to stop watching; Cori keeps 
 - **Code:** the repo is public and cloned read-only over HTTPS. The server never gets push access.
 - **Dependencies:** `deploy.sh` installs with `--ignore-scripts`, so no package runs code at install time. Then it runs Cori's tests, including the check that the bundle has no payment code, and only then builds and restarts.
 - **Hetzner console:** if the firewall or SSH settings ever lock you out, the web console in the Hetzner dashboard still works.
+
+## Watch list (always watch a company)
+
+Cori's quality gate (own domain, real name and description, a website that answers) can be bypassed for companies you care about. In the Supabase SQL editor:
+```sql
+insert into public.cori_watchlist (domain, note) values ('bankr.bot', 'partner');
+```
+Use the company's main domain (`bankr.bot`, not `api.bankr.bot`). Cori picks it up on its next Bazaar pass.

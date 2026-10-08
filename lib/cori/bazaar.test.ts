@@ -150,3 +150,18 @@ test('listing snapshot: what Cori keeps of each version, capped', () => {
   assert.ok(big.snapshot.itemBytes > 20_000, 'but the size is kept, so the drop is visible');
   assert.equal(big.lastUpdated, null);
 });
+
+test('NUL characters are removed everywhere (Postgres rejects them in text and jsonb)', async () => {
+  const { stripNul } = await import('./bazaar.ts');
+  assert.deepEqual(stripNul({ 'k\u0000': ['a\u0000b', { c: 'd\u0000' }], n: 1 }), { k: ['ab', { c: 'd' }], n: 1 });
+  const dirty = {
+    ...v2Item,
+    description: 'bad\u0000text',
+    accepts: [{ ...v2Item.accepts[1], extra: { name: 'USD\u0000C' } }],
+    extensions: { bazaar: { info: { input: { type: 'http', method: 'POST', body: { q: 'x\u0000y' } } } } },
+  };
+  const l = parseBazaarItem(dirty) as Listing;
+  assert.ok(isListing(l));
+  assert.ok(!JSON.stringify(l).includes('\\u0000'), 'no NUL anywhere in what Cori stores');
+  assert.equal(l.description, 'badtext');
+});
