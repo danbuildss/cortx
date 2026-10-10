@@ -171,8 +171,11 @@ export interface Store {
   dueSiteChecks(now: Date, limit: number, excludeDomains: string[]): Promise<string[]>;
   /** Q1: append the website check and update the company's current site state */
   recordSiteCheck(domain: string, check: SiteCheck, at: Date): Promise<void>;
-  /** Q1: companies ready for review — website ok (or watched), never queued, with a usable service */
-  queueCompanies(limit: number): Promise<CompanyCandidate[]>;
+  /** Q1/Q2: companies ready for review — website ok (or watched/partner), never queued, with a usable
+   *  service; `priorityDomains` (x402 ecosystem partners) first and exempt from the website check */
+  queueCompanies(limit: number, priorityDomains?: string[]): Promise<CompanyCandidate[]>;
+  /** Q2: daily free checks for companies waiting for review or being watched, and their alive state */
+  refreshLiveness(now: Date): Promise<{ bumped: number; alive: number; quiet: number }>;
   linkCompanySubmission(domain: string, submissionId: string): Promise<void>;
   countCompanies(): Promise<{ known: number; site_ok: number; queued: number }>;
   /** The host of every candidate queued since `since` (one entry per candidate, so it can be counted) */

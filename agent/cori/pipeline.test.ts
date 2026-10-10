@@ -575,3 +575,95 @@ test('services from before the quality gate get their company', async () => {
 });
 
 const svcRowByHost = (store: MemoryStore, host: string) => [...store.services.values()].find((r) => r.host === host)!;
+
+// ─── Q2: known projects first, only live endpoints ───────────────────────────
+
+// Let extra hostnames resolve to the fake server
+function withHosts(deps: Deps, hosts: string[], down: Set<string> = new Set()) {
+  const { resolver } = eco.fetchOptions as { resolver: (h: string, o: unknown, cb: (e: Error | null, a: unknown) => void) => void };
+  deps.fetchOptions = {
+    ...eco.fetchOptions,
+    resolver: ((h: string, o: unknown, cb: (e: Error | null, a: unknown) => void) => {
+      if (down.has(h)) return cb(Object.assign(new Error('ENOTFOUND'), { code: 'ENOTFOUND' }), []);
+      return hosts.includes(h) ? cb(null, [{ address: '127.0.0.1', family: 4 }]) : resolver(h, o, cb);
+    }) as never,
+  };
+}
+
+test('x402 ecosystem partners skip the noise rules and the website check, and go first', async () => {
+  const { store, deps } = setup();
+  withHosts(deps, ['api.firecrawl.dev']);
+  eco.items = [
+    item('a.test'),
+    item('api.firecrawl.dev', { resource: eco.url('api.firecrawl.dev', '/svc/v2-get'), serviceName: undefined, description: undefined }),
+  ];
+  deps.siteUrls = (domain) => (domain === 'a.test' ? [eco.url(domain, '/')] : ['https://nowhere.invalid/']);
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+
+  assert.equal(svcRowByHost(store, 'api.firecrawl.dev').classification, 'eligible', 'kept although it has no name');
+  assert.equal(store.submissions.length, 2);
+  assert.equal(store.submissions[0].website_url, 'https://firecrawl.dev', 'the partner is proposed first');
+  assert.deepEqual((store.submissions[0].candidate_metadata.partner as { name: string }).name, 'Firecrawl');
+  assert.equal(store.submissions[1].candidate_metadata.partner, null);
+});
+
+test('a card needs a free check from the last 24 h: stale services are re-checked first', async () => {
+  const { store, deps, advance } = setup({ cap: 0 });
+  deps.config = { ...deps.config, probeRecheckHours: 168 };
+  eco.items = [item('a.test')];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(store.submissions.length, 0, 'queue closed (cap 0) while the check is fresh');
+
+  deps.config = { ...deps.config, dailyQueueCap: 25 };
+  advance(3 * 24 * 3_600_000);
+  let s = await runCycle(deps, { maxProbeBatches: 0 });
+  assert.equal(s.queue.queued, 0, 'last check is 3 days old: not proposed yet');
+  assert.equal(s.queue.refreshing, 1);
+  assert.ok(svcRowByHost(store, 'a.test').next_probe_at!.getTime() <= deps.now!().getTime(), 're-check scheduled now');
+
+  advance(60_000);
+  s = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(s.queue.queued, 1, 'checked again just now: proposed');
+  assert.ok(Date.parse(store.submissions[0].candidate_metadata.checked_at as string) >= deps.now!().getTime() - 60_000);
+});
+
+test('waiting companies are re-checked daily; a dead one is marked "went quiet", and recovers', async () => {
+  const { store, deps, advance } = setup();
+  eco.down.clear();
+  eco.items = [item('a.test')];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(store.submissions.length, 1);
+  advance(3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(store.companies.get('a.test')!.alive, true, 'alive once the hourly liveness pass has run');
+
+  eco.down.add('a.test');
+  advance(21 * 3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 }); // liveness re-schedules the check; it fails
+  assert.equal(svcRowByHost(store, 'a.test').last_probe!.outcome, 'unreachable');
+  advance(6 * 3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+  const c = store.companies.get('a.test')!;
+  assert.equal(c.alive, false, 'no passing check for 27 h');
+  assert.ok(c.quiet_since);
+
+  eco.down.delete('a.test');
+  advance(7 * 3_600_000); // failed checks back off (1 h, 6 h …): the next one finds it back
+  await runCycle(deps, { maxProbeBatches: 5 });
+  advance(3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(store.companies.get('a.test')!.alive, true, 'back');
+  assert.equal(store.companies.get('a.test')!.quiet_since, null);
+});
+
+test('rejected companies are no longer checked daily; watched ones are', async () => {
+  const { store, deps, advance } = setup();
+  eco.items = [item('a.test'), item('b.test')];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  store.companies.get('a.test')!.rejected_at = deps.now!();
+  Object.assign(store.companies.get('b.test')!, { watching: true, approved_at: deps.now!() });
+  advance(21 * 3_600_000);
+  const s = await runCycle(deps, { maxProbeBatches: 0 });
+  assert.equal(s.liveness!.bumped, 1, 'only the watched company is re-checked');
+  assert.ok(svcRowByHost(store, 'b.test').next_probe_at!.getTime() <= deps.now!().getTime());
+});

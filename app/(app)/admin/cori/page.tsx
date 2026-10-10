@@ -6,6 +6,7 @@ import { heartbeatState } from '@/lib/cori/status';
 import { adminServiceClient, loadCoriOverview } from '../cori-data';
 import { CoriActivity, CoriErrors, CoriKnows, CoriStatusCard, coriCard, coriLabel } from '../cori-panel';
 import { CoriCandidateCard } from '../cori-candidate';
+import { CoriKnownProjects, CoriWatching } from '../cori-watching';
 
 const ADMIN_USER_ID = process.env.CORTX_ADMIN_USER_ID ?? '';
 
@@ -14,7 +15,7 @@ export default async function CoriPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.id !== ADMIN_USER_ID) redirect('/overview');
 
-  const { runs, totalDiscovered, companies, companiesSiteOk, events, classCounts, candidates, loadedAt: now } = await loadCoriOverview(adminServiceClient());
+  const { runs, totalDiscovered, companies, companiesSiteOk, events, classCounts, candidates, quietCandidates, watching, partnersMissing, loadedAt: now } = await loadCoriOverview(adminServiceClient());
   const started = heartbeatState(runs[0] ? new Date(runs[0].started_at) : null, new Date(now)) !== 'not_started';
 
   return (
@@ -23,7 +24,7 @@ export default async function CoriPage() {
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>Cori</h1>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 520, lineHeight: 1.6 }}>
-            Finds paid AI services and checks them for free. Never pays for anything — you decide what goes into the registry.
+            Finds real companies selling paid AI services and checks them for free, every day. Never pays for anything. Approve = watch it privately; nothing is public until you publish it.
           </p>
         </div>
         <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '4px 10px', background: 'rgba(239,68,68,0.08)', color: 'var(--status-critical)', border: '1px solid rgba(239,68,68,0.18)' }}>
@@ -47,7 +48,15 @@ export default async function CoriPage() {
                 Nothing to review. New finds show up here.
               </div>
             ) : candidates.map((c, i) => <CoriCandidateCard key={c.id} c={c} last={i === candidates.length - 1} />)}
+            {quietCandidates > 0 && (
+              <div style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-dim)', borderTop: '1px solid var(--border-subtle)' }}>
+                {quietCandidates} more hidden: they stopped answering. They come back if they start answering again.
+              </div>
+            )}
           </div>
+
+          <CoriWatching watching={watching} now={now} />
+          <CoriKnownProjects partners={partnersMissing} />
 
           <CoriKnows classCounts={classCounts} totalDiscovered={totalDiscovered} />
           <CoriErrors runs={runs} now={now} />

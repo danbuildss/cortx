@@ -55,7 +55,7 @@ before(async () => {
   const dbUrl = new URL(ADMIN_URL); dbUrl.pathname = `/${DB}`;
   dbAdmin = postgres(dbUrl.toString(), { onnotice: () => {} });
   await dbAdmin.unsafe(BASELINE);
-  for (const m of ['023_cori_scout.sql', '024_fix_endpoint_submissions_columns.sql', '027_cori_memory.sql', '027_cori_memory.sql', '028_cori_quality.sql']) {
+  for (const m of ['023_cori_scout.sql', '024_fix_endpoint_submissions_columns.sql', '027_cori_memory.sql', '027_cori_memory.sql', '028_cori_quality.sql', '029_cori_watching.sql']) {
     // 027 twice: it must be safe to re-run
     await dbAdmin.unsafe(readFileSync(new URL(`../../supabase/migrations/${m}`, import.meta.url), 'utf8'));
   }
@@ -167,6 +167,26 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   await assert.rejects(cori`update public.discovery_site_checks set ok = true`, /permission denied/);
   await assert.rejects(cori`insert into public.cori_watchlist (domain) values ('x.example')`, /permission denied/);
   assert.equal((await store.queueCompanies(10)).length, 0, 'svc.test already proposed: never twice');
+
+  // Q2 on real Postgres: daily liveness for waiting companies, partners-first queue, hidden seeds
+  const live = await store.refreshLiveness(new Date());
+  assert.ok(live.alive >= 1, 'the waiting company answered recently');
+  const [svc] = await dbAdmin`select alive, quiet_since from public.discovered_companies where domain = 'svc.test'`;
+  assert.equal(svc.alive, true);
+  assert.equal(svc.quiet_since, null);
+  assert.deepEqual(await store.queueCompanies(10, ['svc.test']), [], 'already proposed, even as a priority domain');
+  await dbAdmin`insert into public.registry_seeds (name, endpoint_url, hidden_at) values ('hidden', ${eco.url('svc.test', '/svc/hidden')}, now())`;
+  assert.ok(!(await store.loadKnown()).seeds.some((r) => r.endpoint_url.endsWith('/svc/hidden')), 'hidden seeds are not "already listed"');
+
+  // 029's one-time correction: a Cori find already approved into /registry becomes Watching and is hidden
+  const [seed] = await dbAdmin`insert into public.registry_seeds (name, endpoint_url) values ('approved earlier', 'https://svc.test/x') returning id`;
+  await dbAdmin`update public.discovered_services set linked_seed_id = ${seed.id} where service_name = 'v2-get'`;
+  await dbAdmin.unsafe(readFileSync(new URL('../../supabase/migrations/029_cori_watching.sql', import.meta.url), 'utf8'));
+  const [hid] = await dbAdmin`select hidden_at is not null as hidden, hidden_reason from public.registry_seeds where id = ${seed.id}`;
+  assert.equal(hid.hidden, true);
+  assert.match(hid.hidden_reason, /hidden until CORTX has evidence/);
+  const [watched] = await dbAdmin`select watching from public.discovered_companies where domain = 'svc.test'`;
+  assert.equal(watched.watching, true);
 
   // 028's one-time correction sets aside pending endpoint-level cards (kept, with a reason)
   await dbAdmin.unsafe(readFileSync(new URL('../../supabase/migrations/028_cori_quality.sql', import.meta.url), 'utf8'));

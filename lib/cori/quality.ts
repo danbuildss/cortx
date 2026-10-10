@@ -20,6 +20,8 @@ export const FREE_HOSTING_SUFFIXES = [
   'firebaseapp.com', 'azurewebsites.net', 'cloudfunctions.net', 'run.app', 'amplifyapp.com', 'supabase.co',
   'lovable.app', 'loca.lt', 'surge.sh', 'koyeb.app', 'modal.run', 'hf.space', 'streamlit.app', 'bolt.new',
   'val.run', 'web.val.run', 'pipedream.net', 'appspot.com', 'elasticbeanstalk.com', 'cloudfront.net',
+  // Hosted docs: a subdomain is one project's docs, not a company
+  'readthedocs.io', 'gitbook.io', 'notion.site', 'mintlify.app',
 ];
 
 // Second-level public suffixes, so example.co.uk → example.co.uk (not co.uk)
@@ -58,6 +60,8 @@ export type QualityInput = {
   name: string | null;
   description: string | null;
   watched: boolean;
+  /** On the x402 ecosystem list (Q2): curated, so it passes like the watch list */
+  partner?: boolean;
 };
 
 export type QualityResult = { ok: boolean; reasons: string[] };
@@ -65,6 +69,7 @@ export type QualityResult = { ok: boolean; reasons: string[] };
 /** Listing-level gate: decides whether Cori keeps a listing at all */
 export function listingQuality(q: QualityInput): QualityResult {
   if (q.watched) return { ok: true, reasons: ['quality:watch_list'] };
+  if (q.partner) return { ok: true, reasons: ['quality:partner'] };
   const reasons: string[] = [];
   if (isFreeHosting(q.host)) reasons.push('quality:free_hosting');
   const name = (q.name ?? '').trim();

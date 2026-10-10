@@ -19,6 +19,7 @@ export type FakeEcosystem = {
   port: number;
   items: unknown[];                 // mutable: tests can change listings between passes
   hits: Hit[];
+  down: Set<string>;                // hosts that answer 503 (a service going down)
   bazaarUrl: string;
   url: (host: string, path: string) => string;
   fetchOptions: SafeFetchOptions;
@@ -42,7 +43,7 @@ export async function startFakeEcosystem(): Promise<FakeEcosystem> {
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(dir, 'k.pem'),
     '-out', join(dir, 'c.pem'), '-days', '1', '-subj', '/CN=svc.test'], { stdio: 'ignore' });
 
-  const eco = { items: [] as unknown[], hits: [] as Hit[] } as FakeEcosystem;
+  const eco = { items: [] as unknown[], hits: [] as Hit[], down: new Set<string>() } as FakeEcosystem;
 
   const v2Terms = (path: string, amount = '2000', extra: Record<string, unknown> = {}) => ({
     x402Version: 2,
@@ -65,6 +66,7 @@ export async function startFakeEcosystem(): Promise<FakeEcosystem> {
         return res.end(JSON.stringify({ x402Version: 2, items: eco.items.slice(offset, offset + limit), pagination: { limit, offset, total: eco.items.length } }));
       }
 
+      if (eco.down.has(host)) { res.writeHead(503); return res.end(); }
       const name = u.pathname.replace('/svc/', '');
       const json = { 'content-type': 'application/json' };
       if (name.startsWith('users/')) {
