@@ -116,21 +116,35 @@ export default async function RegistryPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
+  // Seeds hidden from the public list (Cori finds waiting for evidence, migration 029)
+  // are filtered out; before 029 runs the column doesn't exist, so fall back
+  const seedsQuery = (withHidden: boolean) => withHidden
+    ? supabase.from('registry_seeds')
+      .select('id, name, endpoint_url, status, is_verified, description, x_handle, website_url, category, created_at, hidden_at')
+      .order('created_at', { ascending: false })
+    : supabase.from('registry_seeds')
+      .select('id, name, endpoint_url, status, is_verified, description, x_handle, website_url, category, created_at')
+      .order('created_at', { ascending: false });
+  type SeedRow = {
+    id: string; name: string; endpoint_url: string; status: string | null; is_verified: boolean; description: string | null;
+    x_handle: string | null; website_url: string | null; category: string | null; created_at: string; hidden_at?: string | null;
+  };
+
   // Fetch monitored services and seeds in parallel
   const [
     { data: monitoredRows, error: monitoredErr },
-    { data: seedRows, error: seedsErr },
+    seedsFirst,
   ] = await Promise.all([
     supabase
       .from('services')
       .select(`id, name, endpoint_url, status, last_checked_at, check_interval_minutes, verification_status, profiles!inner(cortx_tier)`)
       .is('deleted_at', null)
       .in('profiles.cortx_tier', ['tier1', 'tier2', 'tier3', 'tier4']),
-    supabase
-      .from('registry_seeds')
-      .select('id, name, endpoint_url, status, is_verified, description, x_handle, website_url, category, created_at')
-      .order('created_at', { ascending: false }),
+    seedsQuery(true),
   ]);
+  const seedsResult = seedsFirst.error ? await seedsQuery(false) : seedsFirst;
+  const seedsErr = seedsResult.error;
+  const seedRows = ((seedsResult.data ?? []) as unknown as SeedRow[]).filter((r) => !r.hidden_at);
 
   if (monitoredErr) console.error('[registry] services fetch failed:', monitoredErr.message);
   if (seedsErr) console.error('[registry] seeds fetch failed:', seedsErr.message);

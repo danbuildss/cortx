@@ -501,3 +501,31 @@ See B. Also not built because CORTX already has it: no new admin UI, alerting ch
 - **Tests:** suite 154 (153 pass).
   - Pipeline: noise never stored or contacted; the cap demotes the newest extras with no repeated writes; watch-list bypass; a company is proposed only after its website answers, with failed checks retried after a day; pre-Q1 rows get their company; one card per company.
   - Real Postgres as `cori_agent`: companies and website checks written; checks append-only; watch list read-only; never proposed twice; the 028 correction sets aside a pending card and frees its service.
+
+## Q2: known projects first, only live endpoints, Approve = Watching (approved and built Oct 10)
+
+**Why:** the founder reviewed the Q1 cards and didn't see "solid projects, web3 projects … that get attention", asked what Approve actually does (it only made a public "Observed" /registry entry), and wanted to be sure every tracked endpoint is alive.
+
+- **Known projects** (`lib/cori/partners.json` + `partners.ts`):
+  - a frozen copy of the x402.org ecosystem list: 202 projects, 75 of them paid services (Exa, Firecrawl, Pinata, Neynar, Venice, Bitrefill, Zyte, Questflow, Otto AI, Ordiscan, …), from coinbase/x402, Apache-2.0, snapshot 2026-04-21
+  - the x402 Foundation has since removed that page in favour of community directories (x402scan, Agentic.Market, Pay.sh, ampersend, x402-list), so the list is updated by PR
+  - partner companies pass the quality gate like the watch list, need no website check, go **first** in the review queue, and carry an "x402 ecosystem" badge
+  - partners with no Bazaar listing appear under "Known x402 projects, no endpoint found yet", with an "Add by hand" link
+- **Only live endpoints:**
+  - a card is created only from a service whose **free check passed in the last 24 h**; a stale one is re-checked first (`queue.refreshing`)
+  - companies **waiting for review or being watched** are re-checked **daily** (`refreshLiveness`, hourly pass)
+  - "alive" means a passing check in the last 26 h
+  - cards of companies that stop answering are hidden from review (counted as "N more hidden"), and come back when the company answers again
+- **Approve = Watching** (for Cori company cards; people's submissions unchanged):
+  - private, re-checked daily, shown with ● answering / went quiet
+  - a **"Start paid monitoring"** button opens the add-service form pre-filled (`/services/new?url=&name=`)
+  - nothing is added to the public /registry; Reject stops the daily checks
+- **Migration 029:**
+  - `discovered_companies` gets watching / approved_at / rejected_at / alive / last_alive_at / quiet_since
+  - `registry_seeds` gets hidden_at / hidden_reason; /registry filters hidden entries (with a fallback before 029), and Cori ignores hidden seeds when deciding "already listed"
+  - one-time correction: Cori finds already approved into /registry become Watching and their entries are hidden with a reason; nothing deleted
+- **Tests:**
+  - suite 159 (158 pass); Next.js production build OK
+  - new: partners load and map to companies; a partner with no name/website is proposed first with its badge; a stale check is re-run before a card; a waiting company that dies is marked quiet and recovers; rejected companies aren't re-checked but watched ones are
+  - real Postgres: `refreshLiveness`, partner-priority queue, hidden seeds, and the 029 correction
+- **Later (separate approval):** rank by real usage (USDC received on Base; needs a Basescan key).

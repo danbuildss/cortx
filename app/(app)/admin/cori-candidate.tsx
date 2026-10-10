@@ -24,7 +24,26 @@ type Meta = {
   services?: Array<{ name: string | null; url: string; price_usdc: number | null; http_method?: string; classification?: string }>;
   price_min?: number | null;
   price_max?: number | null;
+  partner?: { name: string; category: string; website: string } | null;
+  checked_at?: string | null;
 };
+
+export function ago(iso: string | null | undefined, now = Date.now()): string | null {
+  if (!iso) return null;
+  const mins = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
+}
+
+export function PartnerBadge() {
+  return (
+    <span title="Listed on the x402.org ecosystem page" style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.05em',
+      background: 'rgba(37,99,235,0.14)', color: '#60a5fa', textTransform: 'uppercase', whiteSpace: 'nowrap',
+    }}>x402 ecosystem</span>
+  );
+}
 
 function priceRange(min: number | null | undefined, max: number | null | undefined): string | null {
   if (min == null || max == null) return null;
@@ -110,14 +129,17 @@ export function CoriCandidateDetails({ metadata }: { metadata: unknown }) {
 // One candidate on the Cori page's review list: name, URL, Cori's facts, and
 // the same Approve / Reject actions as the admin submissions table.
 export function CoriCandidateCard({ c, last }: { c: CoriCandidate; last: boolean }) {
-  const meta = c.candidate_metadata as { classification?: string; kind?: string; company?: string } | null;
+  const meta = c.candidate_metadata as { classification?: string; kind?: string; company?: string; partner?: Meta['partner']; checked_at?: string | null } | null;
+  const checked = ago(c.last_alive_at ?? meta?.checked_at);
   const isCompany = meta?.kind === 'company';
   const needsInput = !isCompany && meta?.classification === 'needs_input';
   const link = isCompany && meta?.company ? `https://${meta.company}` : c.endpoint_url;
   return (
     <div style={{ padding: '12px 16px', borderBottom: last ? 'none' : '1px solid var(--border-subtle)', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>{c.name}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>{meta?.partner?.name ?? c.name}</span>
+        {meta?.partner && <PartnerBadge />}
+        {checked && <span style={{ fontSize: 11, color: 'var(--status-ok)' }}>● Answering · checked {checked}</span>}
         {needsInput && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.05em', textTransform: 'uppercase',

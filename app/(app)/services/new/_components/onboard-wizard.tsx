@@ -49,12 +49,14 @@ const STAGE_ORDER = Object.keys(STAGE_LABELS);
 
 // ── Main Wizard ───────────────────────────────────────────────────────────────
 
-export function OnboardWizard({ initialTelegramConnected, hasWallet }: { initialTelegramConnected: boolean; hasWallet: boolean }) {
+export function OnboardWizard({ initialTelegramConnected, hasWallet, initialUrl = '', initialName = '' }: {
+  initialTelegramConnected: boolean; hasWallet: boolean; initialUrl?: string; initialName?: string;
+}) {
   const router = useRouter();
   const [step, setStep] = useState<Step>('detect');
 
   // Step 1 state
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(initialUrl);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState('');
   const [detected, setDetected] = useState<Detected | null>(null);
@@ -62,7 +64,7 @@ export function OnboardWizard({ initialTelegramConnected, hasWallet }: { initial
   const [debugStatus, setDebugStatus] = useState<number | null>(null);
 
   // Step 2 state
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
   const [environment, setEnvironment] = useState<'mainnet' | 'testnet'>('mainnet');
   const [testPayload, setTestPayload] = useState('{}');
   const [expectedPrice, setExpectedPrice] = useState('');
@@ -110,7 +112,7 @@ export function OnboardWizard({ initialTelegramConnected, hasWallet }: { initial
       setMissing(data.missing ?? []);
       setDebugStatus(data._debug?.status ?? null);
       // Pre-fill step 2
-      setName(data.detected.name ?? '');
+      setName((prev) => data.detected.name ?? prev);
       setEnvironment(data.detected.environment ?? 'mainnet');
       setExpectedPrice(data.detected.expected_price ?? '');
       setMaxPrice(data.detected.max_price ?? '');

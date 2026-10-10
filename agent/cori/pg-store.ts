@@ -69,7 +69,8 @@ export class PgStore implements Store {
   async loadKnown(): Promise<KnownRecords> {
     const [services, seeds, submissions] = await Promise.all([
       this.sql`select id, endpoint_url from public.services where deleted_at is null`,
-      this.sql`select id, endpoint_url from public.registry_seeds`,
+      // Hidden registry entries (Cori finds waiting for evidence, 029) don't count as listed
+      this.sql`select id, endpoint_url from public.registry_seeds where hidden_at is null`,
       this.sql`select id, endpoint_url, status, source, discovered_service_id from public.endpoint_submissions`,
     ]);
     return {
@@ -289,18 +290,20 @@ export class PgStore implements Store {
       where domain = ${domain}`;
   }
 
-  async queueCompanies(limit: number) {
+  async queueCompanies(limit: number, priorityDomains: string[] = []) {
+    const priority = this.sql.array(priorityDomains, 25 /* text */);
     const companies = await this.sql`
-      select c.domain, c.name, c.first_seen_at, c.site_ok, c.site_status, (w.domain is not null) as watched
+      select c.domain, c.name, c.first_seen_at, c.site_ok, c.site_status, (w.domain is not null) as watched,
+             (c.domain = any(${priority}::text[])) as partner
       from public.discovered_companies c
       left join public.cori_watchlist w on lower(w.domain) = c.domain
       where c.linked_submission_id is null
-        and (c.site_ok = true or w.domain is not null)
+        and (c.site_ok = true or w.domain is not null or c.domain = any(${priority}::text[]))
         and exists (
           select 1 from public.discovered_services s
           where s.company_domain = c.domain and s.classification in ('eligible', 'needs_input')
             and s.linked_submission_id is null and s.linked_service_id is null and s.linked_seed_id is null)
-      order by watched desc, c.first_seen_at
+      order by partner desc, watched desc, c.first_seen_at
       limit ${limit}`;
     const out: CompanyCandidate[] = [];
     for (const c of companies) {
@@ -318,6 +321,39 @@ export class PgStore implements Store {
       });
     }
     return out;
+  }
+
+  async refreshLiveness(now: Date) {
+    // Companies waiting for review or being watched: re-check their services daily
+    const bumped = await this.sql`
+      update public.discovered_services s set next_probe_at = ${now}, updated_at = now()
+      from public.discovered_companies c
+      where s.company_domain = c.domain
+        and c.rejected_at is null
+        and (c.watching or (c.linked_submission_id is not null and c.approved_at is null))
+        and s.classification in ('eligible', 'needs_input', 'unreachable', 'not_x402', 'invalid_terms', 'pending', 'already_listed')
+        and (s.last_probe_at is null or s.last_probe_at < ${now}::timestamptz - interval '20 hours')
+        and (s.next_probe_at is null or s.next_probe_at > ${now})`;
+    // Alive = a service answered with valid payment terms in the last 26 h
+    const rows = await this.sql`
+      update public.discovered_companies c set
+        alive = coalesce(x.alive, false),
+        last_alive_at = coalesce(x.last_ok, c.last_alive_at),
+        quiet_since = case when coalesce(x.alive, false) then null else coalesce(c.quiet_since, ${now}) end,
+        updated_at = now()
+      from public.discovered_companies c2
+      left join (
+        select company_domain,
+               bool_or(last_probe_at >= ${now}::timestamptz - interval '26 hours' and last_probe->>'outcome' = 'ok') as alive,
+               max(last_probe_at) filter (where last_probe->>'outcome' = 'ok') as last_ok
+        from public.discovered_services where company_domain is not null group by company_domain
+      ) x on x.company_domain = c2.domain
+      where c.domain = c2.domain
+        and c.rejected_at is null
+        and (c.watching or (c.linked_submission_id is not null and c.approved_at is null))
+      returning c.alive`;
+    const alive = rows.filter((r) => r.alive === true).length;
+    return { bumped: bumped.count, alive, quiet: rows.length - alive };
   }
 
   async linkCompanySubmission(domain: string, submissionId: string) {

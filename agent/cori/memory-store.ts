@@ -65,6 +65,8 @@ export class MemoryStore implements Store {
     domain: string; name: string | null; first_seen_at: Date; last_seen_at: Date;
     site_checked_at: Date | null; site_ok: boolean | null; site_status: number | null; site_failures: number;
     linked_submission_id: string | null;
+    watching: boolean; approved_at: Date | null; rejected_at: Date | null;
+    alive: boolean | null; last_alive_at: Date | null; quiet_since: Date | null;
   }>();
   siteChecks: Array<SiteCheck & { domain: string; at: Date }> = [];
   readonly lean: boolean;
@@ -227,6 +229,7 @@ export class MemoryStore implements Store {
     this.companies.set(domain, {
       domain, name, first_seen_at: at, last_seen_at: at, site_checked_at: null, site_ok: null, site_status: null,
       site_failures: 0, linked_submission_id: null,
+      watching: false, approved_at: null, rejected_at: null, alive: null, last_alive_at: null, quiet_since: null,
     });
   }
 
@@ -245,12 +248,15 @@ export class MemoryStore implements Store {
     if (c) Object.assign(c, { site_checked_at: at, site_ok: check.ok, site_status: check.http_status, site_failures: check.ok ? 0 : c.site_failures + 1 });
   }
 
-  async queueCompanies(limit: number) {
+  async queueCompanies(limit: number, priorityDomains: string[] = []) {
     const rank = (r: ServiceRow) => (r.classification === 'eligible' ? 0 : 1);
+    const priority = new Set(priorityDomains);
     const out: CompanyCandidate[] = [];
     const companies = [...this.companies.values()]
-      .filter((c) => c.linked_submission_id == null && (c.site_ok === true || this.watchlist.has(c.domain)))
-      .sort((a, b) => Number(this.watchlist.has(b.domain)) - Number(this.watchlist.has(a.domain)) || a.first_seen_at.getTime() - b.first_seen_at.getTime());
+      .filter((c) => c.linked_submission_id == null && (c.site_ok === true || this.watchlist.has(c.domain) || priority.has(c.domain)))
+      .sort((a, b) => Number(priority.has(b.domain)) - Number(priority.has(a.domain))
+        || Number(this.watchlist.has(b.domain)) - Number(this.watchlist.has(a.domain))
+        || a.first_seen_at.getTime() - b.first_seen_at.getTime());
     for (const c of companies) {
       const services = [...this.services.values()]
         .filter((r) => r.company_domain === c.domain && (r.classification === 'eligible' || r.classification === 'needs_input')
@@ -264,6 +270,31 @@ export class MemoryStore implements Store {
       if (out.length >= limit) break;
     }
     return out;
+  }
+
+  async refreshLiveness(now: Date) {
+    const followed = [...this.companies.values()].filter((c) =>
+      c.rejected_at == null && (c.watching || (c.linked_submission_id != null && c.approved_at == null)));
+    const recheck = new Set(['eligible', 'needs_input', 'unreachable', 'not_x402', 'invalid_terms', 'pending', 'already_listed']);
+    let bumped = 0, alive = 0, quiet = 0;
+    for (const c of followed) {
+      const services = [...this.services.values()].filter((r) => r.company_domain === c.domain);
+      for (const r of services) {
+        const stale = !r.last_probe_at || now.getTime() - r.last_probe_at.getTime() >= 20 * 3_600_000;
+        if (recheck.has(r.classification) && stale && (r.next_probe_at == null || r.next_probe_at.getTime() > now.getTime())) {
+          this.services.set(r.id, { ...r, next_probe_at: now });
+          bumped++;
+        }
+      }
+      const okAt = services.filter((r) => r.last_probe?.outcome === 'ok' && r.last_probe_at).map((r) => r.last_probe_at!.getTime());
+      const lastOk = okAt.length ? Math.max(...okAt) : null;
+      const isAlive = lastOk != null && now.getTime() - lastOk <= 26 * 3_600_000;
+      c.alive = isAlive;
+      if (lastOk != null) c.last_alive_at = new Date(lastOk);
+      c.quiet_since = isAlive ? null : c.quiet_since ?? now;
+      if (isAlive) alive++; else quiet++;
+    }
+    return { bumped, alive, quiet };
   }
 
   async linkCompanySubmission(domain: string, submissionId: string) {

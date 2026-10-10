@@ -7,6 +7,7 @@ import { canonicalUrl, hostOf } from '../../lib/cori/normalize';
 import { classify, type Classification, type ClassifyInput, type Terms } from '../../lib/cori/classify';
 import { isListing, parseBazaarItem, type Listing } from '../../lib/cori/bazaar';
 import { companyOf, listingQuality } from '../../lib/cori/quality';
+import { PARTNER_DOMAINS, partnerFor } from '../../lib/cori/partners';
 import { safeFetch, SafeFetchError, type SafeFetchOptions } from '../../lib/net/safe-fetch';
 import type { CoriConfig } from './config';
 import type { Logger } from './log';
@@ -29,6 +30,8 @@ export type Deps = {
   passLog?: Map<string, Date>;
   /** Test seam: where a company's website is checked (default https://<domain>/) */
   siteUrls?: (domain: string) => string[];
+  /** Q2: when the daily-liveness refresh last ran (kept across cycles) */
+  livenessAt?: Date;
 };
 
 const HOUR = 3_600_000;
@@ -46,6 +49,9 @@ const TOUCH_EVERY_MS = 20 * HOUR;
 const MAX_CONSECUTIVE_ITEM_ERRORS = 20;
 // Q1: company website checks per cycle
 const SITE_CHECK_BATCH = 30;
+// Q2: a review card needs a free check that passed this recently
+const FRESH_CHECK_MS = 24 * HOUR;
+const LIVENESS_EVERY_MS = HOUR;
 
 // Classes decided from the listing alone never need a probe until the listing changes
 const NO_PROBE: ReadonlySet<Classification> = new Set([
@@ -239,7 +245,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     }
     for (const [domain, rows] of byCompany) {
       rows.sort((a, b) => a.first_seen_at.getTime() - b.first_seen_at.getTime());
-      const keep = watchlist.has(domain) ? rows : rows.slice(0, cap);
+      const keep = watchlist.has(domain) || partnerFor(domain) ? rows : rows.slice(0, cap);
       for (const r of keep) allowedExisting.add(r.id);
       keptByCompany.set(domain, keep.length);
     }
@@ -291,12 +297,13 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     const host = hostOf(l.canonicalUrl);
     const domain = companyOf(host);
     const watched = watchlist.has(domain);
+    const partner = partnerFor(domain) != null;
     const known = index.get(l.canonicalUrl);
 
     // Quality gate (Q1): noise is never stored; stored noise is set aside as low_quality
-    const quality = listingQuality({ host, name: l.serviceName, description: l.description, watched });
+    const quality = listingQuality({ host, name: l.serviceName, description: l.description, watched, partner });
     let lowReasons: string[] | null = quality.ok ? null : quality.reasons;
-    if (!lowReasons && !watched) {
+    if (!lowReasons && !watched && !partner) {
       const withinCap = known && known.classification !== 'low_quality'
         ? allowedExisting.has(known.id)
         : (keptByCompany.get(domain) ?? 0) < cap;
@@ -539,7 +546,7 @@ export async function probeDue(d: Deps, limit = d.config.probeBatch): Promise<Pr
 
 // ─── Queue into the existing admin review (spec §3 step 9) ────────────────────
 
-export type QueueStats = { queued: number; skipped_linked: number; skipped_existing: number; cap: number; cap_hit: boolean };
+export type QueueStats = { queued: number; skipped_linked: number; skipped_existing: number; refreshing: number; cap: number; cap_hit: boolean };
 
 function startOfUtcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -551,14 +558,18 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
   const at = nowOf(d);
   const already = await store.countQueuedSince(startOfUtcDay(at));
   const remaining = Math.max(0, config.dailyQueueCap - already);
-  const stats: QueueStats = { queued: 0, skipped_linked: 0, skipped_existing: 0, cap: config.dailyQueueCap, cap_hit: remaining === 0 };
+  const stats: QueueStats = { queued: 0, skipped_linked: 0, skipped_existing: 0, refreshing: 0, cap: config.dailyQueueCap, cap_hit: remaining === 0 };
   if (remaining === 0) return stats;
 
   // Q1: one review card per company, ever — only companies whose website
   // answers (or that are on the watch list) and that have a usable service
   const idx = buildLinkIndex(await store.loadKnown());
-  for (const c of await store.queueCompanies(remaining)) {
+  // Q2: x402 ecosystem partners first; only services whose free check passed in the last 24 h
+  const isFresh = (r: ServiceRow) => r.last_probe?.outcome === 'ok' && r.last_probe_at != null && at.getTime() - r.last_probe_at.getTime() <= FRESH_CHECK_MS;
+  for (const c of await store.queueCompanies(remaining * 4, PARTNER_DOMAINS)) {
+    if (stats.queued >= remaining) break;
     let best: ServiceRow | null = null;
+    let stale: ServiceRow | null = null;
     for (const row of c.services) {
       // Re-check against CORTX records right before queueing
       const link = linkFor([row.canonical_url, row.resource_url], row.id, idx);
@@ -567,10 +578,19 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
         stats.skipped_linked++;
         continue;
       }
+      if (!isFresh(row)) { stale ??= row; continue; }
       best = row;
       break;
     }
-    if (!best) continue;
+    if (!best) {
+      // Alive at its last check, but not recently: re-check now, propose on a later cycle
+      if (stale && (stale.next_probe_at == null || stale.next_probe_at.getTime() > at.getTime())) {
+        await store.updateService(stale.id, { next_probe_at: at });
+      }
+      if (stale) stats.refreshing++;
+      continue;
+    }
+    const partner = partnerFor(c.domain);
 
     const prices = c.services.map((r) => r.last_probe?.price_usdc ?? r.price_usdc).filter((p): p is number => p != null);
     const sources = await store.sourcesFor(best.id);
@@ -586,6 +606,8 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
         discovered_by: 'cori_scout',
         kind: 'company',
         company: c.domain,
+        partner: partner ? { name: partner.name, category: partner.category, website: partner.websiteUrl } : null,
+        checked_at: best.last_probe_at?.toISOString() ?? null,
         watched: c.watched,
         site_ok: c.site_ok,
         site_status: c.site_status,
@@ -618,7 +640,7 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
     stats.queued++;
   }
   stats.cap_hit = stats.queued >= remaining;
-  if (stats.queued + stats.skipped_linked + stats.skipped_existing > 0) log.info('queue_done', { ...stats });
+  if (stats.queued + stats.skipped_linked + stats.skipped_existing + stats.refreshing > 0) log.info('queue_done', { ...stats });
   return stats;
 }
 
@@ -710,6 +732,7 @@ export async function sweepDisappeared(d: Deps, sources: SourceRow[]): Promise<S
 
 export type CycleStats = {
   discovery: Record<string, DiscoveryStats>; probe: ProbeStats; queue: QueueStats; sites: SiteStats;
+  liveness: { bumped: number; alive: number; quiet: number } | null;
   sweep: SweepStats | null; source_errors: Record<string, string>;
 };
 
@@ -751,7 +774,8 @@ export async function runCycle(d: Deps, opts: { forceSources?: boolean; maxProbe
   const out: CycleStats = {
     discovery: {}, source_errors: {}, sweep: null, sites: { checked: 0, ok: 0, failed: 0 },
     probe: { probed: 0, rescheduled_rate_limit: 0, budget_left: 0, outcomes: {}, classes: {} },
-    queue: { queued: 0, skipped_linked: 0, skipped_existing: 0, cap: d.config.dailyQueueCap, cap_hit: false },
+    queue: { queued: 0, skipped_linked: 0, skipped_existing: 0, refreshing: 0, cap: d.config.dailyQueueCap, cap_hit: false },
+    liveness: null,
   };
 
   const sources = await d.store.loadSources();
@@ -778,6 +802,12 @@ export async function runCycle(d: Deps, opts: { forceSources?: boolean; maxProbe
   }
 
   out.sites = await quietlyRecorded(d, 'sites', () => checkSites(d), (x) => x.checked > 0);
+
+  // Q2: companies waiting for review or being watched are re-checked daily; their cards show alive / went quiet
+  if (!d.livenessAt || at.getTime() - d.livenessAt.getTime() >= LIVENESS_EVERY_MS) {
+    out.liveness = await quietlyRecorded(d, 'liveness', () => d.store.refreshLiveness(at), (x) => x.bumped + x.alive + x.quiet > 0);
+    d.livenessAt = at;
+  }
 
   for (let i = 0; i < (opts.maxProbeBatches ?? 1); i++) {
     if (d.signal?.aborted) break;

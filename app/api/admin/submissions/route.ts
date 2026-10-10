@@ -74,7 +74,23 @@ export async function PATCH(req: NextRequest) {
       .eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     await recordCoriDecision(db, sub.discovered_service_id, 'rejected', { submission_id: id, reason: rejection_reason });
+    if (sub.source === 'cori_scout') await setCoriCompany(db, id, { rejected_at: new Date().toISOString(), watching: false });
     return NextResponse.json({ success: true });
+  }
+
+  // Cori's company cards (Q2, Oct 10): approve = Watching. Private, re-checked
+  // by Cori every day; nothing goes on the public registry until there's
+  // evidence (paid monitoring), and the founder publishes it.
+  if (sub.source === 'cori_scout') {
+    const now = new Date().toISOString();
+    const { error } = await db
+      .from('endpoint_submissions')
+      .update({ status: 'approved', reviewed_at: now, reviewed_by: user.id })
+      .eq('id', id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await setCoriCompany(db, id, { watching: true, approved_at: now, rejected_at: null });
+    await recordCoriDecision(db, sub.discovered_service_id, 'approved', { submission_id: id, watching: true });
+    return NextResponse.json({ success: true, watching: true });
   }
 
   // approve: create a registry_seeds row, then update submission
@@ -111,6 +127,23 @@ export async function PATCH(req: NextRequest) {
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
   await recordCoriDecision(db, sub.discovered_service_id, 'approved', { submission_id: id, seed_id: seed.id }, seed.id);
   return NextResponse.json({ success: true, seed_id: seed.id });
+}
+
+// Cori company cards: the review decision on the company row (Watching / rejected)
+async function setCoriCompany(
+  db: ReturnType<typeof serviceClient>,
+  submissionId: string,
+  fields: Record<string, unknown>
+): Promise<void> {
+  try {
+    // discovered_companies isn't in the generated Supabase types
+    await (db as unknown as { from: (t: string) => { update: (f: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<unknown> } } })
+      .from('discovered_companies')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('linked_submission_id', submissionId);
+  } catch (err) {
+    console.error('[admin/submissions] Cori company update failed:', err instanceof Error ? err.message : err);
+  }
 }
 
 // Cori candidates: write the review decision back into Cori's memory so it
