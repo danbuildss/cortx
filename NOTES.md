@@ -138,6 +138,12 @@ Registry trust labels:
 
 This distinction is the foundation of V2 (Verify) and what makes the registry trustworthy rather than just a list.
 
+## Validation Sprint (Oct 16 – Nov 12, 2026)
+
+- **Oct 15 — read-only audit done:** `docs/AUDIT_2026-10-15.md` (VERIFIED / DOCUMENTED ONLY / UNKNOWN / BLOCKED). Nothing changed, deployed or spent.
+- Key findings: main = dde313a, Q2 running on Cori (dde313a67c56); **029 check row never pasted**; S2 off-site backup still not set up (biggest risk to history); Vercel caps documented $5/$50 (code default $1/$10), unconfirmed; v1 API has no usage logging → real API users unknowable; 0 outside builders documented; `redact.ts` unused / 402 headers stored unfiltered; no privacy page; no CI.
+- **Week 1 proposed (awaiting approval):** measure only — founder runs read-only SQL blocks A–G (029 check, Cori counts, cori_runs 7d, checks 7d, incidents 30d, spend, services/owners/DB size), server status/logs, looks at cron-job.org / Vercel caps / wallet balance / Telegram alerts, rates first 10 Cori cards. Then I record the day-0 baseline here and propose Week 2.
+
 ## Current Status
 
 - [x] In planning
