@@ -144,6 +144,12 @@ This distinction is the foundation of V2 (Verify) and what makes the registry tr
 - Key findings: main = dde313a, Q2 running on Cori (dde313a67c56); **029 check row never pasted**; S2 off-site backup still not set up (biggest risk to history); Vercel caps documented $5/$50 (code default $1/$10), unconfirmed; v1 API has no usage logging → real API users unknowable; 0 outside builders documented; `redact.ts` unused / 402 headers stored unfiltered; no privacy page; no CI.
 - **Week 1 proposed (awaiting approval):** measure only — founder runs read-only SQL blocks A–G (029 check, Cori counts, cori_runs 7d, checks 7d, incidents 30d, spend, services/owners/DB size), server status/logs, looks at cron-job.org / Vercel caps / wallet balance / Telegram alerts, rates first 10 Cori cards. Then I record the day-0 baseline here and propose Week 2.
 
+- **Oct 15 — founder's full sprint brief** (objective: CORTX used by real x402 builders; Cori = internal discovery/monitoring-support agent; workflow READ → AUDIT → RESEARCH → PLAN → APPROVAL → IMPLEMENT). Full audit + market research + 4-week plan in **`docs/SPRINT_2026-10-16.md`** (awaiting approval).
+  - Research facts: CDP Bazaar listings carry a **30-day `quality` block (unique payers, calls, last call)**; demand is extreme-tail (median 1 payer, ~65% one payer, top 10 ≈ 80% of calls, Oct 2026 crawls). AgentCore Payments (AWS, GA; x402 + MPP, "upto" scheme, Bazaar MCP via Gateway). Bankr x402 Cloud (Apr 2). x402 Foundation under Linux Foundation (~40 members). x402 issue tracker documents settled-but-not-delivered cases (#3732, #3680, #2294, #3149).
+  - Competitors: ScoutScore (breadth scores), x402 Trust (probe grades + verdict, **"we do not verify delivery-after-payment"**), Ontario Protocol, pulsefeed, x402scan (volume). CORTX differentiator = delivery-verified evidence with receipts.
+  - New audit findings: v1 API has no rate limit either; admin route hard-deletes registry seeds (`app/api/admin/registry-seeds/route.ts:66`); `/api/test-service` has healthy/broken/schema-fail variants → safe incident demo.
+  - Recommended: Week 1 read-only measurement + S2 backup first; first code task **T3 Cori demand ranking** (Bazaar `quality`, append-only `discovery_demand`, migration 030), after a read-only curl confirms the field.
+
 ## Current Status
 
 - [x] In planning
