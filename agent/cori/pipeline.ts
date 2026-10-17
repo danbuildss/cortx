@@ -5,7 +5,7 @@
 import { createHash } from 'node:crypto';
 import { canonicalUrl, hostOf } from '../../lib/cori/normalize';
 import { classify, type Classification, type ClassifyInput, type Terms } from '../../lib/cori/classify';
-import { isListing, parseBazaarItem, type Listing } from '../../lib/cori/bazaar';
+import { isListing, parseBazaarItem, type Demand, type Listing } from '../../lib/cori/bazaar';
 import { companyOf, listingQuality } from '../../lib/cori/quality';
 import { PARTNER_DOMAINS, partnerFor } from '../../lib/cori/partners';
 import { safeFetch, SafeFetchError, type SafeFetchOptions } from '../../lib/net/safe-fetch';
@@ -65,6 +65,11 @@ const NO_PROBE: ReadonlySet<Classification> = new Set([
 const LISTING_ONLY: ReadonlySet<Classification> = new Set([
   'blocked', 'unsupported_network', 'unsupported_asset', 'unsupported_scheme', 'unsupported_method', 'too_expensive',
   'low_quality',
+]);
+
+// Listing-level rejections Cori probes only for a watched / waiting company's daily liveness (Q2)
+const LIVENESS_ONLY: ReadonlySet<Classification> = new Set([
+  'too_expensive', 'unsupported_network', 'unsupported_asset', 'unsupported_scheme',
 ]);
 
 const nowOf = (d: Deps) => (d.now ? d.now() : new Date());
@@ -193,8 +198,25 @@ export type DiscoveryStats = BazaarPassStats & {
   changed_listings: number; new_listing_versions: number; reappeared: number; duplicates_in_pass: number;
   unchanged: number; touched: number; item_errors: number;
   skipped_low_quality: number; demoted: number; quality_reasons: Record<string, number>;
+  demand_recorded: number; demand_companies: number;
   classes: Record<string, number>;
 };
+
+const sameUtcDay = (a: Date, b: Date) => a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+
+/**
+ * Problem Finder step 1: keep a service's CDP demand at most once per UTC day, and only when
+ * the numbers changed (most kept listings have the same 0–1 payer for weeks — DATA COMPOUNDS
+ * without filling the free database).
+ */
+export function demandDue(
+  prev: { demand_payers: number | null; demand_calls: number | null; demand_at: Date | null } | null,
+  demand: Demand | null, at: Date,
+): boolean {
+  if (!demand) return false;
+  if (prev?.demand_at && sameUtcDay(prev.demand_at, at)) return false;
+  return prev?.demand_payers !== demand.payers || prev?.demand_calls !== demand.calls;
+}
 
 const LINKED_CLASS = { monitored: 'already_monitored', listed: 'already_listed', submitted: 'already_submitted' } as const;
 
@@ -255,7 +277,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     pages: 0, items: 0, truncated: false, total: null,
     invalid_items: 0, skipped_non_http: 0, new_services: 0, changed_listings: 0, new_listing_versions: 0, reappeared: 0,
     unchanged: 0, touched: 0, item_errors: 0, skipped_low_quality: 0, demoted: 0, quality_reasons: {},
-    duplicates_in_pass: 0, classes: {},
+    duplicates_in_pass: 0, classes: {}, demand_recorded: 0, demand_companies: 0,
   };
   const seenThisPass = new Set<string>();
 
@@ -334,6 +356,12 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
     }
     if (known?.classification === 'low_quality') keptByCompany.set(domain, (keptByCompany.get(domain) ?? 0) + 1);
 
+    // Demand (030): only for services that passed the quality gate
+    if (known && demandDue(known, l.demand, at)) {
+      await store.recordDemand(known.id, source.id, l.demand!, at, config.version);
+      stats.demand_recorded++;
+    }
+
     if (known && isUnchanged(known, l, source.id, host, denylist, idx, config.allowedPorts)) {
       stats.unchanged++;
       stats.classes[known.classification] = (stats.classes[known.classification] ?? 0) + 1;
@@ -346,6 +374,10 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
       row = await store.insertService({ canonical_url: l.canonicalUrl, host, first_source: source.id }, at);
       await store.addEvent(row.id, 'first_seen', { source: source.id });
       stats.new_services++;
+      if (l.demand) {
+        await store.recordDemand(row.id, source.id, l.demand, at, config.version);
+        stats.demand_recorded++;
+      }
       keptByCompany.set(domain, (keptByCompany.get(domain) ?? 0) + 1);
     }
 
@@ -405,6 +437,7 @@ export async function discoverSource(d: Deps, source: SourceRow): Promise<Discov
 
   if (toTouch.length > 0) await store.touchSeen(toTouch, source.id, at);
   stats.touched = toTouch.length;
+  if (stats.demand_recorded > 0) stats.demand_companies = await store.refreshCompanyDemand();
   await store.markSourceRun(source.id, at);
   log.info('discovery_pass_done', { ...stats });
   return stats;
@@ -440,7 +473,11 @@ async function probeOne(d: Deps, row: ServiceRow, idx: LinkIndex, denylist: Set<
   const gone = p.outcome !== 'ok' && p.outcome !== 'blocked' && at.getTime() - row.last_seen_at.getTime() > GONE_AFTER_MS;
 
   let result: { classification: Classification; reasons: string[] };
-  if (p.outcome === 'unreachable' && failures < UNREACHABLE_AFTER_FAILURES && !gone) {
+  if (LIVENESS_ONLY.has(row.classification)) {
+    // A daily liveness check of a listing-level rejection (e.g. too expensive) records whether it
+    // answers; it doesn't re-decide the class, which only a listing change does
+    result = { classification: row.classification, reasons: row.classification_reasons };
+  } else if (p.outcome === 'unreachable' && failures < UNREACHABLE_AFTER_FAILURES && !gone) {
     // Transient until 3 failures in a row
     result = { classification: 'pending', reasons: [`probe:retrying(${failures}/${UNREACHABLE_AFTER_FAILURES})`, `error:${p.error ?? 'unknown'}`] };
   } else {
@@ -630,6 +667,10 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
         facilitator_published: best.last_probe?.facilitator_published ?? best.facilitator_url != null,
         first_seen_at: c.first_seen_at.toISOString(),
         sources,
+        // CDP's 30-day numbers when the card was made (the page shows the latest)
+        demand: c.demand_payers != null
+          ? { payers: c.demand_payers, calls: c.demand_calls, last_called_at: c.demand_last_called_at?.toISOString() ?? null }
+          : null,
         evidence_state: 'observed',
       },
     });
@@ -732,7 +773,7 @@ export async function sweepDisappeared(d: Deps, sources: SourceRow[]): Promise<S
 
 export type CycleStats = {
   discovery: Record<string, DiscoveryStats>; probe: ProbeStats; queue: QueueStats; sites: SiteStats;
-  liveness: { bumped: number; alive: number; quiet: number } | null;
+  liveness: { bumped: number; alive: number; quiet: number; unchecked: number } | null;
   sweep: SweepStats | null; source_errors: Record<string, string>;
 };
 
@@ -803,9 +844,12 @@ export async function runCycle(d: Deps, opts: { forceSources?: boolean; maxProbe
 
   out.sites = await quietlyRecorded(d, 'sites', () => checkSites(d), (x) => x.checked > 0);
 
-  // Q2: companies waiting for review or being watched are re-checked daily; their cards show alive / went quiet
-  if (!d.livenessAt || at.getTime() - d.livenessAt.getTime() >= LIVENESS_EVERY_MS) {
-    out.liveness = await quietlyRecorded(d, 'liveness', () => d.store.refreshLiveness(at), (x) => x.bumped + x.alive + x.quiet > 0);
+  // Q2: companies waiting for review or being watched are re-checked daily; their cards show alive / went quiet.
+  // Schedule today's checks first, run the probes, then decide alive / quiet from what the checks found.
+  const livenessDue = !d.livenessAt || at.getTime() - d.livenessAt.getTime() >= LIVENESS_EVERY_MS;
+  let bumped = 0;
+  if (livenessDue) {
+    bumped = await d.store.scheduleLiveness(at);
     d.livenessAt = at;
   }
 
@@ -818,6 +862,11 @@ export async function runCycle(d: Deps, opts: { forceSources?: boolean; maxProbe
     for (const [k, v] of Object.entries(s.outcomes)) out.probe.outcomes[k] = (out.probe.outcomes[k] ?? 0) + v;
     for (const [k, v] of Object.entries(s.classes)) out.probe.classes[k] = (out.probe.classes[k] ?? 0) + v;
     if (s.probed === 0) break;
+  }
+
+  if (livenessDue) {
+    out.liveness = await quietlyRecorded(d, 'liveness', async () => ({ bumped, ...(await d.store.markLiveness(nowOf(d))) }),
+      (x) => x.bumped + x.alive + x.quiet > 0);
   }
 
   out.queue = await quietlyRecorded(d, 'queue', () => queueEligible(d), (x) => x.queued + x.skipped_linked + x.skipped_existing > 0);

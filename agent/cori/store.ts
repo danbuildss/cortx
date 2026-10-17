@@ -2,7 +2,7 @@
 //   PgStore     — Supabase Postgres as the least-privilege `cori_agent` role
 //   MemoryStore — dry runs and tests (optionally seeded from the database)
 import type { Classification } from '../../lib/cori/classify';
-import type { ListingSnapshot } from '../../lib/cori/bazaar';
+import type { Demand, ListingSnapshot } from '../../lib/cori/bazaar';
 
 export type SourceRow = {
   id: string;
@@ -69,6 +69,11 @@ export type ServiceRow = {
   linked_service_id: string | null;
   linked_seed_id: string | null;
   linked_submission_id: string | null;
+  // Problem Finder step 1 (030): the latest CDP demand numbers (a cache of discovery_demand)
+  demand_payers: number | null;
+  demand_calls: number | null;
+  demand_last_called_at: Date | null;
+  demand_at: Date | null;
 };
 
 // Everything settable on a discovered service (identity fields excluded)
@@ -104,6 +109,9 @@ export type IndexRow = {
   linked_service_id: string | null;
   linked_seed_id: string | null;
   sources: string[];
+  demand_payers: number | null;
+  demand_calls: number | null;
+  demand_at: Date | null;
 };
 
 // Q1: a company (registrable domain) and its website check
@@ -119,7 +127,23 @@ export type CompanyCandidate = {
   watched: boolean;
   services: ServiceRow[];
   services_total: number;
+  /** The company's demand (030): busiest service's payers, all services' calls */
+  demand_payers: number | null;
+  demand_calls: number | null;
+  demand_last_called_at: Date | null;
 };
+
+/**
+ * Q2: classes a daily free check can answer for a company being watched or waiting for review.
+ * Includes listing-level rejections (too_expensive, other networks…): a free check never pays, and
+ * a watched company whose only services are "too expensive" must not look dead (miroshark.xyz, Oct 15).
+ * Excluded: blocked (never contacted), gone, low_quality, unsupported_method (no safe request to send).
+ */
+export const LIVENESS_CLASSES = [
+  'eligible', 'needs_input', 'unreachable', 'not_x402', 'invalid_terms', 'pending',
+  'already_listed', 'already_monitored', 'already_submitted',
+  'too_expensive', 'unsupported_network', 'unsupported_asset', 'unsupported_scheme',
+] as const;
 
 // Host spread (spec v2 B3): which rows a batch may take per host, and hosts to skip
 export type HostSpread = { perHost: number; excludeHosts: string[] };
@@ -174,8 +198,16 @@ export interface Store {
   /** Q1/Q2: companies ready for review — website ok (or watched/partner), never queued, with a usable
    *  service; `priorityDomains` (x402 ecosystem partners) first and exempt from the website check */
   queueCompanies(limit: number, priorityDomains?: string[]): Promise<CompanyCandidate[]>;
-  /** Q2: daily free checks for companies waiting for review or being watched, and their alive state */
-  refreshLiveness(now: Date): Promise<{ bumped: number; alive: number; quiet: number }>;
+  /** Q2: schedule today's free check for every service of a company waiting for review or being watched
+   *  (any class a free check can answer, too_expensive included). Runs before the probes. */
+  scheduleLiveness(now: Date): Promise<number>;
+  /** Q2: after the probes, set alive / went quiet from checks of the last 26 h. A company with no
+   *  check in that window keeps its state (unknown, not quiet): no check isn't a failed check. */
+  markLiveness(now: Date): Promise<{ alive: number; quiet: number; unchecked: number }>;
+  /** 030: keep today's demand numbers for a service (one row per UTC day) and update its cache */
+  recordDemand(serviceId: string, source: string, demand: Demand, at: Date, coriVersion: string): Promise<void>;
+  /** 030: refresh every company's demand cache from its kept services. Returns companies updated. */
+  refreshCompanyDemand(): Promise<number>;
   linkCompanySubmission(domain: string, submissionId: string): Promise<void>;
   countCompanies(): Promise<{ known: number; site_ok: number; queued: number }>;
   /** The host of every candidate queued since `since` (one entry per candidate, so it can be counted) */

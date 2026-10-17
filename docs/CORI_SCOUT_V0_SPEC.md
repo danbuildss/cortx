@@ -529,3 +529,34 @@ See B. Also not built because CORTX already has it: no new admin UI, alerting ch
   - new: partners load and map to companies; a partner with no name/website is proposed first with its badge; a stale check is re-run before a card; a waiting company that dies is marked quiet and recovers; rejected companies aren't re-checked but watched ones are
   - real Postgres: `refreshLiveness`, partner-priority queue, hidden seeds, and the 029 correction
 - **Later (separate approval):** rank by real usage (USDC received on Base; needs a Basescan key).
+
+## Problem Finder step 1: demand, plus two liveness fixes (approved Oct 17 as "C + D", built)
+
+Direction (founder, Oct 17): Cori should find real x402 problems CORTX can solve, at companies whose problems cost someone money. Step 1 is knowing which services have real buyers. This replaces the Basescan-key plan above.
+
+- **Demand source:** the CDP Bazaar list endpoint Cori already reads carries a `quality` block per listing. Verified live on the Cori server, Oct 15: `l30DaysUniquePayers`, `l30DaysTotalCalls`, `lastCalledAt`. Cori parses it leniently: a malformed block gives `demand = null`, never a rejected listing. It is **not** part of the listing hash, so usage moving never creates listing versions.
+- **Migration 030 (`030_cori_demand.sql`):**
+  - `discovery_demand`: append-only (cori_agent: select + insert only; FK restrict). At most one row per service per UTC day, and only when the numbers changed. Only services that passed the quality gate get a row.
+  - Caches `demand_*` on `discovered_services` and `discovered_companies`. A company's payers = its busiest service; its calls = all its services together.
+- **Ranking:** the review queue is ordered partners → watch list → **most buyers** → oldest. The admin cards and the Watching list are sorted by buyers too.
+- **Each card shows:** "N buyers · M paid calls in 30 days · last paid call …".
+  - 0–1 payer reads "No outside buyers yet" (one payer is usually the seller's own test).
+  - ≥ 20 payers with < 1.2 calls per payer is flagged "most buyers paid only once: could be test or farmed wallets".
+  - The admin page reads without the demand columns if 030 hasn't run yet.
+- **Liveness fix 1 (miroshark.xyz):** the daily check of watched / waiting companies now covers listing-level rejections (too_expensive, other networks/assets/schemes, already linked). A free check never pays. Such a check records whether the service answers but never re-decides its class.
+- **Liveness fix 2 (timing, Oct 15):** liveness is now two steps:
+  1. schedule today's checks before the probes;
+  2. decide alive / went quiet after them, from checks in the last 26 h.
+
+  A company with no check in that window keeps its state ("unchecked"), because no check isn't a failed check.
+- **Alerts (A follow-up, same PR):**
+  - `sendTelegramAlert` returns whether Telegram accepted the message, and logs refusals without the token.
+  - The test button shows Telegram's real answer.
+  - The Cori watchdog and the low-wallet alert retry on the next cron tick instead of recording a message that never arrived.
+- **Tests:**
+  - suite 164 (163 pass, 1 DB-gated skip); Next.js production build OK.
+  - New pipeline tests: a watched too-expensive company is checked daily and keeps its class; alive is decided after the day's checks and "no check" ≠ quiet; demand kept once a day and only on change, never for junk, companies ranked by buyers; usage never changes the listing hash.
+  - New parser test: CDP quality parsing.
+  - Mutation-checked: both liveness tests fail on the old code.
+  - Real Postgres (PG 16) as cori_agent: 030 twice (re-runnable), demand row + caches, cori_agent can't update or delete demand, schedule/mark liveness.
+- **Go-live order:** merge → run 030 as blocks (check row `1 | 4 | 3 | INSERT,SELECT`) → `deploy.sh` on the Cori server.

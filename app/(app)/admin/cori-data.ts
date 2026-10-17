@@ -22,7 +22,16 @@ export type CoriCandidate = {
   alive: boolean | null;
   last_alive_at: string | null;
   quiet_since: string | null;
+} & Demand;
+
+/** Problem Finder step 1 (030): CDP's latest 30-day numbers for the company (null before 030 / no data) */
+export type Demand = {
+  demand_payers: number | null;
+  demand_calls: number | null;
+  demand_last_called_at: string | null;
 };
+
+const NO_DEMAND: Demand = { demand_payers: null, demand_calls: null, demand_last_called_at: null };
 
 // Q2: an approved company, re-checked by Cori every day
 export type CoriWatched = {
@@ -34,7 +43,12 @@ export type CoriWatched = {
   quiet_since: string | null;
   endpoint_url: string | null;
   candidate_metadata: unknown;
-};
+} & Demand;
+
+// Real buyers first (most distinct payers in 30 days); no numbers last
+export function byDemand<T extends Demand>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => (b.demand_payers ?? -1) - (a.demand_payers ?? -1));
+}
 
 // Pending Cori candidates in the review queue
 const waitingQuery = (service: SupabaseClient) =>
@@ -83,12 +97,12 @@ export async function loadCoriOverview(service: SupabaseClient): Promise<CoriOve
     service.from('discovered_companies').select('domain', { count: 'exact', head: true }),
     service.from('discovered_companies').select('domain', { count: 'exact', head: true }).eq('site_ok', true),
     service.from('discovery_events').select('at, event, details, discovered_services(service_name, canonical_url)').order('at', { ascending: false }).limit(20),
-    service.from('endpoint_submissions')
-      .select('id, endpoint_url, name, description, submitted_at, candidate_metadata, discovered_companies(alive, last_alive_at, quiet_since)')
-      .eq('source', 'cori_scout').eq('status', 'pending').order('submitted_at', { ascending: false }).limit(100),
-    service.from('discovered_companies')
-      .select('domain, name, approved_at, alive, last_alive_at, quiet_since, endpoint_submissions(endpoint_url, candidate_metadata)')
-      .eq('watching', true).order('approved_at', { ascending: false }).limit(100),
+    withDemandFallback((d) => service.from('endpoint_submissions')
+      .select(`id, endpoint_url, name, description, submitted_at, candidate_metadata, discovered_companies(alive, last_alive_at, quiet_since${d})`)
+      .eq('source', 'cori_scout').eq('status', 'pending').order('submitted_at', { ascending: false }).limit(100)),
+    withDemandFallback((d) => service.from('discovered_companies')
+      .select(`domain, name, approved_at, alive, last_alive_at, quiet_since${d}, endpoint_submissions(endpoint_url, candidate_metadata)`)
+      .eq('watching', true).order('approved_at', { ascending: false }).limit(100)),
     service.from('discovered_companies').select('domain').in('domain', PARTNER_DOMAINS),
     ...CLASS_ORDER.map((c) => service.from('discovered_services').select('id', { count: 'exact', head: true }).eq('classification', c)),
   ]);
@@ -102,7 +116,7 @@ export async function loadCoriOverview(service: SupabaseClient): Promise<CoriOve
     events: (eventsRes.data ?? []) as unknown as CoriEvent[],
     classCounts,
     ...splitCandidates(candidatesRes.data ?? []),
-    watching: ((watchingRes.data ?? []) as unknown as Array<Record<string, unknown>>).map((r) => {
+    watching: byDemand(((watchingRes.data ?? []) as unknown as Array<Record<string, unknown>>).map((r) => {
       const sub = (Array.isArray(r.endpoint_submissions) ? r.endpoint_submissions[0] : r.endpoint_submissions) as
         { endpoint_url?: string; candidate_metadata?: unknown } | null;
       return {
@@ -110,24 +124,44 @@ export async function loadCoriOverview(service: SupabaseClient): Promise<CoriOve
         alive: (r.alive as boolean | null) ?? null, last_alive_at: (r.last_alive_at as string | null) ?? null,
         quiet_since: (r.quiet_since as string | null) ?? null,
         endpoint_url: sub?.endpoint_url ?? null, candidate_metadata: sub?.candidate_metadata ?? null,
+        ...demandOf(r),
       };
-    }),
+    })),
     partnersMissing: missingPartners(new Set(((partnersFoundRes.data ?? []) as Array<{ domain: string }>).map((r) => r.domain))),
     loadedAt: Date.now(),
   };
 }
 
-type CandidateRow = Omit<CoriCandidate, 'alive' | 'last_alive_at' | 'quiet_since'> & {
-  discovered_companies?: { alive: boolean | null; last_alive_at: string | null; quiet_since: string | null } | Array<{ alive: boolean | null; last_alive_at: string | null; quiet_since: string | null }> | null;
+type CompanyState = { alive: boolean | null; last_alive_at: string | null; quiet_since: string | null } & Partial<Demand>;
+type CandidateRow = Omit<CoriCandidate, 'alive' | 'last_alive_at' | 'quiet_since' | keyof Demand> & {
+  discovered_companies?: CompanyState | CompanyState[] | null;
 };
+
+const DEMAND_COLUMNS = ', demand_payers, demand_calls, demand_last_called_at';
+
+// The demand columns arrive with migration 030; until it has run, read without them
+// (so merging before running 030 never breaks this page)
+async function withDemandFallback<R extends { error: unknown }>(query: (demandColumns: string) => PromiseLike<R>): Promise<R> {
+  const res = await query(DEMAND_COLUMNS);
+  return res.error ? query('') : res;
+}
+
+function demandOf(r: Partial<Record<keyof Demand, unknown>> | null | undefined): Demand {
+  if (!r) return NO_DEMAND;
+  return {
+    demand_payers: typeof r.demand_payers === 'number' ? r.demand_payers : null,
+    demand_calls: typeof r.demand_calls === 'number' ? r.demand_calls : null,
+    demand_last_called_at: typeof r.demand_last_called_at === 'string' ? r.demand_last_called_at : null,
+  };
+}
 
 // Q2: cards whose company stopped answering are hidden (counted, not deleted)
 function splitCandidates(rows: unknown[]): { candidates: CoriCandidate[]; quietCandidates: number } {
   const all = (rows as CandidateRow[]).map(({ discovered_companies: dc, ...c }) => {
     const company = Array.isArray(dc) ? dc[0] : dc;
-    return { ...c, alive: company?.alive ?? null, last_alive_at: company?.last_alive_at ?? null, quiet_since: company?.quiet_since ?? null };
+    return { ...c, alive: company?.alive ?? null, last_alive_at: company?.last_alive_at ?? null, quiet_since: company?.quiet_since ?? null, ...demandOf(company) };
   });
-  return { candidates: all.filter((c) => c.alive !== false), quietCandidates: all.filter((c) => c.alive === false).length };
+  return { candidates: byDemand(all.filter((c) => c.alive !== false)), quietCandidates: all.filter((c) => c.alive === false).length };
 }
 
 function missingPartners(found: Set<string>): Partner[] {

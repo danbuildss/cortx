@@ -6,7 +6,8 @@
 // a dry run never saves them, and across the whole Bazaar they don't fit in
 // memory (the first live dry run ran out of heap, Oct 6).
 import { randomUUID } from 'node:crypto';
-import type { ListingSnapshot } from '../../lib/cori/bazaar';
+import type { Demand, ListingSnapshot } from '../../lib/cori/bazaar';
+import { LIVENESS_CLASSES } from './store';
 import type {
   CompanyCandidate, DiscoveryEvent, HostSpread, IndexRow, SiteCheck, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow,
   SourceRow, Store,
@@ -59,6 +60,7 @@ export class MemoryStore implements Store {
   listings: Array<{ serviceId: string; source: string; hash: string; first: Date; last: Date; snapshot: ListingSnapshot | null }> = [];
   private listingKeys = new Map<string, number>(); // `${id}|${source}|${hash}` → index in listings
   observations: Array<Observation & { serviceId: string }> = [];
+  demand: Array<{ serviceId: string; source: string; observed_on: string; at: Date; payers: number; calls: number; last_called_at: string | null; cori_version: string }> = [];
   observationCount = 0;
   watchlist: Set<string>;
   companies = new Map<string, {
@@ -67,6 +69,7 @@ export class MemoryStore implements Store {
     linked_submission_id: string | null;
     watching: boolean; approved_at: Date | null; rejected_at: Date | null;
     alive: boolean | null; last_alive_at: Date | null; quiet_since: Date | null;
+    demand_payers: number | null; demand_calls: number | null; demand_last_called_at: Date | null;
   }>();
   siteChecks: Array<SiteCheck & { domain: string; at: Date }> = [];
   readonly lean: boolean;
@@ -111,6 +114,7 @@ export class MemoryStore implements Store {
         id: r.id, first_seen_at: r.first_seen_at, company_domain: r.company_domain, listing_hash: r.listing_hash, classification: r.classification, last_seen_at: r.last_seen_at,
         disappeared_at: r.disappeared_at, linked_service_id: r.linked_service_id, linked_seed_id: r.linked_seed_id,
         sources: await this.sourcesFor(r.id),
+        demand_payers: r.demand_payers, demand_calls: r.demand_calls, demand_at: r.demand_at,
       });
     }
     return out;
@@ -151,6 +155,7 @@ export class MemoryStore implements Store {
       last_probe_at: null, next_probe_at: null, probe_failures: 0, last_probe: null,
       classification: 'pending', classification_reasons: [],
       linked_service_id: null, linked_seed_id: null, linked_submission_id: null,
+      demand_payers: null, demand_calls: null, demand_last_called_at: null, demand_at: null,
       ...this.slim(f) as NewService, // canonical_url, host, first_source (+ any facts)
     };
     this.services.set(row.id, row);
@@ -230,6 +235,7 @@ export class MemoryStore implements Store {
       domain, name, first_seen_at: at, last_seen_at: at, site_checked_at: null, site_ok: null, site_status: null,
       site_failures: 0, linked_submission_id: null,
       watching: false, approved_at: null, rejected_at: null, alive: null, last_alive_at: null, quiet_since: null,
+      demand_payers: null, demand_calls: null, demand_last_called_at: null,
     });
   }
 
@@ -256,6 +262,7 @@ export class MemoryStore implements Store {
       .filter((c) => c.linked_submission_id == null && (c.site_ok === true || this.watchlist.has(c.domain) || priority.has(c.domain)))
       .sort((a, b) => Number(priority.has(b.domain)) - Number(priority.has(a.domain))
         || Number(this.watchlist.has(b.domain)) - Number(this.watchlist.has(a.domain))
+        || (b.demand_payers ?? -1) - (a.demand_payers ?? -1)
         || a.first_seen_at.getTime() - b.first_seen_at.getTime());
     for (const c of companies) {
       const services = [...this.services.values()]
@@ -266,35 +273,79 @@ export class MemoryStore implements Store {
       out.push({
         domain: c.domain, name: c.name, first_seen_at: c.first_seen_at, site_ok: c.site_ok, site_status: c.site_status,
         watched: this.watchlist.has(c.domain), services: services.slice(0, 5).map((r) => ({ ...r })), services_total: services.length,
+        demand_payers: c.demand_payers, demand_calls: c.demand_calls, demand_last_called_at: c.demand_last_called_at,
       });
       if (out.length >= limit) break;
     }
     return out;
   }
 
-  async refreshLiveness(now: Date) {
-    const followed = [...this.companies.values()].filter((c) =>
+  private followed() {
+    return [...this.companies.values()].filter((c) =>
       c.rejected_at == null && (c.watching || (c.linked_submission_id != null && c.approved_at == null)));
-    const recheck = new Set(['eligible', 'needs_input', 'unreachable', 'not_x402', 'invalid_terms', 'pending', 'already_listed']);
-    let bumped = 0, alive = 0, quiet = 0;
-    for (const c of followed) {
-      const services = [...this.services.values()].filter((r) => r.company_domain === c.domain);
-      for (const r of services) {
+  }
+
+  async scheduleLiveness(now: Date) {
+    const recheck = new Set<string>(LIVENESS_CLASSES);
+    let bumped = 0;
+    for (const c of this.followed()) {
+      for (const r of this.services.values()) {
+        if (r.company_domain !== c.domain || r.disappeared_at != null || !recheck.has(r.classification)) continue;
         const stale = !r.last_probe_at || now.getTime() - r.last_probe_at.getTime() >= 20 * 3_600_000;
-        if (recheck.has(r.classification) && stale && (r.next_probe_at == null || r.next_probe_at.getTime() > now.getTime())) {
+        if (stale && (r.next_probe_at == null || r.next_probe_at.getTime() > now.getTime())) {
           this.services.set(r.id, { ...r, next_probe_at: now });
           bumped++;
         }
       }
-      const okAt = services.filter((r) => r.last_probe?.outcome === 'ok' && r.last_probe_at).map((r) => r.last_probe_at!.getTime());
-      const lastOk = okAt.length ? Math.max(...okAt) : null;
-      const isAlive = lastOk != null && now.getTime() - lastOk <= 26 * 3_600_000;
+    }
+    return bumped;
+  }
+
+  async markLiveness(now: Date) {
+    const window = 26 * 3_600_000;
+    let alive = 0, quiet = 0, unchecked = 0;
+    for (const c of this.followed()) {
+      const services = [...this.services.values()].filter((r) => r.company_domain === c.domain && r.last_probe_at);
+      const recent = services.filter((r) => now.getTime() - r.last_probe_at!.getTime() <= window);
+      if (recent.length === 0) { unchecked++; continue; } // no check ≠ failed check
+      const okAt = services.filter((r) => r.last_probe?.outcome === 'ok').map((r) => r.last_probe_at!.getTime());
+      const isAlive = recent.some((r) => r.last_probe?.outcome === 'ok');
       c.alive = isAlive;
-      if (lastOk != null) c.last_alive_at = new Date(lastOk);
+      if (okAt.length) c.last_alive_at = new Date(Math.max(...okAt));
       c.quiet_since = isAlive ? null : c.quiet_since ?? now;
       if (isAlive) alive++; else quiet++;
     }
-    return { bumped, alive, quiet };
+    return { alive, quiet, unchecked };
+  }
+
+  async recordDemand(serviceId: string, source: string, d: Demand, at: Date, coriVersion: string) {
+    const day = at.toISOString().slice(0, 10);
+    if (!this.lean && !this.demand.some((x) => x.serviceId === serviceId && x.source === source && x.observed_on === day)) {
+      this.demand.push({ serviceId, source, observed_on: day, at, payers: d.payers, calls: d.calls, last_called_at: d.lastCalledAt, cori_version: coriVersion });
+    }
+    const row = this.services.get(serviceId);
+    if (row) {
+      this.services.set(serviceId, {
+        ...row, demand_payers: d.payers, demand_calls: d.calls,
+        demand_last_called_at: d.lastCalledAt ? new Date(d.lastCalledAt) : null, demand_at: at,
+      });
+    }
+  }
+
+  async refreshCompanyDemand() {
+    let updated = 0;
+    for (const c of this.companies.values()) {
+      const rows = [...this.services.values()].filter((r) => r.company_domain === c.domain && r.classification !== 'low_quality' && r.demand_payers != null);
+      if (rows.length === 0) continue;
+      const payers = Math.max(...rows.map((r) => r.demand_payers!));
+      const calls = rows.reduce((n, r) => n + (r.demand_calls ?? 0), 0);
+      const lastTimes = rows.map((r) => r.demand_last_called_at?.getTime()).filter((t): t is number => t != null);
+      const last = lastTimes.length ? new Date(Math.max(...lastTimes)) : null;
+      if (c.demand_payers === payers && c.demand_calls === calls && c.demand_last_called_at?.getTime() === last?.getTime()) continue;
+      Object.assign(c, { demand_payers: payers, demand_calls: calls, demand_last_called_at: last });
+      updated++;
+    }
+    return updated;
   }
 
   async linkCompanySubmission(domain: string, submissionId: string) {

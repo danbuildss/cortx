@@ -667,3 +667,105 @@ test('rejected companies are no longer checked daily; watched ones are', async (
   assert.equal(s.liveness!.bumped, 1, 'only the watched company is re-checked');
   assert.ok(svcRowByHost(store, 'b.test').next_probe_at!.getTime() <= deps.now!().getTime());
 });
+
+test('a watched company whose only service is "too expensive" is still checked daily, and keeps its class', async () => {
+  // miroshark.xyz (Oct 15): too_expensive was left out of the daily re-check, so it looked dead
+  const { store, deps, advance } = setup();
+  withHosts(deps, ['m.test']);
+  eco.items = [item('m.test', { accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '5000000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }] })];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(svcRowByHost(store, 'm.test').classification, 'too_expensive');
+  assert.equal(svcRowByHost(store, 'm.test').last_probe_at, null, 'not probed while nobody follows it');
+
+  Object.assign(store.companies.get('m.test')!, { watching: true, approved_at: deps.now!() });
+  advance(3_600_000);
+  const s = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(s.liveness!.bumped, 1);
+  const row = svcRowByHost(store, 'm.test');
+  assert.equal(row.last_probe!.outcome, 'ok', 'free check, no payment');
+  assert.equal(row.classification, 'too_expensive', 'a liveness check never re-decides the class');
+  assert.equal(row.next_probe_at, null);
+  assert.equal(store.companies.get('m.test')!.alive, true, 'alive in the same cycle as its check');
+
+  advance(24 * 3_600_000);
+  await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(store.companies.get('m.test')!.alive, true, 'still alive the next day');
+  assert.ok(eco.hits.every((h) => !h.headers['payment-signature'] && !h.headers['x-payment']), 'never pays');
+});
+
+test('liveness is decided after the day\'s checks, and "no check" is not "went quiet"', async () => {
+  // Oct 15: alive/quiet was computed before the checks ran → 89 working companies shown as quiet
+  const { store, deps, advance } = setup();
+  eco.down.clear();
+  eco.items = [item('a.test')];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  Object.assign(store.companies.get('a.test')!, { watching: true, approved_at: deps.now!() });
+
+  advance(3 * 24 * 3_600_000); // Cori was stopped for 3 days
+  let s = await runCycle(deps, { maxProbeBatches: 5 });
+  assert.equal(s.liveness!.quiet, 0);
+  assert.equal(store.companies.get('a.test')!.alive, true, 'checked in this cycle, then marked alive');
+  assert.equal(store.companies.get('a.test')!.quiet_since, null);
+
+  // Checks can't run (no probe batches): the state stays as it was, not "went quiet"
+  advance(3 * 24 * 3_600_000);
+  s = await runCycle(deps, { maxProbeBatches: 0 });
+  assert.equal(s.liveness!.unchecked, 1);
+  assert.equal(store.companies.get('a.test')!.alive, true);
+  assert.equal(store.companies.get('a.test')!.quiet_since, null);
+});
+
+// ─── Problem Finder step 1: demand (030) ─────────────────────────────────────
+
+const withDemand = (host: string, payers: number, calls: number, over: Record<string, unknown> = {}) =>
+  item(host, { quality: { l30DaysUniquePayers: payers, l30DaysTotalCalls: calls, lastCalledAt: '2026-09-28T09:00:00Z' }, ...over });
+
+test('demand: kept once a day and only when it changes; junk never; companies ranked by buyers', async () => {
+  const { store, deps, advance } = setup();
+  withHosts(deps, ['busy.test', 'quiet.test']);
+  eco.items = [
+    withDemand('quiet.test', 1, 2),
+    withDemand('busy.test', 160, 5600),
+    withDemand('busy.test', 40, 900, {}, ),
+    withDemand('b.test', 9, 30, { serviceName: 'Test API' }), // junk name: never stored
+  ];
+  // Second busy.test service on its own URL
+  (eco.items[2] as { resource: string }).resource = eco.url('busy.test', '/svc/v2-get-2');
+  let s = await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  assert.equal(s.discovery.cdp_bazaar.demand_recorded, 3);
+  assert.equal(store.demand.length, 3);
+  const busy = store.companies.get('busy.test')!;
+  assert.equal(busy.demand_payers, 160, 'busiest service');
+  assert.equal(busy.demand_calls, 6500, 'all services');
+  assert.equal(store.submissions[0].website_url, 'https://busy.test', 'the company with real buyers is proposed first');
+  assert.deepEqual((store.submissions[0].candidate_metadata.demand as { payers: number }).payers, 160);
+
+  // Same day, new numbers: not again (one row per day)
+  eco.items = eco.items.map((i) => ({ ...(i as object), quality: { l30DaysUniquePayers: 200, l30DaysTotalCalls: 7000 } }));
+  advance(6 * 3_600_000 + 60_000);
+  s = await runCycle(deps, { maxProbeBatches: 0 });
+  assert.equal(s.discovery.cdp_bazaar.demand_recorded, 0);
+
+  // Next day: changed → kept; and the day after, unchanged → not kept
+  advance(24 * 3_600_000);
+  s = await runCycle(deps, { maxProbeBatches: 0 });
+  assert.equal(s.discovery.cdp_bazaar.demand_recorded, 3);
+  advance(24 * 3_600_000);
+  s = await runCycle(deps, { maxProbeBatches: 0 });
+  assert.equal(s.discovery.cdp_bazaar.demand_recorded, 0, 'unchanged numbers are not stored again');
+  assert.equal(store.demand.length, 6);
+  assert.ok(store.demand.every((r) => r.cori_version === deps.config.version));
+  assert.equal(store.companies.get('busy.test')!.demand_payers, 200);
+});
+
+test('demand never changes the listing hash: no new listing versions when only usage moves', async () => {
+  const { store, deps, advance } = setup();
+  eco.items = [withDemand('a.test', 3, 10)];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 0 });
+  eco.items = [withDemand('a.test', 4, 25)];
+  advance(30 * 3_600_000);
+  const s = await runCycle(deps, { maxProbeBatches: 0 });
+  assert.equal(s.discovery.cdp_bazaar.new_listing_versions, 0);
+  assert.equal(s.discovery.cdp_bazaar.demand_recorded, 1);
+  assert.equal(store.listings.length, 1);
+});

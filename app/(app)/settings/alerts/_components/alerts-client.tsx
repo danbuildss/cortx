@@ -336,7 +336,8 @@ export function TelegramConnect({ initialConnection }: { initialConnection: Conn
       setTestMsg('Sent! Check your Telegram.');
       setTimeout(() => setTestMsg(''), 4000);
     } else {
-      setTestMsg('Failed to send test alert.');
+      const body = await res.json().catch(() => null) as { error?: string } | null;
+      setTestMsg(body?.error ? `Failed to send test alert: ${body.error}` : 'Failed to send test alert.');
     }
   }
 

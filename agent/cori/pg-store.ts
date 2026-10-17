@@ -3,7 +3,8 @@
 // role's grants: Cori's own tables, a few id/url columns for deduplication,
 // and inserting pending candidates into endpoint_submissions.
 import type { Sql } from 'postgres';
-import type { ListingSnapshot } from '../../lib/cori/bazaar';
+import type { Demand, ListingSnapshot } from '../../lib/cori/bazaar';
+import { LIVENESS_CLASSES } from './store';
 import type {
   CompanyCandidate, DiscoveryEvent, HostSpread, IndexRow, SiteCheck, KnownRecords, NewService, NewSubmission, Observation, ServicePatch, ServiceRow,
   SourceRow, Store,
@@ -88,7 +89,7 @@ export class PgStore implements Store {
   async loadIndex() {
     const rows = await this.sql`
       select s.id, s.canonical_url, s.first_seen_at, s.company_domain, s.listing_hash, s.classification, s.last_seen_at, s.disappeared_at,
-             s.linked_service_id, s.linked_seed_id,
+             s.linked_service_id, s.linked_seed_id, s.demand_payers, s.demand_calls, s.demand_at,
              coalesce(array_agg(ss.source) filter (where ss.source is not null), '{}') as sources
       from public.discovered_services s
       left join public.discovery_sources_seen ss on ss.discovered_service_id = s.id
@@ -100,6 +101,7 @@ export class PgStore implements Store {
         last_seen_at: r.last_seen_at, disappeared_at: r.disappeared_at ?? null,
         linked_service_id: r.linked_service_id ?? null, linked_seed_id: r.linked_seed_id ?? null,
         sources: (r.sources as string[]) ?? [],
+        demand_payers: r.demand_payers ?? null, demand_calls: r.demand_calls ?? null, demand_at: r.demand_at ?? null,
       });
     }
     return out;
@@ -294,7 +296,7 @@ export class PgStore implements Store {
     const priority = this.sql.array(priorityDomains, 25 /* text */);
     const companies = await this.sql`
       select c.domain, c.name, c.first_seen_at, c.site_ok, c.site_status, (w.domain is not null) as watched,
-             (c.domain = any(${priority}::text[])) as partner
+             (c.domain = any(${priority}::text[])) as partner, c.demand_payers, c.demand_calls, c.demand_last_called_at
       from public.discovered_companies c
       left join public.cori_watchlist w on lower(w.domain) = c.domain
       where c.linked_submission_id is null
@@ -303,7 +305,7 @@ export class PgStore implements Store {
           select 1 from public.discovered_services s
           where s.company_domain = c.domain and s.classification in ('eligible', 'needs_input')
             and s.linked_submission_id is null and s.linked_service_id is null and s.linked_seed_id is null)
-      order by partner desc, watched desc, c.first_seen_at
+      order by partner desc, watched desc, c.demand_payers desc nulls last, c.first_seen_at
       limit ${limit}`;
     const out: CompanyCandidate[] = [];
     for (const c of companies) {
@@ -316,6 +318,7 @@ export class PgStore implements Store {
       out.push({
         domain: String(c.domain), name: c.name ?? null, first_seen_at: c.first_seen_at, site_ok: c.site_ok ?? null,
         site_status: c.site_status ?? null, watched: Boolean(c.watched),
+        demand_payers: c.demand_payers ?? null, demand_calls: c.demand_calls ?? null, demand_last_called_at: c.demand_last_called_at ?? null,
         services_total: Number(services[0]?.services_total ?? services.length),
         services: services.map((r) => { const { services_total: _t, ...rest } = r; void _t; return toServiceRow(rest); }),
       });
@@ -323,37 +326,82 @@ export class PgStore implements Store {
     return out;
   }
 
-  async refreshLiveness(now: Date) {
+  async scheduleLiveness(now: Date) {
     // Companies waiting for review or being watched: re-check their services daily
+    const classes = this.sql.array([...LIVENESS_CLASSES], 25 /* text */);
     const bumped = await this.sql`
       update public.discovered_services s set next_probe_at = ${now}, updated_at = now()
       from public.discovered_companies c
       where s.company_domain = c.domain
         and c.rejected_at is null
         and (c.watching or (c.linked_submission_id is not null and c.approved_at is null))
-        and s.classification in ('eligible', 'needs_input', 'unreachable', 'not_x402', 'invalid_terms', 'pending', 'already_listed')
+        and s.classification = any(${classes}::text[])
+        and s.disappeared_at is null
         and (s.last_probe_at is null or s.last_probe_at < ${now}::timestamptz - interval '20 hours')
         and (s.next_probe_at is null or s.next_probe_at > ${now})`;
-    // Alive = a service answered with valid payment terms in the last 26 h
+    return bumped.count;
+  }
+
+  async markLiveness(now: Date) {
+    // Alive = a service answered with valid payment terms in the last 26 h. Quiet = checked in that
+    // window, never ok. Not checked in the window = unchanged (Oct 15: marking before the day's
+    // checks ran showed 89 working companies as "went quiet").
     const rows = await this.sql`
-      update public.discovered_companies c set
-        alive = coalesce(x.alive, false),
-        last_alive_at = coalesce(x.last_ok, c.last_alive_at),
-        quiet_since = case when coalesce(x.alive, false) then null else coalesce(c.quiet_since, ${now}) end,
-        updated_at = now()
-      from public.discovered_companies c2
-      left join (
+      with x as (
         select company_domain,
-               bool_or(last_probe_at >= ${now}::timestamptz - interval '26 hours' and last_probe->>'outcome' = 'ok') as alive,
+               bool_or(last_probe_at >= ${now}::timestamptz - interval '26 hours' and last_probe->>'outcome' = 'ok') as ok_recent,
+               bool_or(last_probe_at >= ${now}::timestamptz - interval '26 hours') as checked_recent,
                max(last_probe_at) filter (where last_probe->>'outcome' = 'ok') as last_ok
         from public.discovered_services where company_domain is not null group by company_domain
-      ) x on x.company_domain = c2.domain
-      where c.domain = c2.domain
+      )
+      update public.discovered_companies c set
+        alive = x.ok_recent,
+        last_alive_at = coalesce(x.last_ok, c.last_alive_at),
+        quiet_since = case when x.ok_recent then null else coalesce(c.quiet_since, ${now}) end,
+        updated_at = now()
+      from x
+      where x.company_domain = c.domain
+        and x.checked_recent
         and c.rejected_at is null
         and (c.watching or (c.linked_submission_id is not null and c.approved_at is null))
       returning c.alive`;
+    const [f] = await this.sql`
+      select count(*)::int as n from public.discovered_companies
+      where rejected_at is null and (watching or (linked_submission_id is not null and approved_at is null))`;
     const alive = rows.filter((r) => r.alive === true).length;
-    return { bumped: bumped.count, alive, quiet: rows.length - alive };
+    const quiet = rows.length - alive;
+    return { alive, quiet, unchecked: Math.max(0, Number(f.n) - rows.length) };
+  }
+
+  async recordDemand(serviceId: string, source: string, d: Demand, at: Date, coriVersion: string) {
+    await this.sql`
+      insert into public.discovery_demand
+        (discovered_service_id, source, observed_on, at, unique_payers, total_calls, last_called_at, cori_version)
+      values (${serviceId}, ${source}, (${at}::timestamptz at time zone 'utc')::date, ${at}, ${d.payers}, ${d.calls},
+              ${d.lastCalledAt}, ${coriVersion})
+      on conflict (discovered_service_id, source, observed_on) do nothing`;
+    await this.sql`
+      update public.discovered_services
+      set demand_payers = ${d.payers}, demand_calls = ${d.calls}, demand_last_called_at = ${d.lastCalledAt}, demand_at = ${at}, updated_at = now()
+      where id = ${serviceId}`;
+  }
+
+  async refreshCompanyDemand() {
+    const rows = await this.sql`
+      with x as (
+        select company_domain, max(demand_payers) as payers, least(sum(demand_calls), 2147483647)::int as calls, max(demand_last_called_at) as last_called
+        from public.discovered_services
+        where company_domain is not null and classification <> 'low_quality' and demand_payers is not null
+        group by company_domain
+      )
+      update public.discovered_companies c
+      set demand_payers = x.payers, demand_calls = x.calls, demand_last_called_at = x.last_called, updated_at = now()
+      from x
+      where x.company_domain = c.domain
+        and (c.demand_payers is distinct from x.payers or c.demand_calls is distinct from x.calls
+             or c.demand_last_called_at is distinct from x.last_called)
+      returning c.domain`;
+    return rows.length;
   }
 
   async linkCompanySubmission(domain: string, submissionId: string) {

@@ -18,10 +18,12 @@ export async function POST(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not connected' }, { status: 400 });
   }
 
-  await sendTelegramAlert(
+  const sent = await sendTelegramAlert(
     conn.chat_id,
     '🔔 <b>Test alert from CORTX</b>\nYour Telegram connection is working correctly.'
   );
+  // Only say "sent" when Telegram accepted it (Oct 17: a dead bot token showed "Sent!")
+  if (!sent.ok) return NextResponse.json({ error: sent.reason }, { status: 502 });
 
   return NextResponse.json({ ok: true });
 }

@@ -3,7 +3,7 @@
 // candidate_metadata Cori wrote when it queued the service.
 import { explainReasons } from '@/lib/cori/status';
 import { SubmissionActions } from './submission-actions';
-import type { CoriCandidate } from './cori-data';
+import type { CoriCandidate, Demand } from './cori-data';
 
 type Meta = {
   classification?: string;
@@ -42,6 +42,37 @@ export function PartnerBadge() {
       fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.05em',
       background: 'rgba(37,99,235,0.14)', color: '#60a5fa', textTransform: 'uppercase', whiteSpace: 'nowrap',
     }}>x402 ecosystem</span>
+  );
+}
+
+/**
+ * Problem Finder step 1: CDP's 30-day numbers, in words. One payer is usually the seller's own
+ * test call, and many payers who each paid once can be test or farmed wallets (Oct 15 sample).
+ */
+export function demandText(d: Demand): { text: string; note: string | null } | null {
+  if (d.demand_payers == null) return null;
+  const n = (x: number) => x.toLocaleString('en-US');
+  if (d.demand_payers <= 1) return { text: 'No outside buyers yet', note: `${n(d.demand_calls ?? 0)} paid call${d.demand_calls === 1 ? '' : 's'} in 30 days` };
+  const calls = d.demand_calls ?? 0;
+  const oncePerBuyer = d.demand_payers >= 20 && calls < d.demand_payers * 1.2;
+  return {
+    text: `${n(d.demand_payers)} buyers · ${n(calls)} paid calls in 30 days`,
+    note: oncePerBuyer ? 'most buyers paid only once: could be test or farmed wallets' : null,
+  };
+}
+
+export function DemandLine({ d, now }: { d: Demand; now?: number }) {
+  const t = demandText(d);
+  if (!t) return null;
+  const last = ago(d.demand_last_called_at, now);
+  const real = (d.demand_payers ?? 0) > 1;
+  return (
+    <div style={{ fontSize: 11, marginTop: 4, color: real ? 'var(--text-secondary)' : 'var(--text-dim)' }}>
+      <span style={{ fontWeight: real ? 600 : 400 }}>{t.text}</span>
+      {last && real && <span style={{ color: 'var(--text-dim)' }}> · last paid call {last}</span>}
+      {t.note && <span style={{ color: real ? 'var(--status-degraded)' : 'var(--text-dim)' }}> · {t.note}</span>}
+      <span style={{ color: 'var(--text-dim)' }}> (Coinbase Bazaar)</span>
+    </div>
   );
 }
 
@@ -151,6 +182,7 @@ export function CoriCandidateCard({ c, last }: { c: CoriCandidate; last: boolean
         display: 'block', fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-dim)',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', marginTop: 2,
       }}>{isCompany ? meta?.company : c.endpoint_url} ↗</a>
+      <DemandLine d={c} />
       {c.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, overflowWrap: 'anywhere' }}>{c.description}</div>}
       <CoriCandidateDetails metadata={c.candidate_metadata} />
       <div style={{ marginTop: 10 }}>
