@@ -150,6 +150,20 @@ This distinction is the foundation of V2 (Verify) and what makes the registry tr
   - New audit findings: v1 API has no rate limit either; admin route hard-deletes registry seeds (`app/api/admin/registry-seeds/route.ts:66`); `/api/test-service` has healthy/broken/schema-fail variants → safe incident demo.
   - Recommended: Week 1 read-only measurement + S2 backup first; first code task **T3 Cori demand ranking** (Bazaar `quality`, append-only `discovery_demand`, migration 030), after a read-only curl confirms the field.
 
+- **Oct 15–16 — Week 1 approved (read-only only).** Founder ran the checks; **day-0 baseline (Oct 15, ~20:15–21:00 UTC):**
+  - **Deploys:** Vercel prod = `dde313a` Ready (5d) ✅; Cori `dde313a67c56` deployed 2026-10-15T20:16:28Z, `active`, 0 warnings/24 h ✅. Server says "System restart required" (pending kernel update; reboot needs approval).
+  - **029 VERIFIED:** 6 | 2 | watching 3 | hidden 4.
+  - **Cori:** 28,852 listing versions, 725 companies, 666 sites OK, 3 watching (allium.so, gondola-ai.com, miroshark.xyz), 0 rejected. cori_runs 7 d: 0 failures; heartbeat 2,016 (no gaps); discovery 28 (6 h); probe 641; sites 82; queue 7; sweep 7; liveness 1 (first Q2 run 20:16).
+  - **Cori findings (not fixed, need approval):** (1) liveness runs *before* the probe step → first Q2 run marked all 89 waiting/watched companies "went quiet" at 20:16:35 although probes at 20:17 were `ok`; hourly re-run should self-correct (re-check result still owed). (2) **miroshark.xyz (aeon.fun, our only inbound) is `too_expensive` → excluded from the daily re-check → will always look quiet.** (3) Bazaar `quality` block **VERIFIED present on the list endpoint** Cori uses (`l30DaysTotalCalls`, `l30DaysUniquePayers`, `lastCalledAt`; first page sorted by demand; some listings have payers ≈ calls → possible farmed wallets). Not part of `listingHash`, so storing it won't create listing versions. New listing fields seen: `curated`, `bundleSlugs`, `iconUrl`.
+  - **CORTX checks 7 d:** lightweight 1,623 passed (cron every 15 min); paid full: 5 Bankr services 36 passed ($0.036/week); **Contents (Exa) 167 failed at price_check ($0 quote, empty test input), hourly**. cron-job.org: all green, ~20 s, enabled.
+  - **Incidents:** none in 30 d; only open = Exa since Aug 24 (opened at payment_terms during CORTX's own V2-parse bug; now our empty test input) → effectively a false positive about a third party, possibly visible on the public status page. Decision needed.
+  - **Spend:** today $0.005, October $0.092. **Caps in Vercel = $1/day, $10/month** (set before the Oct 10 deploy → active; NOTES' "$5/$50" was wrong). **Wallet 3.53 USDC** (Basescan).
+  - **Usage:** 6 services, 1 owner (founder), 6 accounts (1 new in 30 d), 7,454 checks total.
+  - **DB 198 MB / 500 MB free** (17 MB Oct 5). Cori ≈ 90%: discovery_listings 101 MB, discovered_services 47 MB, discovery_events 16 MB; checks 8.6 MB. Growth after the Oct 6–8 initial load ≈ 250–350 listing versions/day ≈ 2–3 MB/day → ~4–5 months headroom. ~90% of stored listings are low_quality junk still getting new versions (possible later saving: stop *new* versions for junk, keep history).
+  - **Alerts:** `telegram_connections` = 1 (founder, active, all events on, since Aug 6); `alert_configs` is an unused legacy table; `system_settings.cori_watchdog` = null. **Founder: "I don't think we have a bot any more"** → all alerts (incidents, Cori watchdog, low wallet) may be failing silently (`.catch(() => {})`). Vercel TELEGRAM_* names still to check.
+  - Still owed: Vercel TELEGRAM_* names, liveness re-check, 10 card ratings, S2 backup procedure doc.
+- **Oct 17 — founder direction for Cori:** Cori should be the agent that *finds real problems in x402 that CORTX can solve*, so CORTX can reach those companies, and do it publicly; make Cori strong; also make the work usable from Codex. → Proposed "Cori Problem Finder" (see below, awaiting approval). Public-claim rule from the brief stands: Observed → Reproduced → provider notified → (consent or fix window) → public.
+
 ## Current Status
 
 - [x] In planning
