@@ -334,7 +334,9 @@ async function checkCoriHeartbeat(): Promise<void> {
     ? `⚠️ <b>Cori is silent</b>\n\nNo report from the Cori agent for ${minutesSince(lastRunAt!, now)} minutes. ` +
       `Check the Cori server (<code>systemctl status cori</code>, <code>journalctl -u cori</code>).`
     : `✅ <b>Cori is running again</b>\n\nThe Cori agent is reporting in.`;
-  await sendTelegramAlert(adminChatId, text).catch(() => {});
+  const sent = await sendTelegramAlert(adminChatId, text);
+  // Not delivered: keep the old state so the next cron tick tries again
+  if (!sent.ok) return;
 
   await db
     .from('system_settings')
@@ -380,7 +382,7 @@ async function checkWalletBalance(): Promise<void> {
   if (lastAlertAt && lastAlertAt > sixHoursAgo) return;
 
   const addrDisplay = `${walletAddr.slice(0, 6)}...${walletAddr.slice(-4)}`;
-  await sendTelegramAlert(
+  const sent = await sendTelegramAlert(
     adminChatId,
     `⚠️ <b>CORTX wallet balance low</b>\n\n` +
     `Wallet: <code>${addrDisplay}</code>\n` +
@@ -388,7 +390,9 @@ async function checkWalletBalance(): Promise<void> {
     `Threshold: ${threshold} USDC\n\n` +
     `Paid monitoring checks will start failing when balance reaches 0. ` +
     `Top up the wallet with USDC on Base.`
-  ).catch(() => {}); // Don't let alert failure block the cron
+  );
+  // Not delivered: no cooldown, so the next cron tick tries again
+  if (!sent.ok) return;
 
   await db
     .from('system_settings')

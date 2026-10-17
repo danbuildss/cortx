@@ -1,6 +1,6 @@
 // Runs the Scout pipeline against real Postgres, connected as the
 // least-privilege `cori_agent` role — proving Cori can do its whole job with
-// only the grants from migrations 023/024/027.
+// only the grants from migrations 023/024/027–030.
 //
 // Skipped unless CORI_TEST_ADMIN_DATABASE_URL points at a disposable Postgres
 // superuser connection (it creates and drops its own database), e.g.
@@ -55,7 +55,7 @@ before(async () => {
   const dbUrl = new URL(ADMIN_URL); dbUrl.pathname = `/${DB}`;
   dbAdmin = postgres(dbUrl.toString(), { onnotice: () => {} });
   await dbAdmin.unsafe(BASELINE);
-  for (const m of ['023_cori_scout.sql', '024_fix_endpoint_submissions_columns.sql', '027_cori_memory.sql', '027_cori_memory.sql', '028_cori_quality.sql', '029_cori_watching.sql']) {
+  for (const m of ['023_cori_scout.sql', '024_fix_endpoint_submissions_columns.sql', '027_cori_memory.sql', '027_cori_memory.sql', '028_cori_quality.sql', '029_cori_watching.sql', '030_cori_demand.sql', '030_cori_demand.sql']) {
     // 027 twice: it must be safe to re-run
     await dbAdmin.unsafe(readFileSync(new URL(`../../supabase/migrations/${m}`, import.meta.url), 'utf8'));
   }
@@ -77,7 +77,11 @@ after(async () => {
 
 test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL && 'set CORI_TEST_ADMIN_DATABASE_URL' }, async () => {
   // Includes a listing with NUL characters, which Postgres rejects in text and jsonb (Oct 7)
-  eco.items = [...standardListings(eco), {
+  // CDP demand on one listing (030)
+  const withQuality = standardListings(eco).map((i) => (i as { serviceName?: string }).serviceName === 'v2-get'
+    ? { ...(i as object), quality: { l30DaysUniquePayers: 174, l30DaysTotalCalls: 5882, lastCalledAt: '2026-10-15T17:23:34.369Z' } }
+    : i);
+  eco.items = [...withQuality, {
     resource: eco.url('svc.test', '/svc/nul'), type: 'http', x402Version: 2, serviceName: 'nul\u0000name',
     description: 'has a \u0000 inside, and is otherwise a real description', tags: ['a\u0000'],
     accepts: [{ scheme: 'exact', network: 'eip155:1', amount: '2000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C', extra: { note: 'x\u0000y' } }],
@@ -169,8 +173,10 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   assert.equal((await store.queueCompanies(10)).length, 0, 'svc.test already proposed: never twice');
 
   // Q2 on real Postgres: daily liveness for waiting companies, partners-first queue, hidden seeds
-  const live = await store.refreshLiveness(new Date());
+  assert.ok((await store.scheduleLiveness(new Date(Date.now() + 21 * 3_600_000))) >= 1, 'tomorrow: re-checks scheduled');
+  const live = await store.markLiveness(new Date());
   assert.ok(live.alive >= 1, 'the waiting company answered recently');
+  assert.equal((await store.markLiveness(new Date(Date.now() + 30 * 3_600_000))).unchecked, 1, 'no check in 26 h: unchanged, not quiet');
   const [svc] = await dbAdmin`select alive, quiet_since from public.discovered_companies where domain = 'svc.test'`;
   assert.equal(svc.alive, true);
   assert.equal(svc.quiet_since, null);
@@ -196,6 +202,15 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
   const [{ freed }] = await dbAdmin`select count(*)::int as freed from public.discovered_services where linked_submission_id is not null`;
   assert.equal(freed, 0, 'its service is free again');
   assert.ok((await store.queueCandidates(10, { perHost: 1, excludeHosts: ['svc.test'] })).every((r) => r.host !== 'svc.test'));
+
+  // Demand (030): one row per service per day, caches on the service and the company, append-only
+  const demand = await dbAdmin`select d.unique_payers, d.total_calls, d.cori_version, d.observed_on::text as day from public.discovery_demand d`;
+  assert.equal(demand.length, 1, 'two passes the same day: one row');
+  assert.deepEqual({ ...demand[0], day: undefined }, { unique_payers: 174, total_calls: 5882, cori_version: 'it-version', day: undefined });
+  const [dc] = await dbAdmin`select demand_payers, demand_calls from public.discovered_companies where domain = 'svc.test'`;
+  assert.deepEqual({ ...dc }, { demand_payers: 174, demand_calls: 5882 });
+  await assert.rejects(cori`update public.discovery_demand set unique_payers = 0`, /permission denied/);
+  await assert.rejects(cori`delete from public.discovery_demand`, /permission denied/);
 
   // History is append-only for Cori, and can't be cascaded away
   await assert.rejects(cori`update public.discovery_observations set outcome = 'ok'`, /permission denied/);

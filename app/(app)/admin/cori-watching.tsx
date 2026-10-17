@@ -2,7 +2,7 @@
 // by Cori every day) and known x402 projects Cori hasn't found an endpoint for.
 import type { Partner } from '@/lib/cori/partners';
 import { coriCard, coriLabel } from './cori-panel';
-import { ago, PartnerBadge } from './cori-candidate';
+import { ago, DemandLine, PartnerBadge } from './cori-candidate';
 import type { CoriWatched } from './cori-data';
 import { partnerFor } from '@/lib/cori/partners';
 
@@ -18,7 +18,7 @@ export function CoriWatching({ watching, now }: { watching: CoriWatched[]; now: 
     <div style={coriCard}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <span style={coriLabel}>Watching</span>
-        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{watching.length} companies · checked free every day · private</span>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{watching.length} companies · most buyers first · checked free every day · private</span>
       </div>
       {watching.length === 0 ? (
         <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
@@ -44,6 +44,7 @@ export function CoriWatching({ watching, now }: { watching: CoriWatched[]; now: 
               {m.services_total != null && <> · {m.services_total} paid service{m.services_total === 1 ? '' : 's'}</>}
               {m.price_min != null && m.price_max != null && <> · ${m.price_min}{m.price_max !== m.price_min ? `–$${m.price_max}` : ''} per call</>}
             </div>
+            <DemandLine d={w} now={now} />
             <a href={newServiceHref(w.endpoint_url, partner?.name ?? w.name)} style={{
               display: 'inline-block', marginTop: 8, fontSize: 12, fontWeight: 600, padding: '5px 10px', borderRadius: 6,
               border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', textDecoration: 'none',

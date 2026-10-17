@@ -40,6 +40,9 @@ export const BazaarItemSchema = z.looseObject({
   tags: z.array(z.string()).optional(),
   iconUrl: z.string().optional(),
   extensions: z.record(z.string(), z.unknown()).optional(),
+  // CDP's 30-day usage block (verified on the live list endpoint, Oct 15). Parsed leniently
+  // in parseDemand: a malformed block must never reject the listing.
+  quality: z.unknown().optional(),
 });
 
 export const BazaarPageSchema = z.looseObject({
@@ -107,6 +110,18 @@ export type Listing = {
   metadata: Record<string, unknown> | null; // input/output info, capped
   listingHash: string;                       // detects listing changes
   snapshot: ListingSnapshot;
+  demand: Demand | null;
+};
+
+/**
+ * Demand (Problem Finder step 1): CDP's own 30-day usage numbers for a listing.
+ * Real paying buyers are the strongest free signal that a service matters.
+ * Not part of the listing hash: they change daily, the listing doesn't.
+ */
+export type Demand = {
+  payers: number;                 // distinct paying wallets, last 30 days
+  calls: number;                  // paid calls, last 30 days
+  lastCalledAt: string | null;    // ISO
 };
 
 export type ListingError = { ok: false; reason: 'invalid_item' | 'not_http' | 'invalid_url'; resource?: string };
@@ -279,7 +294,24 @@ export function parseBazaarItem(item0: unknown): Listing | ListingError {
       extensions: capJson(item.extensions, MAX_SNAPSHOT_BYTES),
       itemBytes: Buffer.byteLength(JSON.stringify(raw)),
     },
+    demand: parseDemand(item.quality),
   };
+}
+
+const MAX_COUNT = 1_000_000_000;
+
+function count(v: unknown): number | null {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= MAX_COUNT ? v : null;
+}
+
+/** CDP `quality` → Demand, or null if absent or not the expected shape */
+export function parseDemand(q: unknown): Demand | null {
+  const r = asRecord(q);
+  if (!r) return null;
+  const payers = count(r.l30DaysUniquePayers);
+  const calls = count(r.l30DaysTotalCalls);
+  if (payers == null || calls == null) return null;
+  return { payers, calls, lastCalledAt: typeof r.lastCalledAt === 'string' ? isoOrNull(r.lastCalledAt) : null };
 }
 
 export function isListing(x: Listing | ListingError): x is Listing {

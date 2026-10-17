@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BazaarPageSchema, isListing, parseBazaarItem, stableStringify, type Listing } from './bazaar.ts';
+import { BazaarPageSchema, isListing, parseBazaarItem, parseDemand, stableStringify, type Listing } from './bazaar.ts';
 
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
@@ -164,4 +164,25 @@ test('NUL characters are removed everywhere (Postgres rejects them in text and j
   assert.ok(isListing(l));
   assert.ok(!JSON.stringify(l).includes('\\u0000'), 'no NUL anywhere in what Cori stores');
   assert.equal(l.description, 'badtext');
+});
+
+test('demand: CDP quality block parsed; malformed or missing → null, never rejects the listing', () => {
+  const base = {
+    resource: 'https://api.example.com/data', type: 'http', x402Version: 2, serviceName: 'Data', description: 'Market data for agents.',
+    accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '1000', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', payTo: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' }],
+  };
+  const l = parseBazaarItem({ ...base, quality: { l30DaysTotalCalls: 5882, l30DaysUniquePayers: 174, lastCalledAt: '2026-10-15T17:23:34.369Z' } });
+  assert.ok(isListing(l));
+  assert.deepEqual(l.demand, { payers: 174, calls: 5882, lastCalledAt: '2026-10-15T17:23:34.369Z' });
+
+  for (const q of [undefined, null, 'x', { l30DaysUniquePayers: -1, l30DaysTotalCalls: 2 }, { l30DaysUniquePayers: 1.5, l30DaysTotalCalls: 2 }, { l30DaysTotalCalls: 2 }]) {
+    const x = parseBazaarItem({ ...base, quality: q });
+    assert.ok(isListing(x), 'still a listing');
+    assert.equal(x.demand, null);
+  }
+  assert.equal(parseDemand({ l30DaysUniquePayers: 3, l30DaysTotalCalls: 4, lastCalledAt: 'nope' })!.lastCalledAt, null);
+
+  const without = parseBazaarItem(base);
+  assert.ok(isListing(without) && isListing(l));
+  assert.equal(without.listingHash, l.listingHash, 'usage numbers are not part of the listing hash');
 });
