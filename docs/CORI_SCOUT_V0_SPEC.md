@@ -560,3 +560,17 @@ Direction (founder, Oct 17): Cori should find real x402 problems CORTX can solve
   - Mutation-checked: both liveness tests fail on the old code.
   - Real Postgres (PG 16) as cori_agent: 030 twice (re-runnable), demand row + caches, cori_agent can't update or delete demand, schedule/mark liveness.
 - **Go-live order:** merge → run 030 as blocks (check row `1 | 4 | 3 | INSERT,SELECT`) → `deploy.sh` on the Cori server.
+
+## Fewer, better review cards (approved Oct 24, built)
+
+- **Why:** at 25 cards a day with nobody reviewing, 390 cards piled up by Oct 24, mostly companies without buyers. The admin page also loaded only the newest 100, so ranking by buyers couldn't see older strong cards.
+- **Cori changes:**
+  - New cards only for companies with **≥ 2 distinct paying wallets** in 30 days (CDP; `CORI_MIN_QUEUE_BUYERS`, default 2). Partners and the watch list are exempt.
+  - At most **5 a day** (`CORI_DAILY_QUEUE_CAP` default 5, was 25).
+  - Companies without buyers are still known, checked and kept in memory. They just don't make a card.
+- **Admin `/admin/cori`:**
+  - Loads every waiting card (up to 1000) and ranks all of them by buyers.
+  - Shows the first 30; the rest fold under "Show N more (fewer or no buyers)".
+  - The existing 390 cards are untouched.
+- **Tests:** 165 (164 pass, 1 DB-gated skip). New test: cards only for companies with ≥ 2 buyers (partner and watch list exempt; companies without buyers still checked); mutation-checked. Real-Postgres test passes; Next build OK.
+- **Go-live:** merge → `deploy.sh` on the Cori server. There's no migration. If `/etc/cori/cori.env` sets `CORI_DAILY_QUEUE_CAP=25`, remove that line.

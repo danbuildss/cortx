@@ -196,8 +196,9 @@ export interface Store {
   /** Q1: append the website check and update the company's current site state */
   recordSiteCheck(domain: string, check: SiteCheck, at: Date): Promise<void>;
   /** Q1/Q2: companies ready for review — website ok (or watched/partner), never queued, with a usable
-   *  service; `priorityDomains` (x402 ecosystem partners) first and exempt from the website check */
-  queueCompanies(limit: number, priorityDomains?: string[]): Promise<CompanyCandidate[]>;
+   *  service; `priorityDomains` (x402 ecosystem partners) first and exempt from the website check.
+   *  Oct 24: only companies with at least `minBuyers` paying wallets (30 d); partners / watch list exempt. */
+  queueCompanies(limit: number, priorityDomains?: string[], minBuyers?: number): Promise<CompanyCandidate[]>;
   /** Q2: schedule today's free check for every service of a company waiting for review or being watched
    *  (any class a free check can answer, too_expensive included). Runs before the probes. */
   scheduleLiveness(now: Date): Promise<number>;

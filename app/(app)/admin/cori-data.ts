@@ -99,7 +99,9 @@ export async function loadCoriOverview(service: SupabaseClient): Promise<CoriOve
     service.from('discovery_events').select('at, event, details, discovered_services(service_name, canonical_url)').order('at', { ascending: false }).limit(20),
     withDemandFallback((d) => service.from('endpoint_submissions')
       .select(`id, endpoint_url, name, description, submitted_at, candidate_metadata, discovered_companies(alive, last_alive_at, quiet_since${d})`)
-      .eq('source', 'cori_scout').eq('status', 'pending').order('submitted_at', { ascending: false }).limit(100)),
+      .eq('source', 'cori_scout').eq('status', 'pending').order('submitted_at', { ascending: false })
+      // All waiting cards (PostgREST max 1000), so ranking by buyers sees every one — not just the newest 100 (Oct 24: 390 waiting)
+      .limit(1000)),
     withDemandFallback((d) => service.from('discovered_companies')
       .select(`domain, name, approved_at, alive, last_alive_at, quiet_since${d}, endpoint_submissions(endpoint_url, candidate_metadata)`)
       .eq('watching', true).order('approved_at', { ascending: false }).limit(100)),

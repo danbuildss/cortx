@@ -32,7 +32,9 @@ const EnvSchema = z.object({
   CORI_DB_SSL: z.enum(['require', 'disable']).default('require'),
   CORI_DRY_RUN: bool.default(false),
   CORI_MAX_ELIGIBLE_PRICE_USDC: z.coerce.number().positive().default(0.05),
-  CORI_DAILY_QUEUE_CAP: z.coerce.number().int().min(0).default(25),
+  // Oct 24: 25/day piled up 390 unreviewed cards; 5 a day, only companies with real buyers
+  CORI_DAILY_QUEUE_CAP: z.coerce.number().int().min(0).default(5),
+  CORI_MIN_QUEUE_BUYERS: z.coerce.number().int().min(0).default(2),
   CORI_PROBE_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
   CORI_PROBE_BATCH: z.coerce.number().int().min(1).default(200),
   CORI_PER_HOST_MIN_INTERVAL_MS: z.coerce.number().int().min(0).default(2000),
@@ -58,6 +60,8 @@ export type CoriConfig = {
   dryRun: boolean;
   maxEligiblePriceUsdc: number;
   dailyQueueCap: number;
+  /** A review card needs at least this many distinct paying wallets (30 d, CDP); partners / watch list exempt */
+  minQueueBuyers: number;
   probeConcurrency: number;
   probeBatch: number;
   perHostMinIntervalMs: number;
@@ -86,6 +90,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoriConfig {
     dryRun: e.CORI_DRY_RUN,
     maxEligiblePriceUsdc: e.CORI_MAX_ELIGIBLE_PRICE_USDC,
     dailyQueueCap: e.CORI_DAILY_QUEUE_CAP,
+    minQueueBuyers: e.CORI_MIN_QUEUE_BUYERS,
     probeConcurrency: e.CORI_PROBE_CONCURRENCY,
     probeBatch: e.CORI_PROBE_BATCH,
     perHostMinIntervalMs: e.CORI_PER_HOST_MIN_INTERVAL_MS,

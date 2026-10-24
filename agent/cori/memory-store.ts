@@ -254,12 +254,13 @@ export class MemoryStore implements Store {
     if (c) Object.assign(c, { site_checked_at: at, site_ok: check.ok, site_status: check.http_status, site_failures: check.ok ? 0 : c.site_failures + 1 });
   }
 
-  async queueCompanies(limit: number, priorityDomains: string[] = []) {
+  async queueCompanies(limit: number, priorityDomains: string[] = [], minBuyers = 0) {
     const rank = (r: ServiceRow) => (r.classification === 'eligible' ? 0 : 1);
     const priority = new Set(priorityDomains);
     const out: CompanyCandidate[] = [];
     const companies = [...this.companies.values()]
       .filter((c) => c.linked_submission_id == null && (c.site_ok === true || this.watchlist.has(c.domain) || priority.has(c.domain)))
+      .filter((c) => minBuyers === 0 || (c.demand_payers ?? 0) >= minBuyers || this.watchlist.has(c.domain) || priority.has(c.domain))
       .sort((a, b) => Number(priority.has(b.domain)) - Number(priority.has(a.domain))
         || Number(this.watchlist.has(b.domain)) - Number(this.watchlist.has(a.domain))
         || (b.demand_payers ?? -1) - (a.demand_payers ?? -1)
