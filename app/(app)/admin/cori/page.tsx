@@ -8,6 +8,9 @@ import { CoriActivity, CoriErrors, CoriKnows, CoriStatusCard, coriCard, coriLabe
 import { CoriCandidateCard } from '../cori-candidate';
 import { CoriKnownProjects, CoriWatching } from '../cori-watching';
 
+// Cards are ranked by real buyers; the first ones are shown, the rest fold away
+const SHOW_FIRST = 30;
+
 const ADMIN_USER_ID = process.env.CORTX_ADMIN_USER_ID ?? '';
 
 export default async function CoriPage() {
@@ -47,7 +50,26 @@ export default async function CoriPage() {
               <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
                 Nothing to review. New finds show up here.
               </div>
-            ) : candidates.map((c, i) => <CoriCandidateCard key={c.id} c={c} last={i === candidates.length - 1} />)}
+            ) : (
+              <>
+                <div style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-dim)', borderBottom: '1px solid var(--border-subtle)' }}>
+                  Most real buyers first (Coinbase Bazaar, last 30 days).
+                </div>
+                {candidates.slice(0, SHOW_FIRST).map((c, i) => (
+                  <CoriCandidateCard key={c.id} c={c} last={i === Math.min(candidates.length, SHOW_FIRST) - 1 && candidates.length <= SHOW_FIRST} />
+                ))}
+                {candidates.length > SHOW_FIRST && (
+                  <details>
+                    <summary style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', borderTop: '1px solid var(--border-subtle)' }}>
+                      Show {candidates.length - SHOW_FIRST} more (fewer or no buyers)
+                    </summary>
+                    {candidates.slice(SHOW_FIRST).map((c, i) => (
+                      <CoriCandidateCard key={c.id} c={c} last={i === candidates.length - SHOW_FIRST - 1} />
+                    ))}
+                  </details>
+                )}
+              </>
+            )}
             {quietCandidates > 0 && (
               <div style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-dim)', borderTop: '1px solid var(--border-subtle)' }}>
                 {quietCandidates} more hidden: they stopped answering. They come back if they start answering again.

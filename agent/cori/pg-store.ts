@@ -292,7 +292,7 @@ export class PgStore implements Store {
       where domain = ${domain}`;
   }
 
-  async queueCompanies(limit: number, priorityDomains: string[] = []) {
+  async queueCompanies(limit: number, priorityDomains: string[] = [], minBuyers = 0) {
     const priority = this.sql.array(priorityDomains, 25 /* text */);
     const companies = await this.sql`
       select c.domain, c.name, c.first_seen_at, c.site_ok, c.site_status, (w.domain is not null) as watched,
@@ -301,6 +301,8 @@ export class PgStore implements Store {
       left join public.cori_watchlist w on lower(w.domain) = c.domain
       where c.linked_submission_id is null
         and (c.site_ok = true or w.domain is not null or c.domain = any(${priority}::text[]))
+        and (${minBuyers} = 0 or coalesce(c.demand_payers, 0) >= ${minBuyers}
+             or w.domain is not null or c.domain = any(${priority}::text[]))
         and exists (
           select 1 from public.discovered_services s
           where s.company_domain = c.domain and s.classification in ('eligible', 'needs_input')

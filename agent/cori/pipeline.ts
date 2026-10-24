@@ -603,7 +603,7 @@ export async function queueEligible(d: Deps): Promise<QueueStats> {
   const idx = buildLinkIndex(await store.loadKnown());
   // Q2: x402 ecosystem partners first; only services whose free check passed in the last 24 h
   const isFresh = (r: ServiceRow) => r.last_probe?.outcome === 'ok' && r.last_probe_at != null && at.getTime() - r.last_probe_at.getTime() <= FRESH_CHECK_MS;
-  for (const c of await store.queueCompanies(remaining * 4, PARTNER_DOMAINS)) {
+  for (const c of await store.queueCompanies(remaining * 4, PARTNER_DOMAINS, config.minQueueBuyers)) {
     if (stats.queued >= remaining) break;
     let best: ServiceRow | null = null;
     let stale: ServiceRow | null = null;

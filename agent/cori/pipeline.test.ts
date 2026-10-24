@@ -33,7 +33,7 @@ function setup(overrides: { cap?: number; globalMaxPerHour?: number } = {}) {
     // Most fake services share one host; the B3 per-host limits get their own tests
     config: defaultConfig({
       dailyQueueCap: overrides.cap ?? 25, bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port],
-      probePerHostPerBatch: 100, queuePerHostPerDay: 100, probeRecheckHours: 24, maxServicesPerCompany: 100,
+      probePerHostPerBatch: 100, queuePerHostPerDay: 100, minQueueBuyers: 0, probeRecheckHours: 24, maxServicesPerCompany: 100,
     }),
     log: silentLogger,
     limiter: new HostLimiter(0, 1000, { globalMaxPerHour: overrides.globalMaxPerHour }),
@@ -768,4 +768,24 @@ test('demand never changes the listing hash: no new listing versions when only u
   assert.equal(s.discovery.cdp_bazaar.new_listing_versions, 0);
   assert.equal(s.discovery.cdp_bazaar.demand_recorded, 1);
   assert.equal(store.listings.length, 1);
+});
+
+test('review cards only for companies with real buyers (≥ 2 payers); partners and the watch list exempt', async () => {
+  // Oct 24: 25 cards a day, mostly without buyers, piled up to 390 unreviewed
+  const { store, deps } = setup();
+  deps.config = { ...deps.config, minQueueBuyers: 2 };
+  withHosts(deps, ['busy.test', 'lonely.test', 'nodata.test', 'api.firecrawl.dev', 'mine.test']);
+  store.watchlist.add('mine.test');
+  eco.items = [
+    withDemand('busy.test', 12, 300),
+    withDemand('lonely.test', 1, 4),                       // one payer: usually the seller's own test
+    item('nodata.test'),                                   // no CDP numbers at all
+    item('api.firecrawl.dev', { resource: eco.url('api.firecrawl.dev', '/svc/v2-get') }), // partner
+    item('mine.test'),                                     // on the watch list
+  ];
+  await runCycle(deps, { forceSources: true, maxProbeBatches: 5 });
+  const carded = store.submissions.map((x) => x.website_url).sort();
+  assert.deepEqual(carded, ['https://busy.test', 'https://firecrawl.dev', 'https://mine.test']);
+  assert.ok(store.companies.get('lonely.test'), 'companies without buyers are still known and checked');
+  assert.ok(svcRowByHost(store, 'lonely.test').last_probe_at);
 });

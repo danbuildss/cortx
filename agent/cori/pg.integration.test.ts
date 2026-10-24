@@ -91,7 +91,7 @@ test('Scout runs end to end as cori_agent on real Postgres', { skip: !ADMIN_URL 
     store: new PgStore(cori, { version: 'it-version' }),
     config: defaultConfig({
       bazaarPageLimit: 5, perHostMinIntervalMs: 0, allowedPorts: [eco.port], version: 'it-version',
-      probePerHostPerBatch: 100, queuePerHostPerDay: 100, maxServicesPerCompany: 100,
+      probePerHostPerBatch: 100, queuePerHostPerDay: 100, minQueueBuyers: 0, maxServicesPerCompany: 100,
     }),
     log: silentLogger,
     limiter: new HostLimiter(0, 1000),
